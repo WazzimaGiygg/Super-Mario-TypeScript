@@ -1,0 +1,6 @@
+{
+  "name": "Super Mario Bros TypeScript Canvas",
+  "description": "Recriação completa do clássico Super Mario Bros do NES em TypeScript com renderização em HTML5 Canvas de alto desempenho, física autêntica, áudio chiptune 8-bit sintetizado e controles retrô.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
