@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
     font-family: 'Outfit', system-ui, -apple-system, sans-serif;
     touch-action: manipulation;
     -webkit-touch-callout: none;

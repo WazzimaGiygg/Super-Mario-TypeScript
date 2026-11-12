@@ -56,8 +56,8 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   };
 
   return (
-    <div className="w-full bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b-2 border-stone-800 shadow-xl px-2 sm:px-6 py-2.5">
-      <div className="max-w-5xl mx-auto flex flex-col gap-2">
+    <div className="w-full bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b border-stone-800/80 shadow-lg px-2 sm:px-6 py-1.5 sm:py-2.5">
+      <div className="max-w-5xl mx-auto flex flex-col gap-1.5 sm:gap-2">
         {/* Main Scoreboard Row */}
         <div className="grid grid-cols-3 sm:grid-cols-5 items-center text-center gap-2 sm:gap-4">
           {/* 1. Mario Score (Pontuação) */}
@@ -127,8 +127,8 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
           </div>
         </div>
 
-        {/* Second Row: Detailed Lives & Placar Quick Actions */}
-        <div className="flex items-center justify-between bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 text-[10px] sm:text-xs">
+        {/* Second Row: Detailed Lives & Placar Quick Actions (hidden on mobile to preserve vertical space for game controls) */}
+        <div className="hidden sm:flex items-center justify-between bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 text-[10px] sm:text-xs">
           {/* Quantidade de Vidas (Highlighted Lives Tracker) */}
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 text-stone-200">

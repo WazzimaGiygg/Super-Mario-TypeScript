@@ -427,7 +427,7 @@ export function createWorld1_2(): LevelData {
     tiles: grid,
     enemies,
     coins,
-    marioStart: { x: 48, y: 64 },
+    marioStart: { x: 64, y: 192 },
     flagX: 171 * 16,
     castleX: 176 * 16,
     bgColor: '#000000',

@@ -378,8 +378,8 @@ export const GameCanvas: React.FC = () => {
       {/* Main Arcade Frame / TV Screen Bezel */}
       <div className="relative flex-1 w-full flex items-center justify-center p-2 sm:p-4 overflow-auto">
         <div
-          className={`relative bg-black rounded-lg sm:rounded-2xl border-4 sm:border-8 border-stone-800 shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-200 ${
-            resolutionScale === 'fit' ? 'w-full max-w-4xl aspect-[4/3] max-h-[75vh]' : ''
+          className={`relative bg-black rounded-lg sm:rounded-2xl border-2 sm:border-8 border-stone-800 shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-200 ${
+            resolutionScale === 'fit' ? 'w-full max-w-4xl aspect-[4/3] max-h-[46vh] sm:max-h-[68vh] md:max-h-[75vh]' : ''
           }`}
           style={
             resolutionScale !== 'fit'
@@ -578,8 +578,8 @@ export const GameCanvas: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Bottom Toolbar (Audio, Settings, Fullscreen) */}
-      <div className="w-full max-w-4xl px-4 py-2 flex items-center justify-between text-stone-400 text-xs">
+      {/* Floating Bottom Toolbar (Audio, Settings, Fullscreen - for desktop/tablet) */}
+      <div className="hidden sm:flex w-full max-w-4xl px-4 py-2 items-center justify-between text-stone-400 text-xs">
         <div className="flex items-center gap-2">
           {/* Mute SFX button */}
           <button
@@ -694,7 +694,19 @@ export const GameCanvas: React.FC = () => {
       </div>
 
       {/* On-Screen Touch Controls (For mobile / touch devices) */}
-      <TouchControls controls={controls} onControlChange={handleControlChange} />
+      <TouchControls
+        controls={controls}
+        onControlChange={handleControlChange}
+        isPaused={isPaused}
+        onTogglePause={() => {
+          engineRef.current?.togglePause();
+          setIsPaused(prev => !prev);
+        }}
+        isMuted={soundStatus.muted}
+        onToggleMute={toggleMute}
+        onRestart={handleRestart}
+        onToggleFullscreen={toggleFullscreen}
+      />
 
       {/* Settings Modal */}
       <SettingsModal
@@ -750,6 +762,12 @@ export const GameCanvas: React.FC = () => {
           engineRef.current?.addCheatScore(pts);
           setStats({ ...engineRef.current!.stats });
         }}
+      />
+
+      {/* Multiplayer por IP Modal (WazzimaGiygg / Mario) */}
+      <MultiplayerModal
+        isOpen={isMultiplayerOpen}
+        onClose={() => setIsMultiplayerOpen(false)}
       />
 
       {/* Cheat Toast Notification */}

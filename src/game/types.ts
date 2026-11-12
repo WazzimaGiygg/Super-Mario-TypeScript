@@ -14,6 +14,7 @@ export type MarioState =
   | 'crouching'
   | 'pole_slide' 
   | 'castle_walk' 
+  | 'castle_entered'
   | 'pipe_entering' 
   | 'pipe_exiting' 
   | 'tail_whip'

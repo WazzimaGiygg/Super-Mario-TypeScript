@@ -79,10 +79,13 @@ export class GameEngine {
   public pipeClipLipY: number | null = null;
   public pipeClipLipX: number | null = null;
 
-  // Flagpole State
+  // Flagpole & Stage Clear State
   public poleSlideY: number = 0;
   public flagY: number = 0;
   public castleWalkTargetX: number = 0;
+  public stageClearTallyDelay: number = 0;
+  public stageClearDelayTimer: number = 0;
+  public timeCountTickCounter: number = 0;
 
   // Intermission Screen (Classic NES World & Lives screen)
   public intermissionTimer: number = 0;
@@ -147,6 +150,9 @@ export class GameEngine {
     this.isStageClear = false;
     this.isGameOver = false;
     this.intermissionTimer = showIntermission ? 85 : 0;
+    this.stageClearTallyDelay = 0;
+    this.stageClearDelayTimer = 0;
+    this.timeCountTickCounter = 0;
 
     if (!isRespawn) {
       // Fresh stage entry: clear checkpoints and start at initial position
@@ -154,7 +160,7 @@ export class GameEngine {
       this.activatedCheckpointIndices.clear();
       this.cameraX = 0;
       this.marioX = newLevel.marioStart.x;
-      this.marioY = newLevel.marioStart.y;
+      this.marioY = newLevel.marioStart.y - (this.getMarioHeight() - 16);
     } else {
       // Respawn after death: strip power-ups (always return as Small Mario)
       this.marioPower = 'small';
@@ -405,10 +411,11 @@ export class GameEngine {
         this.marioY += 2.5;
         this.flagY = Math.min(bottomY + 8, this.flagY + 2.5);
       } else {
-        // Drop off pole, start walking towards castle
+        // Drop off pole base block firmly down onto the real ground level (row 13)
         this.marioState = 'castle_walk';
         this.marioFacing = 'right';
-        this.marioX += 16;
+        this.marioX = (Math.floor(this.level.flagX / GameEngine.TILE_SIZE) + 1) * GameEngine.TILE_SIZE;
+        this.marioY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
         this.sound.playStageClear();
       }
       return;
@@ -416,6 +423,8 @@ export class GameEngine {
 
     // 6. Castle walk animation
     if (this.marioState === 'castle_walk') {
+      // Anchored firmly to the ground row 13 floor - eliminates mid-air hovering completely!
+      this.marioY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
       this.marioX += 1.2;
       this.marioAnimTimer++;
       if (this.marioAnimTimer >= 6) {
@@ -426,6 +435,49 @@ export class GameEngine {
       // Enter castle door
       if (this.marioX >= this.level.castleX) {
         this.finishStage();
+      }
+      return;
+    }
+
+    // 7. Castle entered & stage clear time tally countdown sequence
+    if (this.marioState === 'castle_entered') {
+      if (this.stageClearTallyDelay > 0) {
+        this.stageClearTallyDelay--;
+        return;
+      }
+
+      if (this.stats.time > 0) {
+        // Tally remaining time into score points (+50 points per second)
+        const step = this.stats.time > 200 ? 3 : this.stats.time > 60 ? 2 : 1;
+        const dec = Math.min(this.stats.time, step);
+        this.stats.time -= dec;
+        this.stats.score += dec * 50;
+        if (!this.isCheatActive && this.stats.score > this.stats.highScore) {
+          this.stats.highScore = this.stats.score;
+        }
+
+        this.timeCountTickCounter++;
+        if (this.timeCountTickCounter % 2 === 0 || dec > 1) {
+          this.sound.playCountTick();
+        }
+
+        // Establish post-countdown delay once time points reach 0
+        if (this.stats.time === 0) {
+          this.stageClearDelayTimer = 90; // ~1.5 seconds post-tally delay to admire final score
+        }
+        return;
+      } else {
+        if (this.stageClearDelayTimer === 0) {
+          this.stageClearDelayTimer = 60;
+        }
+      }
+
+      // Post-countdown delay before advancing to next level
+      if (this.stageClearDelayTimer > 0) {
+        this.stageClearDelayTimer--;
+        if (this.stageClearDelayTimer === 0) {
+          this.advanceToNextLevel();
+        }
       }
       return;
     }
@@ -902,7 +954,7 @@ export class GameEngine {
     });
   }
 
-  private createBrickDebris(x: number, y: number) {
+  public createBrickDebris(x: number, y: number) {
     const velocities = [
       { vx: -2.2, vy: -5.2, rot: -0.16 },
       { vx: 2.2, vy: -5.2, rot: 0.16 },
@@ -1146,7 +1198,7 @@ export class GameEngine {
   }
 
   private damageMario() {
-    if (this.marioInvulnerableTimer > 0 || this.marioState === 'dead') return;
+    if (this.marioInvulnerableTimer > 0 || this.marioState === 'dead' || this.isStageClear || this.marioState === 'pole_slide' || this.marioState === 'castle_walk' || this.marioState === 'castle_entered') return;
 
     // Tanooki statue is completely immune to normal enemy damage
     if (this.isStatue) return;
@@ -1762,7 +1814,7 @@ export class GameEngine {
   }
 
   private checkFlagpoleCollision() {
-    if (this.isStageClear || this.marioState === 'pole_slide' || this.marioState === 'castle_walk') return;
+    if (this.isStageClear || this.marioState === 'pole_slide' || this.marioState === 'castle_walk' || this.marioState === 'castle_entered') return;
 
     if (this.marioX >= this.level.flagX - 6 && this.marioX <= this.level.flagX + 8) {
       // Grab the flagpole!
@@ -1780,19 +1832,12 @@ export class GameEngine {
   }
 
   private finishStage() {
+    if (this.marioState === 'castle_entered') return;
     this.isStageClear = true;
-    // Countdown remaining time to score
-    const countdown = setInterval(() => {
-      if (this.stats.time > 0) {
-        this.stats.time--;
-        this.stats.score += 50;
-      } else {
-        clearInterval(countdown);
-        setTimeout(() => {
-          this.advanceToNextLevel();
-        }, 1200);
-      }
-    }, 15);
+    this.marioState = 'castle_entered';
+    this.stageClearTallyDelay = 40;
+    this.stageClearDelayTimer = 0;
+    this.timeCountTickCounter = 0;
   }
 
   public advanceToNextLevel() {
@@ -2259,6 +2304,11 @@ export class GameEngine {
   }
 
   private renderMario(ctx: CanvasRenderingContext2D) {
+    // Mario has entered the castle door - hidden from view inside
+    if (this.marioState === 'castle_entered') {
+      return;
+    }
+
     // Blinking during invulnerability
     if (this.marioInvulnerableTimer > 0 && Math.floor(this.marioInvulnerableTimer / 4) % 2 === 0) {
       return;
@@ -2377,6 +2427,7 @@ export class GameEngine {
     this.remotePlayers.forEach(rp => {
       // Discard stale players (no updates in 6 seconds)
       if (Date.now() - rp.lastUpdated > 6000) return;
+      if (rp.state === 'castle_entered') return;
 
       const px = rp.x - this.cameraX;
       if (px < -32 || px > GameEngine.NES_WIDTH + 32) return;
