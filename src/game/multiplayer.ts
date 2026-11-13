@@ -75,6 +75,7 @@ export class MultiplayerClient {
   private joinedAtMs: number = 0;
   private isApplyingRemoteLevel: boolean = false;
   private currentRoomSeed: number = 1001;
+  private currentMatchGeneration: number = 1;
 
   // Dirty-checking state for quota-friendly Firestore sync
   private lastSyncedPayload: {
@@ -88,10 +89,12 @@ export class MultiplayerClient {
     score: number;
     lives: number;
     coins: number;
+    stageCleared: boolean;
     character: string;
     sentAt: number;
   } | null = null;
   private syncWriteInFlight: boolean = false;
+  private pendingImmediateSync: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -126,15 +129,30 @@ export class MultiplayerClient {
           this.disconnect();
         }
       }
+      this.syncEngineFlags();
       this.notify();
     });
   }
 
+  private syncEngineFlags() {
+    if (!this.engine) return;
+    this.engine.playerCharacter = this.character;
+    this.engine.localPlayerId = this.playerId;
+    this.engine.localPlayerName = this.playerName || this.authUser?.displayName || 'Jogador';
+    this.engine.localPlayerPhotoUrl = this.authUser?.photoUrl || '';
+    this.engine.isMultiplayerConnected = this.connected;
+    this.engine.isMultiplayerHost = this.transport === 'firebase' ? this.isHost : true;
+    this.engine.isMultiplayerFirebase = this.transport === 'firebase';
+  }
+
   public setEngine(engine: GameEngine) {
     this.engine = engine;
-    this.engine.playerCharacter = this.character;
+    this.syncEngineFlags();
     this.engine.onLevelChanged = (level: LevelData) => {
       this.handleLocalLevelChanged(level);
+    };
+    this.engine.onMultiplayerSyncNeeded = () => {
+      this.syncNow();
     };
   }
 
@@ -204,6 +222,7 @@ export class MultiplayerClient {
     } else if (options.character !== undefined && !this.authUser) {
       this.playerName = options.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario';
     }
+    this.syncEngineFlags();
     this.notify();
   }
 
@@ -331,12 +350,18 @@ export class MultiplayerClient {
           } else {
             this.connecting = false;
             this.error = `A sala "${this.roomId}" foi encerrada pelo anfitrião. Escolha outro código ou crie uma nova sala.`;
+            this.syncEngineFlags();
             this.notify();
             return;
           }
         } else {
           this.isHost = roomData.hostUid === this.authUser.uid;
           this.currentRoomSeed = roomData.seed || 1001;
+          this.currentMatchGeneration = roomData.matchGeneration || 1;
+          // Ensure joining player never enters with stale 0 lives or leftover match-over state
+          if (this.engine && (this.engine.stats.lives <= 0 || this.engine.isMultiplayerMatchOver)) {
+            this.engine.restartMultiplayerMatch(undefined, false);
+          }
           // Sync guest to host's active level
           if (!this.isHost && this.engine) {
             this.applyRemoteRoomLevel(roomData.levelId, roomData.endlessStage || 0, this.currentRoomSeed);
@@ -344,6 +369,10 @@ export class MultiplayerClient {
         }
       } else {
         await this.createNewFirebaseRoom(roomRef, roomPath, initialLevelId, initialEndlessStage);
+      }
+
+      if (this.engine && (this.engine.stats.lives <= 0 || this.engine.isMultiplayerMatchOver)) {
+        this.engine.restartMultiplayerMatch(undefined, false);
       }
 
       // Register local player document
@@ -360,6 +389,7 @@ export class MultiplayerClient {
       this.lastSyncedPayload = null;
       this.connected = true;
       this.connecting = false;
+      this.syncEngineFlags();
 
       this.attachFirebaseRoomListeners();
       this.startFirebaseSyncLoop();
@@ -368,6 +398,7 @@ export class MultiplayerClient {
       this.connecting = false;
       this.connected = false;
       this.error = err?.message || 'Falha ao conectar na sala do Firebase.';
+      this.syncEngineFlags();
       this.notify();
     }
   }
@@ -381,6 +412,7 @@ export class MultiplayerClient {
     if (!this.authUser) return;
     this.isHost = true;
     this.currentRoomSeed = Math.floor(Date.now() % 10000000);
+    this.currentMatchGeneration = 1;
     try {
       await setDoc(roomRef, {
         roomId: this.roomId,
@@ -389,6 +421,7 @@ export class MultiplayerClient {
         levelId: levelId.slice(0, 64),
         endlessStage: clamp(endlessStage, 0, 9999),
         seed: this.currentRoomSeed,
+        matchGeneration: 1,
         status: 'playing',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -405,7 +438,7 @@ export class MultiplayerClient {
     const myUid = this.authUser.uid;
     const roomId = this.roomId;
 
-    // 1. Room state listener (status & level sync)
+    // 1. Room state listener (status, level sync & rematch generation)
     const roomPath = `rooms/${roomId}`;
     const unsubRoom = onSnapshot(
       doc(db, 'rooms', roomId),
@@ -424,7 +457,23 @@ export class MultiplayerClient {
           return;
         }
         this.isHost = data.hostUid === myUid;
-        if (!this.isHost && this.engine && data.levelId) {
+        this.syncEngineFlags();
+
+        const incomingGen = typeof data.matchGeneration === 'number' ? data.matchGeneration : 1;
+        if (incomingGen > this.currentMatchGeneration) {
+          this.currentMatchGeneration = incomingGen;
+          if (this.engine && !this.isHost) {
+            const targetLevel = this.buildLevelFromRoomData(
+              data.levelId || 'world-1-1',
+              data.endlessStage || 0,
+              data.seed || 1001
+            );
+            this.isApplyingRemoteLevel = true;
+            this.engine.restartMultiplayerMatch(targetLevel, false);
+            this.isApplyingRemoteLevel = false;
+            this.syncNow();
+          }
+        } else if (!this.isHost && this.engine && data.levelId) {
           this.applyRemoteRoomLevel(data.levelId, data.endlessStage || 0, data.seed || 1001);
         }
       },
@@ -474,6 +523,7 @@ export class MultiplayerClient {
             score: typeof d.score === 'number' ? d.score : 0,
             lives: typeof d.lives === 'number' ? d.lives : 3,
             coins: typeof d.coins === 'number' ? d.coins : 0,
+            stageCleared: Boolean(d.stageCleared),
             lastUpdated: Date.now(),
           };
 
@@ -489,6 +539,7 @@ export class MultiplayerClient {
             this.engine.remotePlayers.delete(existingId);
           }
         }
+        this.engine.evaluateMultiplayerMatchEnd();
         this.notify();
       },
       (error) => {
@@ -595,19 +646,33 @@ export class MultiplayerClient {
       score: Math.max(0, Math.floor(e?.stats.score ?? 0)),
       lives: clamp(Math.floor(e?.stats.lives ?? 3), 0, 999),
       coins: clamp(Math.floor(e?.stats.coins ?? 0), 0, 999),
+      stageCleared: Boolean(e?.localStageCleared),
       updatedAt: serverTimestamp(),
     };
+  }
+
+  public syncNow() {
+    if (!this.connected) return;
+    if (this.transport === 'firebase') {
+      if (this.syncWriteInFlight) {
+        this.pendingImmediateSync = true;
+      } else {
+        this.syncLocalPlayerToFirestore(true);
+      }
+    } else {
+      this.sendWsLocalPlayerUpdate();
+    }
   }
 
   private startFirebaseSyncLoop() {
     this.stopSyncLoop();
     // Adaptive sync ~7Hz when moving, heartbeat every 4.5s when idle
     this.sendInterval = setInterval(() => {
-      this.syncLocalPlayerToFirestore();
+      this.syncLocalPlayerToFirestore(false);
     }, 140);
   }
 
-  private async syncLocalPlayerToFirestore() {
+  private async syncLocalPlayerToFirestore(force: boolean = false) {
     if (!this.engine || !this.connected || !this.authUser || this.syncWriteInFlight) return;
 
     const payload = this.buildPlayerDocPayload();
@@ -615,6 +680,7 @@ export class MultiplayerClient {
     const prev = this.lastSyncedPayload;
 
     const moved =
+      force ||
       !prev ||
       Math.abs(payload.x - prev.x) >= 1.5 ||
       Math.abs(payload.y - prev.y) >= 1.5 ||
@@ -625,6 +691,7 @@ export class MultiplayerClient {
       payload.score !== prev.score ||
       payload.lives !== prev.lives ||
       payload.coins !== prev.coins ||
+      payload.stageCleared !== prev.stageCleared ||
       now - prev.sentAt > 4500;
 
     if (!moved) return;
@@ -654,6 +721,7 @@ export class MultiplayerClient {
         score: payload.score,
         lives: payload.lives,
         coins: payload.coins,
+        stageCleared: payload.stageCleared,
         updatedAt: serverTimestamp(),
       });
       this.ping = Math.round(performance.now() - t0);
@@ -668,6 +736,7 @@ export class MultiplayerClient {
         score: payload.score,
         lives: payload.lives,
         coins: payload.coins,
+        stageCleared: payload.stageCleared,
         character: payload.character,
         sentAt: now,
       };
@@ -679,6 +748,10 @@ export class MultiplayerClient {
       }
     } finally {
       this.syncWriteInFlight = false;
+      if (this.pendingImmediateSync) {
+        this.pendingImmediateSync = false;
+        this.syncLocalPlayerToFirestore(true);
+      }
     }
   }
 
@@ -697,6 +770,7 @@ export class MultiplayerClient {
     if (this.engine) {
       this.engine.remotePlayers.clear();
     }
+    this.syncEngineFlags();
     this.notify();
 
     if (wasConnected && uid) {
@@ -730,12 +804,23 @@ export class MultiplayerClient {
         levelId: level.id.slice(0, 64),
         endlessStage: clamp(level.endlessStage || 0, 0, 9999),
         seed: newSeed,
+        matchGeneration: this.currentMatchGeneration,
         status: 'playing',
         updatedAt: serverTimestamp(),
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, roomPath);
     }
+  }
+
+  private buildLevelFromRoomData(levelId: string, endlessStage: number, seed: number): LevelData {
+    if (levelId.startsWith('endless-') && endlessStage > 0) {
+      return createEndlessLevel(seed, endlessStage);
+    }
+    if (levelId === 'world-1-2') {
+      return createWorld1_2();
+    }
+    return createWorld1_1();
   }
 
   private applyRemoteRoomLevel(levelId: string, endlessStage: number, seed: number) {
@@ -746,16 +831,58 @@ export class MultiplayerClient {
     if (levelId.startsWith('endless-') && endlessStage > 0) {
       if (currentStage === endlessStage && currentId?.startsWith('endless-')) return;
       this.isApplyingRemoteLevel = true;
-      this.engine.loadLevel(createEndlessLevel(seed, endlessStage), true, false);
+      this.engine.loadLevel(createEndlessLevel(seed, endlessStage), true, false, false);
       this.isApplyingRemoteLevel = false;
+      this.syncNow();
     } else if (levelId === 'world-1-2' && currentId !== 'world-1-2') {
       this.isApplyingRemoteLevel = true;
-      this.engine.loadLevel(createWorld1_2(), true, false);
+      this.engine.loadLevel(createWorld1_2(), true, false, false);
       this.isApplyingRemoteLevel = false;
+      this.syncNow();
     } else if (levelId === 'world-1-1' && currentId !== 'world-1-1') {
       this.isApplyingRemoteLevel = true;
-      this.engine.loadLevel(createWorld1_1(), true, false);
+      this.engine.loadLevel(createWorld1_1(), true, false, false);
       this.isApplyingRemoteLevel = false;
+      this.syncNow();
+    }
+  }
+
+  public async startMultiplayerRematch() {
+    if (!this.engine) return;
+    if (!this.connected) {
+      this.engine.restartGame();
+      return;
+    }
+
+    if (this.transport === 'websocket') {
+      this.engine.restartMultiplayerMatch(createWorld1_1(), false);
+      this.broadcastWorldEvent('level_change', { x: 0, y: 0, meta: 'rematch' });
+      return;
+    }
+
+    if (!this.isHost || !this.authUser) return;
+    const nextGen = this.currentMatchGeneration + 1;
+    this.currentMatchGeneration = nextGen;
+    const newSeed = Math.floor(Date.now() % 10000000);
+    this.currentRoomSeed = newSeed;
+
+    this.isApplyingRemoteLevel = true;
+    this.engine.restartMultiplayerMatch(createWorld1_1(), false);
+    this.isApplyingRemoteLevel = false;
+    this.syncNow();
+
+    const roomPath = `rooms/${this.roomId}`;
+    try {
+      await updateDoc(doc(db, 'rooms', this.roomId), {
+        levelId: 'world-1-1',
+        endlessStage: 0,
+        seed: newSeed,
+        matchGeneration: nextGen,
+        status: 'playing',
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, roomPath);
     }
   }
 
@@ -790,6 +917,10 @@ export class MultiplayerClient {
         this.connected = true;
         this.connecting = false;
         this.error = null;
+        if (this.engine && (this.engine.stats.lives <= 0 || this.engine.isMultiplayerMatchOver)) {
+          this.engine.restartMultiplayerMatch(undefined, false);
+        }
+        this.syncEngineFlags();
 
         this.sendWs({
           type: 'join',
@@ -817,6 +948,7 @@ export class MultiplayerClient {
       this.ws.onerror = () => {
         this.error = 'Não foi possível conectar ao servidor IP. Verifique o endereço ou use o Multiplayer Firebase com Login Google.';
         this.connecting = false;
+        this.syncEngineFlags();
         this.notify();
       };
 
@@ -827,12 +959,14 @@ export class MultiplayerClient {
         if (this.engine) {
           this.engine.remotePlayers.clear();
         }
+        this.syncEngineFlags();
         this.notify();
       };
     } catch (e: any) {
       this.connecting = false;
       this.connected = false;
       this.error = e?.message || 'Erro ao inicializar conexão WebSocket';
+      this.syncEngineFlags();
       this.notify();
     }
   }
@@ -848,6 +982,7 @@ export class MultiplayerClient {
     if (this.engine) {
       this.engine.remotePlayers.clear();
     }
+    this.syncEngineFlags();
     this.notify();
   }
 
@@ -893,6 +1028,7 @@ export class MultiplayerClient {
       score: this.engine.stats.score,
       lives: this.engine.stats.lives,
       coins: this.engine.stats.coins,
+      stageCleared: this.engine.localStageCleared,
     };
 
     this.sendWs({
@@ -925,11 +1061,13 @@ export class MultiplayerClient {
         const remoteState: RemotePlayerState = {
           ...payload,
           id: senderId,
+          stageCleared: Boolean(payload.stageCleared),
           renderX: prev?.renderX,
           renderY: prev?.renderY,
           lastUpdated: Date.now(),
         };
         this.engine.remotePlayers.set(senderId, remoteState);
+        this.engine.evaluateMultiplayerMatchEnd();
       }
     } else if (type === 'world_event') {
       if (this.engine && payload) {
@@ -940,6 +1078,8 @@ export class MultiplayerClient {
           this.engine.spawnCoinParticles(data.x, data.y);
         } else if (eventType === 'brick_break' && data) {
           this.engine.createBrickDebris(data.x, data.y);
+        } else if (eventType === 'level_change' && data?.meta === 'rematch') {
+          this.engine.restartMultiplayerMatch(createWorld1_1(), false);
         }
       }
     } else if (type === 'chat' && payload) {

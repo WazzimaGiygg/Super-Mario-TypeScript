@@ -223,7 +223,26 @@ export interface RemotePlayerState {
   score: number;
   lives: number;
   coins: number;
+  stageCleared?: boolean;
   lastUpdated: number;
+}
+
+export interface MultiplayerMatchPlayerStanding {
+  id: string;
+  name: string;
+  photoUrl?: string;
+  character: PlayerCharacter;
+  score: number;
+  coins: number;
+  lives: number;
+  isLocal: boolean;
+}
+
+export interface MultiplayerMatchResult {
+  loserNames: string[];
+  isTie: boolean;
+  winner: MultiplayerMatchPlayerStanding;
+  standings: MultiplayerMatchPlayerStanding[];
 }
 
 export interface MultiplayerMessage {

@@ -95,6 +95,10 @@
           "type": "integer",
           "description": "Seed for synchronized procedural level generation"
         },
+        "matchGeneration": {
+          "type": "integer",
+          "description": "Incremented by the host when starting a synchronized rematch"
+        },
         "status": {
           "type": "string",
           "enum": ["open", "playing", "closed"],
@@ -118,6 +122,7 @@
         "levelId",
         "endlessStage",
         "seed",
+        "matchGeneration",
         "status",
         "createdAt",
         "updatedAt"
@@ -223,6 +228,10 @@
           "type": "integer",
           "description": "Collected coins"
         },
+        "stageCleared": {
+          "type": "boolean",
+          "description": "True when the player finished the current stage and is waiting for teammates"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
@@ -250,6 +259,7 @@
         "score",
         "lives",
         "coins",
+        "stageCleared",
         "updatedAt"
       ]
     },

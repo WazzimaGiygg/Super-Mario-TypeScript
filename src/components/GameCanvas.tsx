@@ -13,9 +13,9 @@ import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
-import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale } from '../game/types.ts';
+import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult } from '../game/types.ts';
 import { getTopScore, saveNewScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,6 +38,11 @@ export const GameCanvas: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isStageClear, setIsStageClear] = useState(false);
+  const [waitingForPlayersFinish, setWaitingForPlayersFinish] = useState(false);
+  const [waitingPlayersNames, setWaitingPlayersNames] = useState<string[]>([]);
+  const [localStageCleared, setLocalStageCleared] = useState(false);
+  const [isMultiplayerMatchOver, setIsMultiplayerMatchOver] = useState(false);
+  const [multiplayerMatchResult, setMultiplayerMatchResult] = useState<MultiplayerMatchResult | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isCheatMenuOpen, setIsCheatMenuOpen] = useState(false);
@@ -304,6 +309,11 @@ export const GameCanvas: React.FC = () => {
           setIsPaused(engine.isPaused);
           setIsGameOver(engine.isGameOver);
           setIsStageClear(engine.isStageClear);
+          setWaitingForPlayersFinish(engine.waitingForPlayersFinish);
+          setWaitingPlayersNames([...engine.waitingPlayersNames]);
+          setLocalStageCleared(engine.localStageCleared);
+          setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
+          setMultiplayerMatchResult(engine.multiplayerMatchResult);
         }
       }
 
@@ -543,8 +553,139 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
-          {/* Game Over Overlay */}
-          {isGameOver && (
+          {/* Multiplayer Winner Overlay (when any player loses all lives) */}
+          {isMultiplayerMatchOver && multiplayerMatchResult && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-4 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Crown className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 fill-amber-400 animate-bounce" />
+                <h2 className="font-['Press_Start_2P',monospace] text-lg sm:text-2xl text-amber-400 tracking-wider drop-shadow-lg">
+                  FIM DE PARTIDA!
+                </h2>
+              </div>
+
+              <p className="text-red-400 font-mono text-[11px] sm:text-xs mb-3">
+                {multiplayerMatchResult.loserNames.join(', ')} perdeu todas as vidas!
+              </p>
+
+              {/* Winner Highlight Card */}
+              <div className="w-full max-w-md rounded-xl border-2 border-amber-400 bg-gradient-to-br from-amber-950/70 via-stone-900 to-stone-950 p-3 sm:p-4 mb-3 shadow-[0_0_25px_rgba(245,158,11,0.3)]">
+                <div className="text-[10px] font-['Press_Start_2P',monospace] text-amber-300 mb-1.5">
+                  {multiplayerMatchResult.isTie ? 'EMPATE NO 1º LUGAR!' : 'JOGADOR VENCEDOR'}
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  {multiplayerMatchResult.winner.photoUrl ? (
+                    <img
+                      src={multiplayerMatchResult.winner.photoUrl}
+                      alt={multiplayerMatchResult.winner.name}
+                      className="w-10 h-10 rounded-full border-2 border-amber-400"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-full border-2 border-amber-400 flex items-center justify-center font-['Press_Start_2P',monospace] text-xs font-bold ${
+                        multiplayerMatchResult.winner.character === 'wazzima'
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-red-700 text-white'
+                      }`}
+                    >
+                      {multiplayerMatchResult.winner.character === 'wazzima' ? 'W' : 'M'}
+                    </div>
+                  )}
+                  <div className="text-left">
+                    <div className="font-['Press_Start_2P',monospace] text-xs sm:text-sm text-white">
+                      {multiplayerMatchResult.winner.name}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+                          multiplayerMatchResult.winner.character === 'wazzima'
+                            ? 'bg-emerald-900/90 text-emerald-300 border border-emerald-500/50'
+                            : 'bg-red-900/90 text-red-200 border border-red-500/50'
+                        }`}
+                      >
+                        {multiplayerMatchResult.winner.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'}
+                      </span>
+                      <span className="font-['Press_Start_2P',monospace] text-xs text-amber-400">
+                        {multiplayerMatchResult.winner.score} PTS
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ranked Standings */}
+              <div className="w-full max-w-md bg-stone-900/90 border border-stone-700 rounded-xl p-2.5 sm:p-3 mb-4 space-y-1.5 text-left">
+                {multiplayerMatchResult.standings.map((player, idx) => (
+                  <div
+                    key={player.id}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono ${
+                      idx === 0
+                        ? 'bg-amber-500/15 border border-amber-400/50 text-amber-100'
+                        : 'bg-stone-950/70 border border-stone-800 text-stone-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-['Press_Start_2P',monospace] text-[10px] text-amber-400 w-6">
+                        {idx + 1}º
+                      </span>
+                      <span className="truncate font-bold">
+                        {player.name}
+                        {player.isLocal ? ' (Você)' : ''}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          player.lives <= 0
+                            ? 'bg-red-950 text-red-400 border border-red-700/60'
+                            : 'bg-emerald-950 text-emerald-300 border border-emerald-700/50'
+                        }`}
+                      >
+                        {player.lives <= 0 ? 'SEM VIDAS' : `x${player.lives}`}
+                      </span>
+                      <span className="font-bold text-amber-300">{player.score} pts</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rematch / Exit Actions */}
+              <div className="flex flex-col sm:flex-row gap-2.5 items-center justify-center">
+                {(!multiplayerStatus.connected || multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) ? (
+                  <button
+                    type="button"
+                    onClick={() => multiplayerClient.startMultiplayerRematch()}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    NOVA PARTIDA
+                  </button>
+                ) : (
+                  <div className="px-4 py-2 rounded-lg bg-stone-900 border border-amber-500/40 text-amber-300 font-mono text-xs animate-pulse">
+                    Aguardando o anfitrião iniciar nova partida...
+                  </div>
+                )}
+
+                {multiplayerStatus.connected && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await multiplayerClient.disconnect();
+                      handleRestart();
+                      setIsMultiplayerMatchOver(false);
+                      setMultiplayerMatchResult(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600 font-['Press_Start_2P',monospace] text-[10px] cursor-pointer"
+                  >
+                    SAIR DA SALA
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Solo Game Over Overlay */}
+          {isGameOver && !isMultiplayerMatchOver && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in zoom-in-95">
               <h2 className="font-['Press_Start_2P',monospace] text-3xl sm:text-5xl text-red-600 mb-4 tracking-widest drop-shadow-lg">
                 GAME OVER
@@ -573,12 +714,25 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
-          {/* Stage Clear Banner */}
-          {isStageClear && (
-            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-6 py-3 bg-black/85 border-2 border-amber-400 rounded-lg text-center animate-bounce">
-              <span className="font-['Press_Start_2P',monospace] text-amber-400 text-sm sm:text-lg">
+          {/* Stage Clear & Multiplayer Waiting Banner */}
+          {isStageClear && !isMultiplayerMatchOver && (
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-5 py-3 bg-black/90 border-2 border-amber-400 rounded-xl text-center shadow-2xl max-w-[90%]">
+              <span className="block font-['Press_Start_2P',monospace] text-amber-400 text-xs sm:text-base">
                 FASE CONCLUÍDA!
               </span>
+              {waitingForPlayersFinish && (
+                <div className="mt-2 flex items-center justify-center gap-2 text-emerald-300 font-mono text-[11px] sm:text-xs animate-pulse">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Aguardando {waitingPlayersNames.join(', ')} terminar a fase...
+                  </span>
+                </div>
+              )}
+              {!waitingForPlayersFinish && localStageCleared && multiplayerStatus.connected && multiplayerStatus.playerCount > 1 && (
+                <div className="mt-2 text-amber-200 font-mono text-[11px] sm:text-xs animate-pulse">
+                  Todos terminaram! Avançando para a próxima fase...
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -67,14 +67,15 @@ service cloud.firestore {
     }
 
     function isValidRoom(data) {
-      return data.keys().hasAll(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'status', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'status', 'createdAt', 'updatedAt'])
+      return data.keys().hasAll(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'matchGeneration', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'matchGeneration', 'status', 'createdAt', 'updatedAt'])
         && isValidRoomId(data.roomId)
         && isValidId(data.hostUid)
         && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 40
         && data.levelId is string && data.levelId.size() >= 1 && data.levelId.size() <= 64
         && data.endlessStage is int && data.endlessStage >= 0 && data.endlessStage <= 9999
         && data.seed is int && data.seed >= 0
+        && data.matchGeneration is int && data.matchGeneration >= 1 && data.matchGeneration <= 999999
         && data.status in ['open', 'playing', 'closed']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -85,13 +86,13 @@ service cloud.firestore {
           'uid', 'roomId', 'name', 'photoUrl', 'character',
           'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
           'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
-          'score', 'lives', 'coins', 'updatedAt'
+          'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
         ])
         && data.keys().hasOnly([
           'uid', 'roomId', 'name', 'photoUrl', 'character',
           'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
           'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
-          'score', 'lives', 'coins', 'updatedAt'
+          'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
         ])
         && isValidId(data.uid)
         && data.uid == request.auth.uid
@@ -114,6 +115,7 @@ service cloud.firestore {
         && data.score is int && data.score >= 0
         && data.lives is int && data.lives >= 0 && data.lives <= 999
         && data.coins is int && data.coins >= 0 && data.coins <= 999
+        && data.stageCleared is bool
         && data.updatedAt is timestamp;
     }
 
@@ -169,6 +171,7 @@ service cloud.firestore {
         && isValidRoom(incoming())
         && incoming().roomId == roomId
         && incoming().hostUid == request.auth.uid
+        && incoming().matchGeneration == 1
         && incoming().status in ['open', 'playing']
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -179,9 +182,10 @@ service cloud.firestore {
         && incoming().roomId == existing().roomId
         && incoming().hostUid == existing().hostUid
         && incoming().createdAt == existing().createdAt
+        && incoming().matchGeneration >= existing().matchGeneration
         && incoming().updatedAt == request.time
         && (
-          (incoming().diff(existing()).affectedKeys().hasOnly(['levelId', 'endlessStage', 'seed', 'status', 'updatedAt']) && incoming().status in ['open', 'playing']) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['levelId', 'endlessStage', 'seed', 'matchGeneration', 'status', 'updatedAt']) && incoming().status in ['open', 'playing']) ||
           (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().status == 'closed')
         );
       allow delete: if isVerified() && isValidRoomId(roomId) && existing().hostUid == request.auth.uid;
@@ -206,7 +210,7 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'name', 'photoUrl', 'character', 'x', 'y', 'vx', 'vy', 'facing',
             'power', 'state', 'animFrame', 'isStatue', 'tailWhipTimer',
-            'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'updatedAt'
+            'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
           ]);
         allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(playerId)
           && (playerId == request.auth.uid || isRoomHost(roomId));

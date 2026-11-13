@@ -20,6 +20,8 @@ import {
   GameDifficulty,
   PlayerCharacter,
   RemotePlayerState,
+  MultiplayerMatchPlayerStanding,
+  MultiplayerMatchResult,
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
@@ -41,6 +43,19 @@ export class GameEngine {
 
   // Character & Multiplayer State
   public playerCharacter: PlayerCharacter = 'mario';
+  public localPlayerId: string = 'local';
+  public localPlayerName: string = 'Jogador';
+  public localPlayerPhotoUrl: string = '';
+  public isMultiplayerConnected: boolean = false;
+  public isMultiplayerHost: boolean = true;
+  public isMultiplayerFirebase: boolean = false;
+  public localStageCleared: boolean = false;
+  public waitingForPlayersFinish: boolean = false;
+  public waitingPlayersNames: string[] = [];
+  public allPlayersClearedCountdown: number = 0;
+  public isMultiplayerMatchOver: boolean = false;
+  public multiplayerMatchResult: MultiplayerMatchResult | null = null;
+  public onMultiplayerSyncNeeded?: () => void;
   public remotePlayers: Map<string, RemotePlayerState> = new Map();
 
   // Mario State
@@ -147,10 +162,14 @@ export class GameEngine {
     this.loadLevel(createWorld1_1(), true, false);
   }
 
-  public loadLevel(newLevel: LevelData, showIntermission: boolean = false, isRespawn: boolean = false) {
+  public loadLevel(newLevel: LevelData, showIntermission: boolean = false, isRespawn: boolean = false, notifyNetwork: boolean = true) {
     this.level = newLevel;
     this.isStageClear = false;
     this.isGameOver = false;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.allPlayersClearedCountdown = 0;
     this.intermissionTimer = showIntermission ? 85 : 0;
     this.stageClearTallyDelay = 0;
     this.stageClearDelayTimer = 0;
@@ -257,7 +276,7 @@ export class GameEngine {
       this.sound.playMusic('overworld');
     }
 
-    if (!isRespawn && this.onLevelChanged) {
+    if (!isRespawn && notifyNetwork && newLevel.id !== 'secret-vault' && this.onLevelChanged) {
       this.onLevelChanged(newLevel);
     }
   }
@@ -291,6 +310,10 @@ export class GameEngine {
   // --- GAME UPDATE LOOP ---
   public update(deltaMs: number) {
     if (this.isPaused) return;
+
+    // Check multiplayer game-over condition (someone ran out of lives)
+    this.evaluateMultiplayerMatchEnd();
+    if (this.isMultiplayerMatchOver) return;
 
     // Check pause button pressed (edge-triggered)
     if (this.controls.pause && !this.prevControls.pause) {
@@ -485,12 +508,17 @@ export class GameEngine {
         }
       }
 
-      // Post-countdown delay before advancing to next level
+      // Post-countdown delay before advancing to next level (or waiting for remote players)
       if (this.stageClearDelayTimer > 0) {
         this.stageClearDelayTimer--;
         if (this.stageClearDelayTimer === 0) {
-          this.advanceToNextLevel();
+          this.handleStageClearReadyToAdvance();
         }
+        return;
+      }
+
+      if (this.stats.time === 0 && this.stageClearDelayTimer === 0) {
+        this.handleStageClearReadyToAdvance();
       }
       return;
     }
@@ -1271,10 +1299,14 @@ export class GameEngine {
       return;
     }
 
-    this.stats.lives--;
+    this.stats.lives = Math.max(0, this.stats.lives - 1);
     if (this.stats.lives <= 0) {
-      this.isGameOver = true;
-      this.sound.playGameOver();
+      this.onMultiplayerSyncNeeded?.();
+      this.evaluateMultiplayerMatchEnd();
+      if (!this.isMultiplayerMatchOver) {
+        this.isGameOver = true;
+        this.sound.playGameOver();
+      }
     } else {
       // Respawn at checkpoint or stage start with classic NES lives screen
       this.loadLevel(this.level, true, true);
@@ -1748,9 +1780,10 @@ export class GameEngine {
 
     const targetLevelId = this.warpTarget.toLevel;
     const destPos = { ...this.warpTarget.toPos };
+    const returningFromSubArea = this.level.id === 'secret-vault';
 
     if (targetLevelId === 'secret-vault') {
-      this.loadLevel(createSecretVault());
+      this.loadLevel(createSecretVault(), false, false, false);
       this.marioX = destPos.x;
       this.marioY = destPos.y;
       this.cameraX = 0;
@@ -1762,7 +1795,7 @@ export class GameEngine {
       this.pipeClipLipX = null;
     } else if (targetLevelId === 'world-1-1') {
       const overworld = createWorld1_1();
-      this.loadLevel(overworld);
+      this.loadLevel(overworld, false, false, !returningFromSubArea);
       this.marioX = destPos.x;
       // Start inside the pipe and rise smoothly up out of it
       this.marioY = destPos.y + 16;
@@ -1774,7 +1807,7 @@ export class GameEngine {
       this.pipeClipLipX = null;
     } else if (targetLevelId === 'world-1-2') {
       const lvl = createWorld1_2();
-      this.loadLevel(lvl);
+      this.loadLevel(lvl, false, false, true);
       this.marioX = destPos.x;
       this.marioY = destPos.y + 16;
       this.cameraX = Math.max(0, this.marioX - 80);
@@ -1853,6 +1886,128 @@ export class GameEngine {
     this.timeCountTickCounter = 0;
   }
 
+  private handleStageClearReadyToAdvance() {
+    if (!this.localStageCleared) {
+      this.localStageCleared = true;
+      this.onMultiplayerSyncNeeded?.();
+    }
+
+    const now = Date.now();
+    const activeRemotes = Array.from(this.remotePlayers.values()).filter(
+      rp => now - rp.lastUpdated < 20000 && rp.lives > 0
+    );
+
+    if (!this.isMultiplayerConnected || activeRemotes.length === 0) {
+      this.waitingForPlayersFinish = false;
+      this.waitingPlayersNames = [];
+      this.advanceToNextLevel();
+      return;
+    }
+
+    const pending = activeRemotes.filter(rp => !rp.stageCleared);
+    if (pending.length > 0) {
+      this.waitingForPlayersFinish = true;
+      this.waitingPlayersNames = pending.map(
+        rp => rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario')
+      );
+      this.allPlayersClearedCountdown = 0;
+      return;
+    }
+
+    // All active teammates have finished the stage!
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+
+    // In Firebase mode, only the host drives the room level transition so everyone receives the exact same seed.
+    if (this.isMultiplayerFirebase && !this.isMultiplayerHost) {
+      return;
+    }
+
+    if (this.allPlayersClearedCountdown <= 0) {
+      this.allPlayersClearedCountdown = 45;
+      return;
+    }
+
+    this.allPlayersClearedCountdown--;
+    if (this.allPlayersClearedCountdown <= 0) {
+      this.advanceToNextLevel();
+    }
+  }
+
+  public evaluateMultiplayerMatchEnd() {
+    if (!this.isMultiplayerConnected || this.remotePlayers.size === 0 || this.isMultiplayerMatchOver) {
+      return;
+    }
+
+    const now = Date.now();
+    const recentRemotes = Array.from(this.remotePlayers.values()).filter(
+      rp => now - rp.lastUpdated < 25000
+    );
+    if (recentRemotes.length === 0) return;
+
+    const localDisplayName =
+      this.localPlayerName || (this.playerCharacter === 'wazzima' ? 'WazzimaGiygg' : 'Mario');
+
+    const localZero = this.stats.lives <= 0;
+    const zeroRemotes = recentRemotes.filter(rp => rp.lives <= 0);
+    if (!localZero && zeroRemotes.length === 0) {
+      return;
+    }
+
+    const loserNames: string[] = [];
+    if (localZero) loserNames.push(localDisplayName);
+    zeroRemotes.forEach(rp => {
+      loserNames.push(rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'));
+    });
+
+    const standings: MultiplayerMatchPlayerStanding[] = [
+      {
+        id: this.localPlayerId,
+        name: localDisplayName,
+        photoUrl: this.localPlayerPhotoUrl,
+        character: this.playerCharacter,
+        score: this.stats.score,
+        coins: this.stats.coins,
+        lives: Math.max(0, this.stats.lives),
+        isLocal: true,
+      },
+      ...recentRemotes.map(rp => ({
+        id: rp.id,
+        name: rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'),
+        photoUrl: rp.photoUrl,
+        character: rp.character,
+        score: rp.score,
+        coins: rp.coins,
+        lives: Math.max(0, rp.lives),
+        isLocal: false,
+      })),
+    ];
+
+    standings.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.lives !== a.lives) return b.lives - a.lives;
+      return b.coins - a.coins;
+    });
+
+    const isTie = standings.length >= 2 && standings[0].score === standings[1].score;
+    const winner = standings[0];
+
+    this.multiplayerMatchResult = {
+      loserNames,
+      isTie,
+      winner,
+      standings,
+    };
+    this.isMultiplayerMatchOver = true;
+    this.waitingForPlayersFinish = false;
+    this.sound.stopMusic();
+    if (winner.isLocal) {
+      this.sound.playStageClear();
+    } else {
+      this.sound.playGameOver();
+    }
+  }
+
   public advanceToNextLevel() {
     if (this.level.id === 'world-1-1') {
       this.loadLevel(createWorld1_2(), true, false);
@@ -1875,7 +2030,46 @@ export class GameEngine {
     }
   }
 
+  public restartMultiplayerMatch(targetLevel?: LevelData, notifyNetwork: boolean = true) {
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.allPlayersClearedCountdown = 0;
+
+    this.activeCheckpoint = null;
+    this.activatedCheckpointIndices.clear();
+
+    const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+    const initialTime = this.difficulty === 'easy' ? 500 : this.difficulty === 'hard' ? 300 : 400;
+
+    this.stats = {
+      score: 0,
+      coins: 0,
+      world: '1-1',
+      time: initialTime,
+      lives: this.infiniteLives ? 99 : initialLives,
+      highScore: Math.max(this.stats.score, this.stats.highScore),
+      difficulty: this.difficulty,
+    };
+
+    this.isGameStarted = true;
+    this.endlessStage = targetLevel?.endlessStage || 0;
+    this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
+    this.marioStarTimer = 0;
+    this.loadLevel(targetLevel || createWorld1_1(), true, false, notifyNetwork);
+    this.onMultiplayerSyncNeeded?.();
+  }
+
   public restartGame() {
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.allPlayersClearedCountdown = 0;
+
     this.activeCheckpoint = null;
     this.activatedCheckpointIndices.clear();
 
