@@ -152,6 +152,8 @@ export interface LevelData {
   }[];
   bgColor: string;
   timeLimit: number;
+  endlessStage?: number;
+  enemySpeedMultiplier?: number;
   checkpoints?: { x: number; respawnPos: Point }[];
 }
 
@@ -180,12 +182,34 @@ export interface GamepadControls {
 
 export type PlayerCharacter = 'mario' | 'wazzima';
 
+export type MultiplayerTransport = 'firebase' | 'websocket';
+
+export interface FirebaseUserSummary {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoUrl: string;
+}
+
+export interface FirebaseRoomSummary {
+  roomId: string;
+  hostUid: string;
+  hostName: string;
+  levelId: string;
+  endlessStage: number;
+  seed: number;
+  status: 'open' | 'playing' | 'closed';
+}
+
 export interface RemotePlayerState {
   id: string;
   name: string;
+  photoUrl?: string;
   character: PlayerCharacter;
   x: number;
   y: number;
+  renderX?: number;
+  renderY?: number;
   vx: number;
   vy: number;
   facing: 'left' | 'right';
@@ -217,6 +241,7 @@ export interface MultiplayerMessage {
 }
 
 export interface MultiplayerStatus {
+  transport: MultiplayerTransport;
   connected: boolean;
   connecting: boolean;
   error: string | null;
@@ -227,5 +252,8 @@ export interface MultiplayerStatus {
   character: PlayerCharacter;
   playerCount: number;
   ping: number;
+  authUser: FirebaseUserSummary | null;
+  isHost: boolean;
+  availableRooms: FirebaseRoomSummary[];
 }
 

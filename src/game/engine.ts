@@ -87,8 +87,10 @@ export class GameEngine {
   public stageClearDelayTimer: number = 0;
   public timeCountTickCounter: number = 0;
 
-  // Intermission Screen (Classic NES World & Lives screen)
+  // Intermission & Endless Stage Tracking
   public intermissionTimer: number = 0;
+  public endlessStage: number = 0;
+  public onLevelChanged?: (level: LevelData) => void;
 
   // Checkpoint State
   public activeCheckpoint: Point | null = null;
@@ -153,6 +155,11 @@ export class GameEngine {
     this.stageClearTallyDelay = 0;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    if (newLevel.endlessStage !== undefined) {
+      this.endlessStage = newLevel.endlessStage;
+    } else if (newLevel.id === 'world-1-1' || newLevel.id === 'world-1-2') {
+      this.endlessStage = 0;
+    }
 
     if (!isRespawn) {
       // Fresh stage entry: clear checkpoints and start at initial position
@@ -194,6 +201,8 @@ export class GameEngine {
     this.stats.difficulty = this.difficulty;
     this.flagY = 3 * GameEngine.TILE_SIZE;
 
+    const speedMult = newLevel.enemySpeedMultiplier ?? 1;
+
     // Load enemies (avoid spawning enemies directly on top of Mario's respawn position)
     this.enemies = newLevel.enemies
       .filter(e => {
@@ -205,7 +214,7 @@ export class GameEngine {
         type: e.type,
         x: e.x,
         y: e.y,
-        vx: -0.7,
+        vx: -0.7 * speedMult,
         vy: 0,
         width: 16,
         height: e.type === 'koopa' ? 24 : 16,
@@ -242,10 +251,14 @@ export class GameEngine {
     this.generateBackgroundScenery();
 
     // Start background music
-    if (newLevel.theme === 'underground') {
+    if (newLevel.theme === 'underground' || newLevel.theme === 'castle') {
       this.sound.playMusic('underground');
     } else {
       this.sound.playMusic('overworld');
+    }
+
+    if (!isRespawn && this.onLevelChanged) {
+      this.onLevelChanged(newLevel);
     }
   }
 
@@ -1844,7 +1857,8 @@ export class GameEngine {
     if (this.level.id === 'world-1-1') {
       this.loadLevel(createWorld1_2(), true, false);
     } else {
-      this.loadLevel(createEndlessLevel(), true, false);
+      const nextStage = (this.endlessStage || 0) + 1;
+      this.loadLevel(createEndlessLevel(Date.now(), nextStage), true, false);
     }
   }
 
@@ -1879,6 +1893,7 @@ export class GameEngine {
     };
 
     this.isGameStarted = true;
+    this.endlessStage = 0;
     this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
     this.marioStarTimer = 0;
     this.loadLevel(createWorld1_1(), true, false);
@@ -2425,20 +2440,33 @@ export class GameEngine {
     if (this.remotePlayers.size === 0) return;
 
     this.remotePlayers.forEach(rp => {
-      // Discard stale players (no updates in 6 seconds)
-      if (Date.now() - rp.lastUpdated > 6000) return;
+      // Discard stale players (no updates in 15 seconds)
+      if (Date.now() - rp.lastUpdated > 15000) return;
       if (rp.state === 'castle_entered') return;
 
-      const px = rp.x - this.cameraX;
+      // Smooth interpolation toward latest network position
+      if (rp.renderX === undefined || Math.abs(rp.x - rp.renderX) > 96) {
+        rp.renderX = rp.x;
+      } else {
+        rp.renderX += (rp.x - rp.renderX) * 0.35;
+      }
+      if (rp.renderY === undefined || Math.abs(rp.y - rp.renderY) > 96) {
+        rp.renderY = rp.y;
+      } else {
+        rp.renderY += (rp.y - rp.renderY) * 0.35;
+      }
+
+      const px = rp.renderX - this.cameraX;
+      const py = rp.renderY;
       if (px < -32 || px > GameEngine.NES_WIDTH + 32) return;
 
       ctx.save();
 
       // Facing left flip
       if (rp.facing === 'left') {
-        ctx.translate(px + 16, rp.y);
+        ctx.translate(px + 16, py);
         ctx.scale(-1, 1);
-        ctx.translate(-px, -rp.y);
+        ctx.translate(-px, -py);
       }
 
       // Blinking if invulnerable
@@ -2461,17 +2489,17 @@ export class GameEngine {
       );
 
       if (spriteCanvas) {
-        ctx.drawImage(spriteCanvas, px, rp.y);
+        ctx.drawImage(spriteCanvas, px, py);
       }
 
       ctx.restore();
 
       // Overhead player tag
       ctx.save();
-      const badgeY = rp.y - 8;
+      const badgeY = py - 8;
       const isW = rp.character === 'wazzima';
       const badgeColor = isW ? '#00a800' : '#d82800';
-      const nameText = (rp.name || (isW ? 'Wazzima' : 'Mario')).substring(0, 10).toUpperCase();
+      const nameText = (rp.name || (isW ? 'Wazzima' : 'Mario')).substring(0, 12).toUpperCase();
 
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'center';

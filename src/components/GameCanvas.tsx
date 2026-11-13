@@ -66,9 +66,15 @@ export const GameCanvas: React.FC = () => {
     pause: false,
   });
 
-  // Subscribe to multiplayer client
+  // Subscribe to multiplayer client & check URL invite room
   useEffect(() => {
     const unsub = multiplayerClient.subscribe(setMultiplayerStatus);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('room')) {
+        setIsMultiplayerOpen(true);
+      }
+    }
     return () => unsub();
   }, []);
 
@@ -472,7 +478,7 @@ export const GameCanvas: React.FC = () => {
                   className="px-6 py-3.5 rounded-xl bg-emerald-950/90 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-['Press_Start_2P',monospace] text-xs font-bold shadow-xl shadow-emerald-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
                 >
                   <Users className="w-4 h-4 text-emerald-400" />
-                  JOGAR POR IP (WAZZIMA)
+                  MULTIPLAYER (GOOGLE)
                 </button>
               </div>
 
@@ -640,11 +646,11 @@ export const GameCanvas: React.FC = () => {
             <span className="hidden sm:inline text-[11px]">Placar</span>
           </button>
 
-          {/* Multiplayer por IP (WazzimaGiygg / Mario Verde) */}
+          {/* Multiplayer Firebase (Login Google) */}
           <button
             type="button"
             onClick={() => setIsMultiplayerOpen(true)}
-            title="Jogar por IP com outros jogadores (WazzimaGiygg / Mario Verde)"
+            title="Multiplayer Online com Login Google (Firebase)"
             className={`p-2 rounded-lg border text-xs transition flex items-center gap-1.5 cursor-pointer ${
               multiplayerStatus.connected
                 ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-2 ring-emerald-500/30'
@@ -653,7 +659,7 @@ export const GameCanvas: React.FC = () => {
           >
             <Users className="w-4 h-4 text-emerald-400" />
             <span className="hidden sm:inline text-[11px] font-bold">
-              {multiplayerStatus.connected ? `2P (${multiplayerStatus.playerCount})` : 'Multiplayer'}
+              {multiplayerStatus.connected ? `ONLINE (${multiplayerStatus.playerCount})` : 'Multiplayer'}
             </span>
           </button>
 
@@ -706,6 +712,9 @@ export const GameCanvas: React.FC = () => {
         onToggleMute={toggleMute}
         onRestart={handleRestart}
         onToggleFullscreen={toggleFullscreen}
+        onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        multiplayerConnected={multiplayerStatus.connected}
       />
 
       {/* Settings Modal */}

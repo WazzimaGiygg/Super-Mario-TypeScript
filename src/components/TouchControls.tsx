@@ -8,7 +8,7 @@ import { GamepadControls } from '../game/types.ts';
 import { 
   ArrowLeft, ArrowRight, ArrowDown, ArrowUp, 
   Volume2, VolumeX, Pause, Play, Zap, Vibrate, 
-  Maximize2, RotateCcw, Sliders
+  Maximize2, RotateCcw, Sliders, Users, Settings
 } from 'lucide-react';
 
 interface TouchControlsProps {
@@ -20,6 +20,9 @@ interface TouchControlsProps {
   onToggleMute?: () => void;
   onRestart?: () => void;
   onToggleFullscreen?: () => void;
+  onOpenMultiplayer?: () => void;
+  onOpenSettings?: () => void;
+  multiplayerConnected?: boolean;
 }
 
 export const TouchControls: React.FC<TouchControlsProps> = ({
@@ -31,6 +34,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onToggleMute,
   onRestart,
   onToggleFullscreen,
+  onOpenMultiplayer,
+  onOpenSettings,
+  multiplayerConnected = false,
 }) => {
   // Mobile preferences (persisted in localStorage)
   const [hapticEnabled, setHapticEnabled] = useState<boolean>(() => {
@@ -344,8 +350,34 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           </button>
         </div>
 
-        {/* Right: Quick In-Game Controls (Pause, Mute, Restart, Fullscreen) */}
+        {/* Right: Quick In-Game Controls (Pause, Mute, Restart, Multiplayer, Settings, Fullscreen) */}
         <div className="flex items-center gap-1.5">
+          {onOpenMultiplayer && (
+            <button
+              type="button"
+              onClick={onOpenMultiplayer}
+              title="Multiplayer Online (Login Google)"
+              className={`p-1.5 rounded-md border transition cursor-pointer ${
+                multiplayerConnected
+                  ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300'
+                  : 'bg-stone-900 border-emerald-700/60 text-emerald-400 hover:text-emerald-200'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title="Fases, Modo Infinito e Configurações"
+              className="p-1.5 rounded-md bg-stone-900 border border-stone-800 text-amber-400 hover:text-amber-300 cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {onToggleMute && (
             <button
               type="button"

@@ -117,13 +117,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  onSelectLevel(createEndlessLevel());
+                  onSelectLevel(createEndlessLevel(Date.now(), 1));
                   onClose();
                 }}
                 className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 font-medium text-left transition flex flex-col"
               >
                 <span className="font-bold text-emerald-400">Modo Sem Fim</span>
-                <span className="text-[10px] text-stone-400">Geração procedural aleatória</span>
+                <span className="text-[10px] text-stone-400">Mundos aleatórios mais difíceis a cada fase</span>
               </button>
             </div>
           </div>

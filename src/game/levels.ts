@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LevelData, BlockTile, Point, EnemyType } from './types.ts';
+import { LevelData, BlockTile, TileType, Point, EnemyType } from './types.ts';
 
 // Helper to create empty grid
 function createEmptyGrid(width: number, height: number): (BlockTile | null)[][] {
@@ -449,129 +449,340 @@ export function createWorld1_2(): LevelData {
   };
 }
 
-// Procedural Endless Level Generator
-export function createEndlessLevel(seed: number = Date.now()): LevelData {
-  const width = 250;
+// Procedural Endless Level Generator with Progressive Difficulty & Random Biomes
+export function createEndlessLevel(
+  seed: number = Date.now(),
+  endlessStage: number = 1
+): LevelData {
+  const stage = Math.max(1, Math.floor(endlessStage));
+  const diffRatio = Math.min(1, (stage - 1) / 8); // Scales smoothly from 0.0 (stage 1) to 1.0 (stage 9+)
+
+  // Deterministic PRNG (Mulberry32-style mixed with seed + stage)
+  let s = (Math.abs(Math.floor(seed)) + stage * 7919) >>> 0;
+  const rand = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  // Pick random world theme (Stage 1 can be overworld/underground; Stage 2+ rotates freely among all 3 biomes)
+  const themeRoll = rand();
+  const theme: 'overworld' | 'underground' | 'castle' =
+    stage === 1
+      ? themeRoll > 0.3 ? 'overworld' : 'underground'
+      : themeRoll < 0.42
+      ? 'overworld'
+      : themeRoll < 0.74
+      ? 'underground'
+      : 'castle';
+
+  const bgColor =
+    theme === 'overworld'
+      ? '#5c94fc'
+      : theme === 'underground'
+      ? '#000000'
+      : '#1c0a0d';
+
+  const groundTileType: TileType =
+    theme === 'underground'
+      ? 'underground_ground'
+      : theme === 'castle'
+      ? 'castle_brick'
+      : 'ground';
+
+  const brickTileType: TileType =
+    theme === 'underground'
+      ? 'underground_brick'
+      : theme === 'castle'
+      ? 'hard_block'
+      : 'brick';
+
+  const width = Math.min(340, 210 + (stage - 1) * 14);
   const height = 15;
   const grid = createEmptyGrid(width, height);
   const enemies: { type: EnemyType; x: number; y: number }[] = [];
   const coins: Point[] = [];
 
-  // Deterministic PRNG
-  let s = seed;
-  const rand = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
+  const placeGroundSpan = (startX: number, spanLen: number) => {
+    for (let i = 0; i < spanLen && startX + i < width; i++) {
+      grid[13][startX + i] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][startX + i] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      if (theme === 'underground' || (theme === 'castle' && rand() > 0.25)) {
+        grid[0][startX + i] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        if (theme === 'underground') {
+          grid[1][startX + i] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+      }
+    }
+  };
+
+  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'coin' => {
+    const r = rand();
+    // Power-ups become slightly scarcer on higher stages
+    const powerChance = 0.55 - diffRatio * 0.28;
+    if (r > powerChance) return 'coin';
+    const typeRoll = rand();
+    if (typeRoll < 0.42) return 'mushroom';
+    if (typeRoll < 0.72) return 'fireflower';
+    return 'leaf';
+  };
+
+  const spawnEnemy = (tx: number, tyTile: number, forceType?: EnemyType) => {
+    const koopaChance = 0.25 + diffRatio * 0.4;
+    const type: EnemyType = forceType ?? (rand() < koopaChance ? 'koopa' : 'goomba');
+    enemies.push({
+      type,
+      x: tx * 16,
+      y: type === 'koopa' ? (tyTile - 1) * 16 + 8 : tyTile * 16,
+    });
   };
 
   let x = 0;
   // Starting safe zone
-  for (; x < 18; x++) {
-    grid[13][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-    grid[14][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  }
+  placeGroundSpan(0, 16);
+  x = 16;
 
-  // Generation loop
-  while (x < width - 25) {
-    const chunkType = Math.floor(rand() * 5);
+  const finishZoneStart = width - 26;
+
+  // Weighted chunk selection that scales hazard complexity with stage
+  while (x < finishZoneStart) {
+    const remaining = finishZoneStart - x;
+    if (remaining < 10) {
+      placeGroundSpan(x, remaining);
+      x += remaining;
+      break;
+    }
+
+    const r = rand();
+    // Early stages favor flat terrain/bridges; higher stages increase pits, stepping stones & split stairs
+    let chunkType: number;
+    if (r < 0.24 - diffRatio * 0.1) chunkType = 0; // Flat terrain + blocks + patrols
+    else if (r < 0.42) chunkType = 1; // Pipe obstacle(s) + Piranha
+    else if (r < 0.56 + diffRatio * 0.08) chunkType = 2; // Abyss / Pit jump
+    else if (r < 0.68 + diffRatio * 0.12) chunkType = 3; // Stepping stone pillars over abyss
+    else if (r < 0.82) chunkType = 4; // Staircase / Split Canyon
+    else if (r < 0.92) chunkType = 5; // Two-tier sky bridge
+    else chunkType = 6; // Elevated platforms over abyss
 
     if (chunkType === 0) {
-      // Flat ground with random blocks and enemies
-      const len = 8 + Math.floor(rand() * 6);
-      for (let i = 0; i < len; i++) {
-        grid[13][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        grid[14][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      }
-      // Add blocks
+      // Flat terrain with blocks & enemy patrols
+      const len = Math.min(remaining, 8 + Math.floor(rand() * 6));
+      placeGroundSpan(x, len);
+
       const mid = x + Math.floor(len / 2);
-      grid[9][mid - 1] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      grid[9][mid] = { type: 'question', content: rand() > 0.5 ? 'coin' : 'mushroom', bumpOffset: 0, bumpVel: 0 };
-      grid[9][mid + 1] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-
-      // Occasional hidden mystery block in mid-air
-      if (rand() > 0.65) {
-        const hContent = rand() > 0.6 ? '1up' : rand() > 0.5 ? 'star' : 'coin';
-        grid[5][x + 1] = { type: 'question', content: hContent, bumpOffset: 0, bumpVel: 0, invisible: true };
+      if (len >= 7) {
+        grid[9][mid - 1] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[9][mid] = { type: 'question', content: pickPowerUp(), bumpOffset: 0, bumpVel: 0 };
+        grid[9][mid + 1] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
       }
 
-      // Add enemy
-      if (rand() > 0.3) {
-        enemies.push({
-          type: rand() > 0.4 ? 'goomba' : 'koopa',
-          x: (x + 2) * 16,
-          y: 12 * 16,
-        });
+      if (rand() > 0.72) {
+        const hContent = rand() > 0.72 ? '1up' : rand() > 0.45 ? 'star' : 'coin';
+        grid[5][x + 2] = { type: 'question', content: hContent, bumpOffset: 0, bumpVel: 0, invisible: true };
+      }
+
+      // Enemy count scales with stage (1 to 3 enemies)
+      const enemyChance = 0.55 + diffRatio * 0.35;
+      if (rand() < enemyChance) {
+        spawnEnemy(x + 2, 12);
+        if (len >= 9 && rand() < 0.3 + diffRatio * 0.5) {
+          spawnEnemy(x + len - 3, 12);
+        }
+        if (len >= 11 && diffRatio > 0.45 && rand() < diffRatio * 0.6) {
+          spawnEnemy(mid, 8);
+        }
       }
       x += len;
     } else if (chunkType === 1) {
-      // Pipe obstacle
-      const pLen = 6;
-      for (let i = 0; i < pLen; i++) {
-        grid[13][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        grid[14][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      }
-      const pipeH = 2 + Math.floor(rand() * 3);
-      placePipe(grid, x + 2, 12, pipeH);
-      if (pipeH >= 3 && rand() > 0.5) {
+      // Pipe corridor (1 or 2 pipes on higher stages)
+      const doublePipe = remaining >= 12 && rand() < 0.2 + diffRatio * 0.5;
+      const pLen = doublePipe ? 11 : 7;
+      placeGroundSpan(x, pLen);
+
+      const pipeH1 = 2 + Math.floor(rand() * 3);
+      placePipe(grid, x + 2, 12, pipeH1);
+      const piranhaChance = 0.35 + diffRatio * 0.55;
+      if (pipeH1 >= 2 && rand() < piranhaChance) {
         enemies.push({
           type: 'piranha',
           x: (x + 2) * 16 + 8,
-          y: (13 - pipeH) * 16,
+          y: (13 - pipeH1) * 16,
         });
+      }
+
+      if (doublePipe) {
+        const pipeH2 = 2 + Math.floor(rand() * 3);
+        placePipe(grid, x + 7, 12, pipeH2);
+        if (rand() < piranhaChance) {
+          enemies.push({
+            type: 'piranha',
+            x: (x + 7) * 16 + 8,
+            y: (13 - pipeH2) * 16,
+          });
+        }
+        // Extra Goomba between pipes on harder levels
+        if (rand() < 0.3 + diffRatio * 0.5) {
+          spawnEnemy(x + 5, 12);
+        }
       }
       x += pLen;
     } else if (chunkType === 2) {
-      // Pit gap
-      const gap = 2 + Math.floor(rand() * 2);
+      // Abyss / Pit jump (wider gaps as stages increase, max 5 tiles so always clearable)
+      const maxGap = stage >= 5 ? 5 : stage >= 2 ? 4 : 3;
+      const minGap = stage >= 4 ? 3 : 2;
+      const gap = Math.min(remaining - 4, minGap + Math.floor(rand() * (maxGap - minGap + 1)));
 
-      // Secret hidden mystery block near pit
-      if (rand() > 0.6) {
-        grid[8][x - 1] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, invisible: true };
+      if (gap >= 2) {
+        // Coin arc over pit
+        for (let c = 0; c < gap; c++) {
+          coins.push({ x: (x + c) * 16 + 8, y: 9 * 16 });
+        }
+        if (rand() > 0.68) {
+          grid[8][x - 1] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, invisible: true };
+        }
+        x += gap;
+        // Landing platform (2-3 tiles)
+        const landLen = Math.min(remaining - gap, 3);
+        placeGroundSpan(x, landLen);
+        if (diffRatio > 0.35 && rand() < diffRatio * 0.65) {
+          spawnEnemy(x + 1, 12);
+        }
+        x += landLen;
+      } else {
+        placeGroundSpan(x, 4);
+        x += 4;
       }
-
-      // Pit has no ground
-      x += gap;
-      // Landing safe block
-      grid[13][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      grid[14][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      x += 2;
     } else if (chunkType === 3) {
-      // Staircase pyramid
-      const stSize = 3 + Math.floor(rand() * 2);
-      for (let i = 0; i < stSize * 2 + 2; i++) {
-        grid[13][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        grid[14][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-      }
-      // up
-      for (let s = 1; s <= stSize; s++) {
-        for (let sy = 13 - s; sy <= 12; sy++) {
-          grid[sy][x + s] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      // Stepping-stone pillars over lethal pit
+      const pillarCount = Math.min(3 + Math.floor(diffRatio * 2), Math.floor(remaining / 5));
+      if (pillarCount >= 2) {
+        for (let p = 0; p < pillarCount; p++) {
+          const gap = 2 + (diffRatio > 0.4 && rand() > 0.4 ? 1 : 0);
+          x += gap;
+          const pillarW = diffRatio > 0.55 && rand() > 0.4 ? 1 : 2;
+          const pillarY = 10 + Math.floor(rand() * 3); // rows 10..12
+          for (let px = 0; px < pillarW && x + px < finishZoneStart; px++) {
+            for (let py = pillarY; py <= 14; py++) {
+              grid[py][x + px] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+            }
+          }
+          coins.push({ x: x * 16 + 8, y: (pillarY - 2) * 16 });
+          x += pillarW;
         }
-      }
-      // down
-      for (let s = stSize; s >= 1; s--) {
-        for (let sy = 13 - s; sy <= 12; sy++) {
-          grid[sy][x + stSize + (stSize - s + 1)] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        // Safe landing span
+        const safeSpan = Math.min(4, finishZoneStart - x);
+        if (safeSpan > 0) {
+          placeGroundSpan(x, safeSpan);
+          x += safeSpan;
         }
+      } else {
+        placeGroundSpan(x, 5);
+        x += 5;
       }
-      x += stSize * 2 + 2;
-    } else {
-      // High coin bridge
-      const bLen = 8;
-      for (let i = 0; i < bLen; i++) {
-        grid[13][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        grid[14][x + i] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        grid[7][x + i] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-        coins.push({ x: (x + i) * 16 + 8, y: 5 * 16 });
+    } else if (chunkType === 4) {
+      // Staircase pyramid (with optional lethal abyss gap in the center at higher stages!)
+      const stSize = Math.min(3 + Math.floor(rand() * (2 + diffRatio)), 5);
+      const hasCenterPit = stage >= 2 && rand() < 0.25 + diffRatio * 0.55;
+      const pitW = hasCenterPit ? (diffRatio > 0.5 ? 3 : 2) : 0;
+      const totalNeeded = stSize * 2 + pitW + 3;
+
+      if (totalNeeded <= remaining) {
+        // Ascending stairs
+        placeGroundSpan(x, stSize + 1);
+        for (let sIdx = 1; sIdx <= stSize; sIdx++) {
+          for (let sy = 13 - sIdx; sy <= 12; sy++) {
+            grid[sy][x + sIdx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+        }
+        x += stSize + 1;
+
+        // Center gap (no ground!)
+        if (pitW > 0) {
+          for (let c = 0; c < pitW; c++) {
+            coins.push({ x: (x + c) * 16 + 8, y: (11 - stSize) * 16 });
+          }
+          x += pitW;
+        }
+
+        // Descending stairs
+        placeGroundSpan(x, stSize + 2);
+        for (let sIdx = stSize; sIdx >= 1; sIdx--) {
+          const col = x + (stSize - sIdx);
+          for (let sy = 13 - sIdx; sy <= 12; sy++) {
+            grid[sy][col] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+        }
+        if (rand() < 0.4 + diffRatio * 0.4) {
+          spawnEnemy(x + stSize, 12);
+        }
+        x += stSize + 2;
+      } else {
+        placeGroundSpan(x, remaining);
+        x += remaining;
+      }
+    } else if (chunkType === 5) {
+      // Two-tier sky bridge with upper and lower threats
+      const bLen = Math.min(remaining, 9 + Math.floor(rand() * 4));
+      placeGroundSpan(x, bLen);
+      for (let i = 1; i < bLen - 1; i++) {
+        const isQ = i === Math.floor(bLen / 2);
+        grid[8][x + i] = {
+          type: isQ ? 'question' : brickTileType,
+          content: isQ ? pickPowerUp() : 'none',
+          bumpOffset: 0,
+          bumpVel: 0,
+        };
+        coins.push({ x: (x + i) * 16 + 8, y: 6 * 16 });
+      }
+      spawnEnemy(x + 2, 12);
+      if (diffRatio > 0.25) {
+        spawnEnemy(x + Math.floor(bLen / 2), 7);
+      }
+      if (diffRatio > 0.55 && bLen >= 10) {
+        spawnEnemy(x + bLen - 3, 12);
       }
       x += bLen;
+    } else {
+      // Elevated platforms over abyss
+      const platCount = Math.min(3, Math.floor((remaining - 3) / 6));
+      if (platCount >= 2) {
+        // Entry ground step
+        placeGroundSpan(x, 2);
+        x += 2;
+        for (let p = 0; p < platCount; p++) {
+          x += 2; // Gap
+          const pW = 4;
+          const pY = p % 2 === 0 ? 10 : 8;
+          for (let i = 0; i < pW && x + i < finishZoneStart; i++) {
+            grid[pY][x + i] = {
+              type: i === 1 && rand() > 0.5 ? 'question' : brickTileType,
+              content: i === 1 ? 'coin' : 'none',
+              bumpOffset: 0,
+              bumpVel: 0,
+            };
+          }
+          if (diffRatio > 0.35 && rand() < 0.35 + diffRatio * 0.45) {
+            spawnEnemy(x + 2, pY - 1);
+          }
+          x += pW;
+        }
+        const tailLen = Math.min(3, finishZoneStart - x);
+        if (tailLen > 0) {
+          placeGroundSpan(x, tailLen);
+          x += tailLen;
+        }
+      } else {
+        placeGroundSpan(x, 5);
+        x += 5;
+      }
     }
   }
 
-  // End castle area
+  // End castle area (always safe ground)
   for (; x < width; x++) {
-    grid[13][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
-    grid[14][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[13][x] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[14][x] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
 
   // Flagpole
@@ -595,10 +806,27 @@ export function createEndlessLevel(seed: number = Date.now()): LevelData {
   grid[11][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[12][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
+  // Safe checkpoints guaranteed on solid ground
+  const findSafeCheckpointX = (targetTile: number): number => {
+    for (let offset = 0; offset < 25; offset++) {
+      const tx = Math.min(finishZoneStart - 4, targetTile + offset);
+      if (grid[13][tx] && grid[13][tx + 1] && !grid[12][tx]) {
+        return tx;
+      }
+    }
+    return 4;
+  };
+
+  const cp1 = findSafeCheckpointX(Math.floor(width * 0.35));
+  const cp2 = findSafeCheckpointX(Math.floor(width * 0.68));
+
+  const timeLimit = Math.max(200, 440 - (stage - 1) * 20);
+  const enemySpeedMultiplier = Number((1 + Math.min(0.85, (stage - 1) * 0.09)).toFixed(2));
+
   return {
-    id: `endless-${seed}`,
-    name: 'ENDLESS RUN',
-    theme: 'overworld',
+    id: `endless-${stage}-${seed}`,
+    name: `INF-${stage}`,
+    theme,
     width,
     height,
     tiles: grid,
@@ -607,11 +835,13 @@ export function createEndlessLevel(seed: number = Date.now()): LevelData {
     marioStart: { x: 40, y: 192 },
     flagX: flagXTile * 16,
     castleX: (castleXTile + 2) * 16,
-    bgColor: '#5c94fc',
-    timeLimit: 500,
+    bgColor,
+    timeLimit,
+    endlessStage: stage,
+    enemySpeedMultiplier,
     checkpoints: [
-      { x: 80 * 16, respawnPos: { x: 82 * 16, y: 192 } },
-      { x: 160 * 16, respawnPos: { x: 162 * 16, y: 192 } },
+      { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: 192 } },
+      { x: cp2 * 16, respawnPos: { x: cp2 * 16, y: 192 } },
     ],
   };
 }

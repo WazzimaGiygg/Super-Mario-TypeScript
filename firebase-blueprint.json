@@ -1,0 +1,384 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private Google-authenticated user profile storing identity and preferred character.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name from Google account",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User Google email (private, owner-only)",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Avatar photo URL",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "preferredCharacter": {
+          "type": "string",
+          "enum": ["mario", "wazzima"],
+          "description": "Preferred multiplayer character"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "email",
+        "preferredCharacter",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MultiplayerRoom": {
+      "title": "MultiplayerRoom",
+      "description": "Multiplayer game room hosted in Firestore.",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "description": "Unique room identifier code",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the room host",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostName": {
+          "type": "string",
+          "description": "Public display name of the room host",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "levelId": {
+          "type": "string",
+          "description": "Active level identifier",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "endlessStage": {
+          "type": "integer",
+          "description": "Current endless mode stage number"
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Seed for synchronized procedural level generation"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "playing", "closed"],
+          "description": "Current lifecycle status of the room"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Room creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Room last update server timestamp"
+        }
+      },
+      "required": [
+        "roomId",
+        "hostUid",
+        "hostName",
+        "levelId",
+        "endlessStage",
+        "seed",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RoomPlayer": {
+      "title": "RoomPlayer",
+      "description": "Real-time state of an authenticated player inside a Firestore multiplayer room.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Player Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "roomId": {
+          "type": "string",
+          "description": "Parent room ID",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Player in-game display name",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Google profile avatar URL",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "character": {
+          "type": "string",
+          "enum": ["mario", "wazzima"],
+          "description": "Selected playable character"
+        },
+        "x": {
+          "type": "number",
+          "description": "Horizontal world coordinate"
+        },
+        "y": {
+          "type": "number",
+          "description": "Vertical world coordinate"
+        },
+        "vx": {
+          "type": "number",
+          "description": "Horizontal velocity"
+        },
+        "vy": {
+          "type": "number",
+          "description": "Vertical velocity"
+        },
+        "facing": {
+          "type": "string",
+          "enum": ["left", "right"],
+          "description": "Facing direction"
+        },
+        "power": {
+          "type": "string",
+          "enum": ["small", "super", "fire", "tanooki"],
+          "description": "Current power-up state"
+        },
+        "state": {
+          "type": "string",
+          "description": "Current animation state",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "animFrame": {
+          "type": "integer",
+          "description": "Current walk animation frame"
+        },
+        "isStatue": {
+          "type": "boolean",
+          "description": "Tanooki statue active flag"
+        },
+        "tailWhipTimer": {
+          "type": "integer",
+          "description": "Tail whip frames remaining"
+        },
+        "isFluttering": {
+          "type": "boolean",
+          "description": "Tanooki flutter active flag"
+        },
+        "invulnerable": {
+          "type": "boolean",
+          "description": "Invulnerability blink flag"
+        },
+        "score": {
+          "type": "integer",
+          "description": "Current player score"
+        },
+        "lives": {
+          "type": "integer",
+          "description": "Remaining lives"
+        },
+        "coins": {
+          "type": "integer",
+          "description": "Collected coins"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last sync server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "roomId",
+        "name",
+        "photoUrl",
+        "character",
+        "x",
+        "y",
+        "vx",
+        "vy",
+        "facing",
+        "power",
+        "state",
+        "animFrame",
+        "isStatue",
+        "tailWhipTimer",
+        "isFluttering",
+        "invulnerable",
+        "score",
+        "lives",
+        "coins",
+        "updatedAt"
+      ]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Chat or quick signal message sent inside a multiplayer room.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Sender Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "roomId": {
+          "type": "string",
+          "description": "Parent room ID",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Sender display name",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "character": {
+          "type": "string",
+          "enum": ["mario", "wazzima"],
+          "description": "Sender character"
+        },
+        "text": {
+          "type": "string",
+          "description": "Message text content",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Message server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "roomId",
+        "name",
+        "character",
+        "text",
+        "createdAt"
+      ]
+    },
+    "RoomEvent": {
+      "title": "RoomEvent",
+      "description": "Synchronized world particle or gameplay event in a multiplayer room.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Sender Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "roomId": {
+          "type": "string",
+          "description": "Parent room ID",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "eventType": {
+          "type": "string",
+          "enum": ["enemy_defeat", "coin_collect", "brick_break", "level_change"],
+          "description": "Type of synchronized event"
+        },
+        "x": {
+          "type": "number",
+          "description": "Event world X coordinate"
+        },
+        "y": {
+          "type": "number",
+          "description": "Event world Y coordinate"
+        },
+        "meta": {
+          "type": "string",
+          "description": "Optional metadata string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Event server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "roomId",
+        "eventType",
+        "x",
+        "y",
+        "meta",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles indexed by Firebase Auth UID."
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/MultiplayerRoom" },
+      "description": "Public multiplayer game rooms hosted in Firestore."
+    },
+    "/rooms/{roomId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/RoomPlayer" },
+      "description": "Active players inside a multiplayer room (document ID equals player UID)."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Chat messages and quick signals inside a multiplayer room."
+    },
+    "/rooms/{roomId}/events/{eventId}": {
+      "schema": { "$ref": "#/entities/RoomEvent" },
+      "description": "Gameplay events broadcast inside a multiplayer room."
+    }
+  }
+}

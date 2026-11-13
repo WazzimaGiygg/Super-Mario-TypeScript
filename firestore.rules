@@ -1,0 +1,242 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidRoomId(id) {
+      return id is string && id.size() >= 2 && id.size() <= 32 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function roomExists(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function getRoom(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function roomIsActive(roomId) {
+      return roomExists(roomId) && getRoom(roomId).status != 'closed';
+    }
+
+    function isRoomHost(roomId) {
+      return roomExists(roomId) && getRoom(roomId).hostUid == request.auth.uid;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'preferredCharacter', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoUrl', 'preferredCharacter', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 300))
+        && data.preferredCharacter in ['mario', 'wazzima']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['roomId', 'hostUid', 'hostName', 'levelId', 'endlessStage', 'seed', 'status', 'createdAt', 'updatedAt'])
+        && isValidRoomId(data.roomId)
+        && isValidId(data.hostUid)
+        && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 40
+        && data.levelId is string && data.levelId.size() >= 1 && data.levelId.size() <= 64
+        && data.endlessStage is int && data.endlessStage >= 0 && data.endlessStage <= 9999
+        && data.seed is int && data.seed >= 0
+        && data.status in ['open', 'playing', 'closed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomPlayer(data) {
+      return data.keys().hasAll([
+          'uid', 'roomId', 'name', 'photoUrl', 'character',
+          'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
+          'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
+          'score', 'lives', 'coins', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'roomId', 'name', 'photoUrl', 'character',
+          'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
+          'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
+          'score', 'lives', 'coins', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isValidRoomId(data.roomId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 32
+        && data.photoUrl is string && data.photoUrl.size() <= 300
+        && data.character in ['mario', 'wazzima']
+        && data.x is number && data.x >= -100 && data.x <= 20000
+        && data.y is number && data.y >= -200 && data.y <= 1000
+        && data.vx is number && data.vx >= -50 && data.vx <= 50
+        && data.vy is number && data.vy >= -50 && data.vy <= 50
+        && data.facing in ['left', 'right']
+        && data.power in ['small', 'super', 'fire', 'tanooki']
+        && data.state is string && data.state.size() >= 1 && data.state.size() <= 32
+        && data.animFrame is int && data.animFrame >= 0 && data.animFrame <= 10
+        && data.isStatue is bool
+        && data.tailWhipTimer is int && data.tailWhipTimer >= 0 && data.tailWhipTimer <= 100
+        && data.isFluttering is bool
+        && data.invulnerable is bool
+        && data.score is int && data.score >= 0
+        && data.lives is int && data.lives >= 0 && data.lives <= 999
+        && data.coins is int && data.coins >= 0 && data.coins <= 999
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomMessage(data) {
+      return data.keys().hasAll(['uid', 'roomId', 'name', 'character', 'text', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'roomId', 'name', 'character', 'text', 'createdAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isValidRoomId(data.roomId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 32
+        && data.character in ['mario', 'wazzima']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 120
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRoomEvent(data) {
+      return data.keys().hasAll(['uid', 'roomId', 'eventType', 'x', 'y', 'meta', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'roomId', 'eventType', 'x', 'y', 'meta', 'createdAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isValidRoomId(data.roomId)
+        && data.eventType in ['enemy_defeat', 'coin_collect', 'brick_break', 'level_change']
+        && data.x is number
+        && data.y is number
+        && data.meta is string && data.meta.size() <= 64
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // Private User Profile (PII isolated strictly to owner)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isVerified() && isOwner(userId) && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isOwner(userId) && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'preferredCharacter', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Multiplayer Rooms
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && isValidRoomId(roomId);
+      allow list: if isSignedIn() && resource.data.status in ['open', 'playing'];
+      allow create: if isVerified() && isValidRoomId(roomId)
+        && isValidRoom(incoming())
+        && incoming().roomId == roomId
+        && incoming().hostUid == request.auth.uid
+        && incoming().status in ['open', 'playing']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidRoomId(roomId)
+        && isValidRoom(incoming())
+        && existing().status != 'closed'
+        && existing().hostUid == request.auth.uid
+        && incoming().roomId == existing().roomId
+        && incoming().hostUid == existing().hostUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().diff(existing()).affectedKeys().hasOnly(['levelId', 'endlessStage', 'seed', 'status', 'updatedAt']) && incoming().status in ['open', 'playing']) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().status == 'closed')
+        );
+      allow delete: if isVerified() && isValidRoomId(roomId) && existing().hostUid == request.auth.uid;
+
+      // Active Players in Room
+      match /players/{playerId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(playerId);
+        allow list: if isSignedIn() && resource.data.roomId == roomId;
+        allow create: if isVerified() && isValidRoomId(roomId) && isValidId(playerId)
+          && playerId == request.auth.uid
+          && isValidRoomPlayer(incoming())
+          && incoming().roomId == roomId
+          && roomIsActive(roomId)
+          && incoming().updatedAt == request.time;
+        allow update: if isVerified() && isValidRoomId(roomId) && isValidId(playerId)
+          && playerId == request.auth.uid
+          && isValidRoomPlayer(incoming())
+          && roomIsActive(roomId)
+          && incoming().uid == existing().uid
+          && incoming().roomId == existing().roomId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'photoUrl', 'character', 'x', 'y', 'vx', 'vy', 'facing',
+            'power', 'state', 'animFrame', 'isStatue', 'tailWhipTimer',
+            'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'updatedAt'
+          ]);
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(playerId)
+          && (playerId == request.auth.uid || isRoomHost(roomId));
+      }
+
+      // Room Chat Messages
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId);
+        allow list: if isSignedIn() && resource.data.roomId == roomId;
+        allow create: if isVerified() && isValidRoomId(roomId) && isValidId(messageId)
+          && isValidRoomMessage(incoming())
+          && incoming().roomId == roomId
+          && roomIsActive(roomId)
+          && incoming().createdAt == request.time;
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId)
+          && (existing().uid == request.auth.uid || isRoomHost(roomId));
+      }
+
+      // Room Gameplay Events
+      match /events/{eventId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(eventId);
+        allow list: if isSignedIn() && resource.data.roomId == roomId;
+        allow create: if isVerified() && isValidRoomId(roomId) && isValidId(eventId)
+          && isValidRoomEvent(incoming())
+          && incoming().roomId == roomId
+          && roomIsActive(roomId)
+          && incoming().createdAt == request.time;
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(eventId)
+          && (existing().uid == request.auth.uid || isRoomHost(roomId));
+      }
+    }
+  }
+}
