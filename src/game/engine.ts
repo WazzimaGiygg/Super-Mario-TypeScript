@@ -52,7 +52,10 @@ export class GameEngine {
   public localStageCleared: boolean = false;
   public waitingForPlayersFinish: boolean = false;
   public waitingPlayersNames: string[] = [];
+  public stageArrivalNotice: string = '';
+  public allPlayersClearedReady: boolean = false;
   public allPlayersClearedCountdown: number = 0;
+  private notifiedArrivedPlayerIds: Set<string> = new Set();
   public isMultiplayerMatchOver: boolean = false;
   public multiplayerMatchResult: MultiplayerMatchResult | null = null;
   public onMultiplayerSyncNeeded?: () => void;
@@ -169,11 +172,18 @@ export class GameEngine {
     this.localStageCleared = false;
     this.waitingForPlayersFinish = false;
     this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
     this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
     this.intermissionTimer = showIntermission ? 85 : 0;
     this.stageClearTallyDelay = 0;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    this.warpTimer = 0;
+    this.warpTarget = null;
+    this.pipeClipLipY = null;
+    this.pipeClipLipX = null;
     if (newLevel.endlessStage !== undefined) {
       this.endlessStage = newLevel.endlessStage;
     } else if (newLevel.id === 'world-1-1' || newLevel.id === 'world-1-2') {
@@ -477,6 +487,11 @@ export class GameEngine {
 
     // 7. Castle entered & stage clear time tally countdown sequence
     if (this.marioState === 'castle_entered') {
+      if (this.localStageCleared) {
+        this.handleStageClearReadyToAdvance();
+        return;
+      }
+
       if (this.stageClearTallyDelay > 0) {
         this.stageClearTallyDelay--;
         return;
@@ -502,22 +517,16 @@ export class GameEngine {
           this.stageClearDelayTimer = 90; // ~1.5 seconds post-tally delay to admire final score
         }
         return;
-      } else {
-        if (this.stageClearDelayTimer === 0) {
-          this.stageClearDelayTimer = 60;
-        }
       }
 
-      // Post-countdown delay before advancing to next level (or waiting for remote players)
-      if (this.stageClearDelayTimer > 0) {
-        this.stageClearDelayTimer--;
-        if (this.stageClearDelayTimer === 0) {
-          this.handleStageClearReadyToAdvance();
-        }
+      // If time was already 0 before entering castle, wait 60 frames once
+      if (this.stageClearDelayTimer === 0) {
+        this.stageClearDelayTimer = 60;
         return;
       }
 
-      if (this.stats.time === 0 && this.stageClearDelayTimer === 0) {
+      this.stageClearDelayTimer--;
+      if (this.stageClearDelayTimer <= 0) {
         this.handleStageClearReadyToAdvance();
       }
       return;
@@ -1874,6 +1883,7 @@ export class GameEngine {
       const heightGrabbed = 12 * GameEngine.TILE_SIZE - this.marioY;
       const polePoints = heightGrabbed > 100 ? 5000 : heightGrabbed > 60 ? 2000 : 800;
       this.addScore(polePoints, this.level.flagX, this.marioY);
+      this.onMultiplayerSyncNeeded?.();
     }
   }
 
@@ -1884,6 +1894,7 @@ export class GameEngine {
     this.stageClearTallyDelay = 40;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    this.onMultiplayerSyncNeeded?.();
   }
 
   private handleStageClearReadyToAdvance() {
@@ -1894,37 +1905,70 @@ export class GameEngine {
 
     const now = Date.now();
     const activeRemotes = Array.from(this.remotePlayers.values()).filter(
-      rp => now - rp.lastUpdated < 20000 && rp.lives > 0
+      rp => now - rp.lastUpdated < 45000 && rp.lives > 0
     );
 
     if (!this.isMultiplayerConnected || activeRemotes.length === 0) {
       this.waitingForPlayersFinish = false;
       this.waitingPlayersNames = [];
+      this.allPlayersClearedReady = false;
       this.advanceToNextLevel();
       return;
     }
 
-    const pending = activeRemotes.filter(rp => !rp.stageCleared);
+    const isRemoteClearedThisLevel = (rp: RemotePlayerState) =>
+      Boolean(rp.stageCleared) && (!rp.levelId || rp.levelId === this.level.id);
+
+    const clearedRemotes = activeRemotes.filter(isRemoteClearedThisLevel);
+    const pending = activeRemotes.filter(rp => !isRemoteClearedThisLevel(rp));
+
+    // Notify local player immediately whenever a remote teammate arrives/finishes!
+    const newlyArrivedNames: string[] = [];
+    clearedRemotes.forEach(rp => {
+      if (!this.notifiedArrivedPlayerIds.has(rp.id)) {
+        this.notifiedArrivedPlayerIds.add(rp.id);
+        newlyArrivedNames.push(rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'));
+      }
+    });
+    if (newlyArrivedNames.length > 0) {
+      this.stageArrivalNotice = `${newlyArrivedNames.join(', ')} chegou ao final da fase!`;
+      this.sound.playPowerUpEat();
+    }
+
     if (pending.length > 0) {
       this.waitingForPlayersFinish = true;
-      this.waitingPlayersNames = pending.map(
-        rp => rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario')
-      );
+      this.allPlayersClearedReady = false;
+      this.waitingPlayersNames = pending.map(rp => {
+        const name = rp.name || (rp.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario');
+        if (rp.state === 'pole_slide' || rp.state === 'castle_walk' || rp.state === 'castle_entered') {
+          return `${name} (entrando no castelo)`;
+        }
+        return name;
+      });
       this.allPlayersClearedCountdown = 0;
       return;
     }
 
-    // All active teammates have finished the stage!
+    // All active teammates have finished this exact stage!
     this.waitingForPlayersFinish = false;
     this.waitingPlayersNames = [];
+    this.allPlayersClearedReady = true;
 
     // In Firebase mode, only the host drives the room level transition so everyone receives the exact same seed.
     if (this.isMultiplayerFirebase && !this.isMultiplayerHost) {
       return;
     }
 
+    // In WebSocket mode, designate the player with lexicographically smallest ID as level coordinator.
+    if (!this.isMultiplayerFirebase) {
+      const isWsCoordinator = activeRemotes.every(rp => this.localPlayerId <= rp.id);
+      if (!isWsCoordinator) {
+        return;
+      }
+    }
+
     if (this.allPlayersClearedCountdown <= 0) {
-      this.allPlayersClearedCountdown = 45;
+      this.allPlayersClearedCountdown = 110; // ~1.8s so both players clearly see the arrival notice
       return;
     }
 
@@ -2036,7 +2080,10 @@ export class GameEngine {
     this.localStageCleared = false;
     this.waitingForPlayersFinish = false;
     this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
     this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
 
     this.activeCheckpoint = null;
     this.activatedCheckpointIndices.clear();
@@ -2068,7 +2115,10 @@ export class GameEngine {
     this.localStageCleared = false;
     this.waitingForPlayersFinish = false;
     this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
     this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
 
     this.activeCheckpoint = null;
     this.activatedCheckpointIndices.clear();

@@ -14,8 +14,8 @@ import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
 import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult } from '../game/types.ts';
-import { getTopScore, saveNewScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock } from 'lucide-react';
+import { getTopScore } from '../game/scoreboard.ts';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2 } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -40,6 +40,8 @@ export const GameCanvas: React.FC = () => {
   const [isStageClear, setIsStageClear] = useState(false);
   const [waitingForPlayersFinish, setWaitingForPlayersFinish] = useState(false);
   const [waitingPlayersNames, setWaitingPlayersNames] = useState<string[]>([]);
+  const [stageArrivalNotice, setStageArrivalNotice] = useState('');
+  const [allPlayersClearedReady, setAllPlayersClearedReady] = useState(false);
   const [localStageCleared, setLocalStageCleared] = useState(false);
   const [isMultiplayerMatchOver, setIsMultiplayerMatchOver] = useState(false);
   const [multiplayerMatchResult, setMultiplayerMatchResult] = useState<MultiplayerMatchResult | null>(null);
@@ -73,7 +75,15 @@ export const GameCanvas: React.FC = () => {
 
   // Subscribe to multiplayer client & check URL invite room
   useEffect(() => {
-    const unsub = multiplayerClient.subscribe(setMultiplayerStatus);
+    const unsub = multiplayerClient.subscribe((status) => {
+      setMultiplayerStatus(status);
+      if (status.connected) {
+        setHasStarted(true);
+        if (engineRef.current) {
+          engineRef.current.isGameStarted = true;
+        }
+      }
+    });
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('room')) {
@@ -118,6 +128,18 @@ export const GameCanvas: React.FC = () => {
   // Keyboard Event Listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (isMultiplayerOpen || isSettingsOpen || isLeaderboardOpen) {
+        return;
+      }
+
       // Secret Cheat Code Detection: "lula132026"
       if (e.key && e.key.length === 1) {
         cheatBufferRef.current = (cheatBufferRef.current + e.key.toLowerCase()).slice(-16);
@@ -137,7 +159,11 @@ export const GameCanvas: React.FC = () => {
       if (!hasStarted) {
         setHasStarted(true);
         if (engineRef.current && !engineRef.current.isGameStarted) {
-          engineRef.current.restartGame();
+          if (multiplayerStatus.connected) {
+            engineRef.current.isGameStarted = true;
+          } else {
+            engineRef.current.restartGame();
+          }
         }
       }
 
@@ -184,9 +210,17 @@ export const GameCanvas: React.FC = () => {
           break;
         case 'KeyR':
           if (e.ctrlKey || e.metaKey) return;
-          engine.restartGame();
-          setIsGameOver(false);
-          setIsStageClear(false);
+          if (multiplayerStatus.connected) {
+            if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
+              multiplayerClient.startMultiplayerRematch();
+              setIsGameOver(false);
+              setIsStageClear(false);
+            }
+          } else {
+            engine.restartGame();
+            setIsGameOver(false);
+            setIsStageClear(false);
+          }
           break;
       }
     };
@@ -238,7 +272,7 @@ export const GameCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [hasStarted]);
+  }, [hasStarted, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat]);
 
   // Gamepad API Polling
   const pollGamepad = useCallback(() => {
@@ -311,6 +345,8 @@ export const GameCanvas: React.FC = () => {
           setIsStageClear(engine.isStageClear);
           setWaitingForPlayersFinish(engine.waitingForPlayersFinish);
           setWaitingPlayersNames([...engine.waitingPlayersNames]);
+          setStageArrivalNotice(engine.stageArrivalNotice);
+          setAllPlayersClearedReady(engine.allPlayersClearedReady);
           setLocalStageCleared(engine.localStageCleared);
           setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
           setMultiplayerMatchResult(engine.multiplayerMatchResult);
@@ -344,6 +380,11 @@ export const GameCanvas: React.FC = () => {
   };
 
   const handleSelectLevel = (level: LevelData) => {
+    if (multiplayerStatus.connected && multiplayerStatus.transport === 'firebase' && !multiplayerStatus.isHost) {
+      setCheatToast('Apenas o anfitrião pode escolher a fase da sala!');
+      setTimeout(() => setCheatToast(''), 3000);
+      return;
+    }
     if (engineRef.current) {
       engineRef.current.loadLevel(level, true, false);
       setIsGameOver(false);
@@ -352,6 +393,17 @@ export const GameCanvas: React.FC = () => {
   };
 
   const handleRestart = () => {
+    if (multiplayerStatus.connected) {
+      if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
+        multiplayerClient.startMultiplayerRematch();
+        setIsGameOver(false);
+        setIsStageClear(false);
+      } else {
+        setCheatToast('Apenas o anfitrião pode reiniciar a partida da sala!');
+        setTimeout(() => setCheatToast(''), 3000);
+      }
+      return;
+    }
     if (engineRef.current) {
       engineRef.current.restartGame();
       setIsGameOver(false);
@@ -374,7 +426,11 @@ export const GameCanvas: React.FC = () => {
     SoundEngine.get().resume();
     setHasStarted(true);
     if (engineRef.current) {
-      engineRef.current.restartGame();
+      if (multiplayerStatus.connected) {
+        engineRef.current.isGameStarted = true;
+      } else {
+        engineRef.current.restartGame();
+      }
     }
   };
 
@@ -542,7 +598,7 @@ export const GameCanvas: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    engineRef.current?.restartGame();
+                    handleRestart();
                     setIsPaused(false);
                   }}
                   className="px-6 py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white font-['Press_Start_2P',monospace] text-xs shadow"
@@ -716,21 +772,27 @@ export const GameCanvas: React.FC = () => {
 
           {/* Stage Clear & Multiplayer Waiting Banner */}
           {isStageClear && !isMultiplayerMatchOver && (
-            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-5 py-3 bg-black/90 border-2 border-amber-400 rounded-xl text-center shadow-2xl max-w-[90%]">
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-5 py-3 bg-black/92 border-2 border-amber-400 rounded-xl text-center shadow-2xl max-w-[92%]">
               <span className="block font-['Press_Start_2P',monospace] text-amber-400 text-xs sm:text-base">
                 FASE CONCLUÍDA!
               </span>
+              {stageArrivalNotice && (
+                <div className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-950/90 border border-emerald-400/70 flex items-center justify-center gap-1.5 text-emerald-200 font-mono text-[11px] sm:text-xs font-bold shadow">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{stageArrivalNotice}</span>
+                </div>
+              )}
               {waitingForPlayersFinish && (
-                <div className="mt-2 flex items-center justify-center gap-2 text-emerald-300 font-mono text-[11px] sm:text-xs animate-pulse">
-                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                <div className="mt-2 flex items-center justify-center gap-2 text-amber-200 font-mono text-[11px] sm:text-xs animate-pulse">
+                  <Clock className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                   <span>
                     Aguardando {waitingPlayersNames.join(', ')} terminar a fase...
                   </span>
                 </div>
               )}
-              {!waitingForPlayersFinish && localStageCleared && multiplayerStatus.connected && multiplayerStatus.playerCount > 1 && (
-                <div className="mt-2 text-amber-200 font-mono text-[11px] sm:text-xs animate-pulse">
-                  Todos terminaram! Avançando para a próxima fase...
+              {(allPlayersClearedReady || (!waitingForPlayersFinish && localStageCleared && multiplayerStatus.connected && multiplayerStatus.playerCount > 1)) && (
+                <div className="mt-2 text-amber-300 font-mono text-[11px] sm:text-xs font-bold animate-pulse">
+                  Todos terminaram! Avançando juntos para a próxima fase...
                 </div>
               )}
             </div>

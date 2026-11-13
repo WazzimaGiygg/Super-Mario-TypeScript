@@ -232,6 +232,12 @@
           "type": "boolean",
           "description": "True when the player finished the current stage and is waiting for teammates"
         },
+        "levelId": {
+          "type": "string",
+          "description": "Current level ID the player is playing",
+          "minLength": 1,
+          "maxLength": 64
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
@@ -260,6 +266,7 @@
         "lives",
         "coins",
         "stageCleared",
+        "levelId",
         "updatedAt"
       ]
     },

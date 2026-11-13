@@ -86,13 +86,13 @@ service cloud.firestore {
           'uid', 'roomId', 'name', 'photoUrl', 'character',
           'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
           'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
-          'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
+          'score', 'lives', 'coins', 'stageCleared', 'levelId', 'updatedAt'
         ])
         && data.keys().hasOnly([
           'uid', 'roomId', 'name', 'photoUrl', 'character',
           'x', 'y', 'vx', 'vy', 'facing', 'power', 'state', 'animFrame',
           'isStatue', 'tailWhipTimer', 'isFluttering', 'invulnerable',
-          'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
+          'score', 'lives', 'coins', 'stageCleared', 'levelId', 'updatedAt'
         ])
         && isValidId(data.uid)
         && data.uid == request.auth.uid
@@ -116,6 +116,7 @@ service cloud.firestore {
         && data.lives is int && data.lives >= 0 && data.lives <= 999
         && data.coins is int && data.coins >= 0 && data.coins <= 999
         && data.stageCleared is bool
+        && data.levelId is string && data.levelId.size() >= 1 && data.levelId.size() <= 64
         && data.updatedAt is timestamp;
     }
 
@@ -210,7 +211,7 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'name', 'photoUrl', 'character', 'x', 'y', 'vx', 'vy', 'facing',
             'power', 'state', 'animFrame', 'isStatue', 'tailWhipTimer',
-            'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'stageCleared', 'updatedAt'
+            'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'stageCleared', 'levelId', 'updatedAt'
           ]);
         allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(playerId)
           && (playerId == request.auth.uid || isRoomHost(roomId));

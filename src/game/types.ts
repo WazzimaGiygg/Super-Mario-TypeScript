@@ -153,6 +153,7 @@ export interface LevelData {
   bgColor: string;
   timeLimit: number;
   endlessStage?: number;
+  seed?: number;
   enemySpeedMultiplier?: number;
   checkpoints?: { x: number; respawnPos: Point }[];
 }
@@ -224,6 +225,7 @@ export interface RemotePlayerState {
   lives: number;
   coins: number;
   stageCleared?: boolean;
+  levelId?: string;
   lastUpdated: number;
 }
 

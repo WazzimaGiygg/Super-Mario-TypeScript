@@ -455,10 +455,11 @@ export function createEndlessLevel(
   endlessStage: number = 1
 ): LevelData {
   const stage = Math.max(1, Math.floor(endlessStage));
+  const normalizedSeed = Math.abs(Math.floor(seed)) % 10000000;
   const diffRatio = Math.min(1, (stage - 1) / 8); // Scales smoothly from 0.0 (stage 1) to 1.0 (stage 9+)
 
   // Deterministic PRNG (Mulberry32-style mixed with seed + stage)
-  let s = (Math.abs(Math.floor(seed)) + stage * 7919) >>> 0;
+  let s = (normalizedSeed + stage * 7919) >>> 0;
   const rand = () => {
     s = (s + 0x6d2b79f5) | 0;
     let t = Math.imul(s ^ (s >>> 15), 1 | s);
@@ -824,7 +825,7 @@ export function createEndlessLevel(
   const enemySpeedMultiplier = Number((1 + Math.min(0.85, (stage - 1) * 0.09)).toFixed(2));
 
   return {
-    id: `endless-${stage}-${seed}`,
+    id: `endless-${stage}-${normalizedSeed}`,
     name: `INF-${stage}`,
     theme,
     width,
@@ -838,6 +839,7 @@ export function createEndlessLevel(
     bgColor,
     timeLimit,
     endlessStage: stage,
+    seed: normalizedSeed,
     enemySpeedMultiplier,
     checkpoints: [
       { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: 192 } },
