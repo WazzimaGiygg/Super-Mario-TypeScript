@@ -52,6 +52,12 @@ service cloud.firestore {
       return roomExists(roomId) && getRoom(roomId).hostUid == request.auth.uid;
     }
 
+    function isRoomExpiredOrClosed(roomId) {
+      return !roomExists(roomId)
+        || getRoom(roomId).status == 'closed'
+        || request.time > getRoom(roomId).updatedAt + duration.value(5, 'm');
+    }
+
     // --- Validation Blueprints ---
     function isValidUserProfile(data) {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'preferredCharacter', 'createdAt', 'updatedAt'])
@@ -189,7 +195,11 @@ service cloud.firestore {
           (incoming().diff(existing()).affectedKeys().hasOnly(['levelId', 'endlessStage', 'seed', 'matchGeneration', 'status', 'updatedAt']) && incoming().status in ['open', 'playing']) ||
           (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().status == 'closed')
         );
-      allow delete: if isVerified() && isValidRoomId(roomId) && existing().hostUid == request.auth.uid;
+      allow delete: if isVerified() && isValidRoomId(roomId) && (
+        existing().hostUid == request.auth.uid ||
+        existing().status == 'closed' ||
+        request.time > existing().updatedAt + duration.value(5, 'm')
+      );
 
       // Active Players in Room
       match /players/{playerId} {
@@ -213,8 +223,8 @@ service cloud.firestore {
             'power', 'state', 'animFrame', 'isStatue', 'tailWhipTimer',
             'isFluttering', 'invulnerable', 'score', 'lives', 'coins', 'stageCleared', 'levelId', 'updatedAt'
           ]);
-        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(playerId)
-          && (playerId == request.auth.uid || isRoomHost(roomId));
+        allow delete: if isVerified() && isValidRoomId(roomId) && isValidId(playerId)
+          && (playerId == request.auth.uid || isRoomHost(roomId) || isRoomExpiredOrClosed(roomId));
       }
 
       // Room Chat Messages
@@ -226,8 +236,8 @@ service cloud.firestore {
           && incoming().roomId == roomId
           && roomIsActive(roomId)
           && incoming().createdAt == request.time;
-        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId)
-          && (existing().uid == request.auth.uid || isRoomHost(roomId));
+        allow delete: if isVerified() && isValidRoomId(roomId) && isValidId(messageId)
+          && (existing().uid == request.auth.uid || isRoomHost(roomId) || isRoomExpiredOrClosed(roomId));
       }
 
       // Room Gameplay Events
@@ -239,8 +249,8 @@ service cloud.firestore {
           && incoming().roomId == roomId
           && roomIsActive(roomId)
           && incoming().createdAt == request.time;
-        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(eventId)
-          && (existing().uid == request.auth.uid || isRoomHost(roomId));
+        allow delete: if isVerified() && isValidRoomId(roomId) && isValidId(eventId)
+          && (existing().uid == request.auth.uid || isRoomHost(roomId) || isRoomExpiredOrClosed(roomId));
       }
     }
   }

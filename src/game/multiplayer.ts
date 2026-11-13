@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   query,
@@ -26,6 +27,7 @@ import {
   FirebaseRoomSummary,
   FirebaseUserSummary,
   LevelData,
+  MultiplayerLogoffEvent,
   MultiplayerMessage,
   MultiplayerStatus,
   MultiplayerTransport,
@@ -46,6 +48,10 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+const ROOM_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const ROOM_HEARTBEAT_INTERVAL_MS = 30 * 1000; // Host refreshes room updatedAt every 30s if active
+const PLAYER_LOGOFF_TIMEOUT_MS = 20 * 1000; // 20 seconds without heartbeat -> player logoff/drop detected
+
 export class MultiplayerClient {
   private ws: WebSocket | null = null;
   private engine: GameEngine | null = null;
@@ -60,8 +66,10 @@ export class MultiplayerClient {
   private error: string | null = null;
   private ping: number = 0;
   private sendInterval: ReturnType<typeof setInterval> | null = null;
+  private watchdogInterval: ReturnType<typeof setInterval> | null = null;
   private listeners: ((status: MultiplayerStatus) => void)[] = [];
   private chatListeners: ((chat: { name: string; character: PlayerCharacter; text: string; time: number }) => void)[] = [];
+  private logoffListeners: ((event: MultiplayerLogoffEvent) => void)[] = [];
 
   // Firebase Auth & Firestore State
   private authUser: FirebaseUserSummary | null = null;
@@ -76,6 +84,16 @@ export class MultiplayerClient {
   private isApplyingRemoteLevel: boolean = false;
   private currentRoomSeed: number = 1001;
   private currentMatchGeneration: number = 1;
+
+  // Logoff & Room Inactivity Tracking
+  private networkOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  private lastRoomActivityMs: number = Date.now();
+  private lastRoomDocTouchMs: number = 0;
+  private roomServerUpdatedAtMs: number = Date.now();
+  private remotePlayerNames: Map<string, string> = new Map();
+  private remoteLastHeartbeatMs: Map<string, number> = new Map();
+  private cleaningRoomIds: Set<string> = new Set();
+  private hostUidInRoom: string = '';
 
   // Dirty-checking state for quota-friendly Firestore sync
   private lastSyncedPayload: {
@@ -100,11 +118,37 @@ export class MultiplayerClient {
   constructor() {
     if (typeof window !== 'undefined') {
       this.serverAddress = window.location.host;
-      window.addEventListener('beforeunload', () => {
+
+      const attemptUnloadCleanup = () => {
         if (this.connected && this.transport === 'firebase' && this.authUser) {
-          // Best-effort cleanup on tab close
           deleteDoc(doc(db, 'rooms', this.roomId, 'players', this.authUser.uid)).catch(() => {});
+          if (this.isHost && this.engine && this.engine.remotePlayers.size === 0) {
+            deleteDoc(doc(db, 'rooms', this.roomId)).catch(() => {});
+          }
         }
+      };
+
+      window.addEventListener('beforeunload', attemptUnloadCleanup);
+      window.addEventListener('pagehide', attemptUnloadCleanup);
+
+      window.addEventListener('offline', () => {
+        this.networkOnline = false;
+        if (this.connected) {
+          this.emitLogoffEvent({
+            type: 'network_offline',
+            message: 'Conexão de rede perdida! Aguardando reconexão...',
+          });
+        }
+        this.notify();
+      });
+
+      window.addEventListener('online', () => {
+        this.networkOnline = true;
+        if (this.connected) {
+          this.touchRoomActivity();
+          this.syncNow();
+        }
+        this.notify();
       });
     }
 
@@ -123,16 +167,36 @@ export class MultiplayerClient {
         }
         this.subscribeAvailableRooms();
       } else {
+        const wasConnectedFirebase = this.connected && this.transport === 'firebase';
+        const prevUid = this.authUser?.uid;
+        const prevRoomId = this.roomId;
+        const wasHost = this.isHost;
+
         this.authUser = null;
         this.availableRooms = [];
         this.stopAvailableRoomsListener();
-        if (this.connected && this.transport === 'firebase') {
-          this.disconnect();
+
+        if (wasConnectedFirebase) {
+          this.disconnectFirebase(wasHost, prevUid, prevRoomId);
+          this.error = 'Logoff da conta Google detectado. Você saiu da sala.';
+          this.emitLogoffEvent({
+            type: 'local_logoff',
+            message: 'Logoff detectado! Você foi desconectado da sala.',
+          });
         }
       }
       this.syncEngineFlags();
       this.notify();
     });
+  }
+
+  private emitLogoffEvent(event: Omit<MultiplayerLogoffEvent, 'timestamp'>) {
+    const full: MultiplayerLogoffEvent = { ...event, timestamp: Date.now() };
+    this.logoffListeners.forEach((cb) => cb(full));
+  }
+
+  private touchRoomActivity() {
+    this.lastRoomActivityMs = Date.now();
   }
 
   private syncEngineFlags() {
@@ -153,6 +217,7 @@ export class MultiplayerClient {
       this.handleLocalLevelChanged(level);
     };
     this.engine.onMultiplayerSyncNeeded = () => {
+      this.touchRoomActivity();
       this.syncNow();
     };
   }
@@ -172,6 +237,13 @@ export class MultiplayerClient {
     };
   }
 
+  public onLogoffEvent(cb: (event: MultiplayerLogoffEvent) => void) {
+    this.logoffListeners.push(cb);
+    return () => {
+      this.logoffListeners = this.logoffListeners.filter((l) => l !== cb);
+    };
+  }
+
   private notify() {
     const status = this.getStatus();
     this.listeners.forEach((cb) => cb(status));
@@ -179,6 +251,9 @@ export class MultiplayerClient {
 
   public getStatus(): MultiplayerStatus {
     const remoteCount = this.engine ? this.engine.remotePlayers.size : 0;
+    const inactivityRemainingSec = this.connected
+      ? Math.max(0, Math.ceil((ROOM_INACTIVITY_TIMEOUT_MS - (Date.now() - this.lastRoomActivityMs)) / 1000))
+      : null;
     return {
       transport: this.transport,
       connected: this.connected,
@@ -194,6 +269,8 @@ export class MultiplayerClient {
       authUser: this.authUser,
       isHost: this.isHost,
       availableRooms: this.availableRooms,
+      networkOnline: this.networkOnline,
+      inactivityRemainingSec,
     };
   }
 
@@ -271,17 +348,28 @@ export class MultiplayerClient {
     this.unsubRoomsList = onSnapshot(
       q,
       (snapshot) => {
+        const now = Date.now();
         const rooms: FirebaseRoomSummary[] = [];
         snapshot.forEach((docSnap) => {
           const d = docSnap.data();
+          const roomCode = d.roomId || docSnap.id;
+          const updatedAtMs = d.updatedAt?.toMillis ? d.updatedAt.toMillis() : now;
+
+          // Auto-remove rooms inactive for more than 5 minutes
+          if (now - updatedAtMs > ROOM_INACTIVITY_TIMEOUT_MS) {
+            this.deleteFirebaseRoomCompletely(roomCode).catch(() => {});
+            return;
+          }
+
           rooms.push({
-            roomId: d.roomId || docSnap.id,
+            roomId: roomCode,
             hostUid: d.hostUid,
             hostName: d.hostName || 'Anfitrião',
             levelId: d.levelId || 'world-1-1',
             endlessStage: d.endlessStage || 0,
             seed: d.seed || 1001,
             status: d.status || 'open',
+            updatedAtMs,
           });
         });
         this.availableRooms = rooms;
@@ -344,9 +432,12 @@ export class MultiplayerClient {
 
       if (existingRoomSnap.exists()) {
         const roomData = existingRoomSnap.data();
-        if (roomData.status === 'closed') {
-          if (roomData.hostUid === this.authUser.uid) {
-            await deleteDoc(roomRef);
+        const updatedAtMs = roomData.updatedAt?.toMillis ? roomData.updatedAt.toMillis() : Date.now();
+        const isExpired = Date.now() - updatedAtMs > ROOM_INACTIVITY_TIMEOUT_MS;
+
+        if (roomData.status === 'closed' || isExpired) {
+          if (roomData.hostUid === this.authUser.uid || isExpired) {
+            await this.deleteFirebaseRoomCompletely(this.roomId);
             await this.createNewFirebaseRoom(roomRef, roomPath, initialLevelId, initialEndlessStage);
           } else {
             this.connecting = false;
@@ -357,8 +448,10 @@ export class MultiplayerClient {
           }
         } else {
           this.isHost = roomData.hostUid === this.authUser.uid;
+          this.hostUidInRoom = roomData.hostUid || '';
           this.currentRoomSeed = roomData.seed || 1001;
           this.currentMatchGeneration = roomData.matchGeneration || 1;
+          this.roomServerUpdatedAtMs = updatedAtMs;
           // Ensure joining player never enters with stale 0 lives or leftover match-over state
           if (this.engine && (this.engine.stats.lives <= 0 || this.engine.isMultiplayerMatchOver)) {
             const joinLevel = !this.isHost
@@ -393,9 +486,15 @@ export class MultiplayerClient {
         handleFirestoreError(err, OperationType.CREATE, playerPath);
       }
 
-      this.joinedAtMs = Date.now();
+      const now = Date.now();
+      this.joinedAtMs = now;
+      this.lastRoomActivityMs = now;
+      this.lastRoomDocTouchMs = now;
+      this.roomServerUpdatedAtMs = now;
       this.seenMessageIds.clear();
       this.seenEventIds.clear();
+      this.remotePlayerNames.clear();
+      this.remoteLastHeartbeatMs.clear();
       this.lastSyncedPayload = null;
       this.connected = true;
       this.connecting = false;
@@ -403,6 +502,7 @@ export class MultiplayerClient {
 
       this.attachFirebaseRoomListeners();
       this.startFirebaseSyncLoop();
+      this.startFirebaseWatchdog();
       this.notify();
     } catch (err: any) {
       this.connecting = false;
@@ -421,6 +521,7 @@ export class MultiplayerClient {
   ) {
     if (!this.authUser) return;
     this.isHost = true;
+    this.hostUidInRoom = this.authUser.uid;
     this.currentRoomSeed = this.engine?.level?.seed ?? Math.floor(Date.now() % 10000000);
     this.currentMatchGeneration = 1;
     try {
@@ -456,6 +557,10 @@ export class MultiplayerClient {
         if (!snap.exists()) {
           if (this.connected) {
             this.error = 'A sala foi encerrada pelo anfitrião.';
+            this.emitLogoffEvent({
+              type: 'remote_logoff',
+              message: 'A sala foi encerrada pelo anfitrião.',
+            });
             this.disconnectFirebase(false);
           }
           return;
@@ -463,15 +568,24 @@ export class MultiplayerClient {
         const data = snap.data();
         if (data.status === 'closed' && this.connected) {
           this.error = 'A sala foi fechada pelo anfitrião.';
+          this.emitLogoffEvent({
+            type: 'remote_logoff',
+            message: 'O anfitrião encerrou a sala.',
+          });
           this.disconnectFirebase(false);
           return;
         }
+        if (data.updatedAt?.toMillis) {
+          this.roomServerUpdatedAtMs = data.updatedAt.toMillis();
+        }
         this.isHost = data.hostUid === myUid;
+        this.hostUidInRoom = data.hostUid || '';
         this.syncEngineFlags();
 
         const incomingGen = typeof data.matchGeneration === 'number' ? data.matchGeneration : 1;
         if (incomingGen > this.currentMatchGeneration) {
           this.currentMatchGeneration = incomingGen;
+          this.touchRoomActivity();
           if (this.engine && !this.isHost) {
             const targetLevel = this.buildLevelFromRoomData(
               data.levelId || 'world-1-1',
@@ -484,6 +598,7 @@ export class MultiplayerClient {
             this.syncNow();
           }
         } else if (!this.isHost && this.engine && data.levelId) {
+          this.touchRoomActivity();
           this.applyRemoteRoomLevel(data.levelId, data.endlessStage || 0, data.seed || 1001);
         }
       },
@@ -504,16 +619,59 @@ export class MultiplayerClient {
       playersQuery,
       (snapshot) => {
         if (!this.engine) return;
+        const now = Date.now();
         const activeIds = new Set<string>();
+
+        snapshot.docChanges().forEach((change) => {
+          if (change.doc.id === myUid) return;
+          if (change.type === 'removed') {
+            const leftName = this.remotePlayerNames.get(change.doc.id) || change.doc.data()?.name || 'Jogador';
+            const leftIsHost = change.doc.id === this.hostUidInRoom;
+            this.remotePlayerNames.delete(change.doc.id);
+            this.remoteLastHeartbeatMs.delete(change.doc.id);
+            this.emitLogoffEvent({
+              type: 'remote_logoff',
+              playerName: leftName,
+              message: leftIsHost
+                ? `${leftName} (Anfitrião) fez logoff / saiu da sala.`
+                : `${leftName} fez logoff / saiu da sala.`,
+            });
+          } else if (change.type === 'modified') {
+            this.remoteLastHeartbeatMs.set(change.doc.id, now);
+          }
+        });
+
         snapshot.forEach((docSnap) => {
           if (docSnap.id === myUid) return;
           const d = docSnap.data();
+
+          // Filter out abandoned zombie player docs left from prior crashed sessions (> 45s old on join)
+          const serverUpdatedMs = d.updatedAt?.toMillis ? d.updatedAt.toMillis() : null;
+          if (
+            serverUpdatedMs !== null &&
+            !this.remoteLastHeartbeatMs.has(docSnap.id) &&
+            Math.abs(now - serverUpdatedMs) < 86400000 &&
+            now - serverUpdatedMs > 45000
+          ) {
+            if (this.isHost) {
+              deleteDoc(doc(db, 'rooms', roomId, 'players', docSnap.id)).catch(() => {});
+            }
+            return;
+          }
+
+          if (!this.remoteLastHeartbeatMs.has(docSnap.id)) {
+            this.remoteLastHeartbeatMs.set(docSnap.id, now);
+          }
+
           activeIds.add(docSnap.id);
 
           const prev = this.engine!.remotePlayers.get(docSnap.id);
+          const remoteName = d.name || 'Jogador';
+          this.remotePlayerNames.set(docSnap.id, remoteName);
+
           const remoteState: RemotePlayerState = {
             id: docSnap.id,
-            name: d.name || 'Jogador',
+            name: remoteName,
             photoUrl: d.photoUrl || '',
             character: d.character === 'mario' ? 'mario' : 'wazzima',
             x: typeof d.x === 'number' ? d.x : 40,
@@ -535,8 +693,23 @@ export class MultiplayerClient {
             coins: typeof d.coins === 'number' ? d.coins : 0,
             stageCleared: Boolean(d.stageCleared),
             levelId: typeof d.levelId === 'string' ? d.levelId : undefined,
-            lastUpdated: Date.now(),
+            lastUpdated: this.remoteLastHeartbeatMs.get(docSnap.id) ?? now,
           };
+
+          const hasMeaningfulActivity =
+            !prev ||
+            Math.abs(remoteState.x - prev.x) >= 1.5 ||
+            Math.abs(remoteState.y - prev.y) >= 1.5 ||
+            remoteState.state !== prev.state ||
+            remoteState.score !== prev.score ||
+            remoteState.lives !== prev.lives ||
+            remoteState.coins !== prev.coins ||
+            remoteState.stageCleared !== prev.stageCleared ||
+            remoteState.levelId !== prev.levelId;
+
+          if (hasMeaningfulActivity) {
+            this.touchRoomActivity();
+          }
 
           if (!prev && this.engine) {
             this.engine.spawnPowerUpSparkles?.(this.engine.marioX, this.engine.marioY);
@@ -548,6 +721,8 @@ export class MultiplayerClient {
         for (const existingId of Array.from(this.engine.remotePlayers.keys())) {
           if (!activeIds.has(existingId)) {
             this.engine.remotePlayers.delete(existingId);
+            this.remoteLastHeartbeatMs.delete(existingId);
+            this.remotePlayerNames.delete(existingId);
           }
         }
         this.engine.evaluateMultiplayerMatchEnd();
@@ -691,7 +866,7 @@ export class MultiplayerClient {
     const now = Date.now();
     const prev = this.lastSyncedPayload;
 
-    const moved =
+    const movedWithoutHeartbeat =
       force ||
       !prev ||
       Math.abs(payload.x - prev.x) >= 1.5 ||
@@ -704,10 +879,14 @@ export class MultiplayerClient {
       payload.lives !== prev.lives ||
       payload.coins !== prev.coins ||
       payload.stageCleared !== prev.stageCleared ||
-      payload.levelId !== prev.levelId ||
-      now - prev.sentAt > 4500;
+      payload.levelId !== prev.levelId;
 
-    if (!moved) return;
+    if (movedWithoutHeartbeat) {
+      this.touchRoomActivity();
+    }
+
+    const shouldSync = movedWithoutHeartbeat || now - prev.sentAt > 4500;
+    if (!shouldSync) return;
 
     this.syncWriteInFlight = true;
     const t0 = performance.now();
@@ -770,18 +949,127 @@ export class MultiplayerClient {
     }
   }
 
-  private async disconnectFirebase(closeRoomIfHost: boolean = true) {
+  private startFirebaseWatchdog() {
+    this.stopWatchdog();
+    this.watchdogInterval = setInterval(() => {
+      if (!this.connected || this.transport !== 'firebase' || !this.authUser) return;
+      const now = Date.now();
+
+      // 1. Detect remote player heartbeat logoff / connection drop (> 20s without update)
+      if (this.engine) {
+        for (const [rpId, rp] of Array.from(this.engine.remotePlayers.entries())) {
+          const lastSeen = this.remoteLastHeartbeatMs.get(rpId) ?? rp.lastUpdated;
+          if (now - lastSeen > PLAYER_LOGOFF_TIMEOUT_MS) {
+            const leftIsHost = rpId === this.hostUidInRoom;
+            this.engine.remotePlayers.delete(rpId);
+            this.remoteLastHeartbeatMs.delete(rpId);
+            this.remotePlayerNames.delete(rpId);
+            this.emitLogoffEvent({
+              type: 'remote_logoff',
+              playerName: rp.name,
+              message: leftIsHost
+                ? `${rp.name} (Anfitrião) desconectou por inatividade/logoff.`
+                : `${rp.name} perdeu conexão ou fez logoff.`,
+            });
+            if (this.isHost) {
+              deleteDoc(doc(db, 'rooms', this.roomId, 'players', rpId)).catch(() => {});
+            }
+            this.notify();
+          }
+        }
+      }
+
+      // 2. Check 5-minute room inactivity auto-removal
+      const inactiveMs = now - this.lastRoomActivityMs;
+      if (inactiveMs >= ROOM_INACTIVITY_TIMEOUT_MS) {
+        if (this.isHost) {
+          this.handleRoomInactiveRemoval(this.roomId);
+          return;
+        } else if (now - Math.max(this.lastRoomActivityMs, this.roomServerUpdatedAtMs) >= ROOM_INACTIVITY_TIMEOUT_MS + 10000) {
+          this.handleRoomInactiveRemoval(this.roomId);
+          return;
+        }
+      }
+
+      // 3. Keep room alive while gameplay/chat activity continues (every ~30s)
+      if (
+        this.isHost &&
+        this.lastRoomActivityMs > this.lastRoomDocTouchMs &&
+        now - this.lastRoomDocTouchMs >= ROOM_HEARTBEAT_INTERVAL_MS
+      ) {
+        this.lastRoomDocTouchMs = now;
+        updateDoc(doc(db, 'rooms', this.roomId), {
+          updatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }
+
+      // Refresh UI countdown cleanly when idle > 45s
+      if (inactiveMs > 45000) {
+        this.notify();
+      }
+    }, 5000);
+  }
+
+  private stopWatchdog() {
+    if (this.watchdogInterval) {
+      clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
+  }
+
+  private async handleRoomInactiveRemoval(roomId: string) {
+    if (!this.connected) return;
+    const message = 'Sala removida automaticamente após 5 minutos de inatividade.';
+    this.error = message;
+    this.emitLogoffEvent({
+      type: 'room_inactive',
+      message,
+    });
+    const uid = this.authUser?.uid;
+    await this.disconnectFirebase(false, uid, roomId);
+    await this.deleteFirebaseRoomCompletely(roomId);
+  }
+
+  private async deleteFirebaseRoomCompletely(roomId: string) {
+    if (!roomId || !this.authUser || this.cleaningRoomIds.has(roomId)) return;
+    this.cleaningRoomIds.add(roomId);
+    try {
+      const subcollections = ['players', 'messages', 'events'] as const;
+      for (const sub of subcollections) {
+        try {
+          const snap = await getDocs(
+            query(collection(db, 'rooms', roomId, sub), where('roomId', '==', roomId), limit(50))
+          );
+          await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+        } catch {
+          // Ignore subcollection list/delete failures on already-deleted rooms
+        }
+      }
+      await deleteDoc(doc(db, 'rooms', roomId)).catch(() => {});
+    } finally {
+      this.cleaningRoomIds.delete(roomId);
+    }
+  }
+
+  private async disconnectFirebase(
+    removeOrCloseRoomIfHost: boolean = true,
+    overrideUid?: string,
+    overrideRoomId?: string
+  ) {
     this.stopSyncLoop();
+    this.stopWatchdog();
     this.clearRoomListeners();
 
     const wasConnected = this.connected;
     const wasHost = this.isHost;
-    const uid = this.authUser?.uid;
-    const roomId = this.roomId;
+    const uid = overrideUid || this.authUser?.uid;
+    const roomId = overrideRoomId || this.roomId;
 
     this.connected = false;
     this.connecting = false;
     this.isHost = false;
+    this.remoteLastHeartbeatMs.clear();
+    this.remotePlayerNames.clear();
     if (this.engine) {
       this.engine.remotePlayers.clear();
     }
@@ -792,17 +1080,10 @@ export class MultiplayerClient {
       try {
         await deleteDoc(doc(db, 'rooms', roomId, 'players', uid));
       } catch {
-        // Ignore cleanup errors on disconnect
+        // Ignore cleanup errors on disconnect (e.g. external auth logoff)
       }
-      if (closeRoomIfHost && wasHost) {
-        try {
-          await updateDoc(doc(db, 'rooms', roomId), {
-            status: 'closed',
-            updatedAt: serverTimestamp(),
-          });
-        } catch {
-          // Ignore if room already deleted/closed
-        }
+      if (removeOrCloseRoomIfHost && wasHost && this.authUser) {
+        await this.deleteFirebaseRoomCompletely(roomId);
       }
     }
   }
@@ -825,6 +1106,8 @@ export class MultiplayerClient {
     const roomPath = `rooms/${this.roomId}`;
     const newSeed = level.seed ?? Math.floor(Date.now() % 10000000);
     this.currentRoomSeed = newSeed;
+    this.touchRoomActivity();
+    this.lastRoomDocTouchMs = Date.now();
     this.syncNow();
     try {
       await updateDoc(doc(db, 'rooms', this.roomId), {
@@ -945,6 +1228,7 @@ export class MultiplayerClient {
         this.connected = true;
         this.connecting = false;
         this.error = null;
+        this.touchRoomActivity();
         if (this.engine) {
           if (this.engine.stats.lives <= 0 || this.engine.isMultiplayerMatchOver) {
             this.engine.restartMultiplayerMatch(undefined, false);
@@ -984,11 +1268,18 @@ export class MultiplayerClient {
       };
 
       this.ws.onclose = () => {
+        const wasConnected = this.connected;
         this.connected = false;
         this.connecting = false;
         this.stopSyncLoop();
         if (this.engine) {
           this.engine.remotePlayers.clear();
+        }
+        if (wasConnected && !this.error) {
+          this.emitLogoffEvent({
+            type: 'network_offline',
+            message: 'Conexão WebSocket com a sala foi encerrada.',
+          });
         }
         this.syncEngineFlags();
         this.notify();
@@ -1076,8 +1367,10 @@ export class MultiplayerClient {
     if (senderId === this.playerId) return;
 
     if (type === 'room_joined') {
+      this.touchRoomActivity();
       this.notify();
     } else if (type === 'player_joined') {
+      this.touchRoomActivity();
       if (this.engine) {
         this.engine.spawnPowerUpSparkles?.(this.engine.marioX, this.engine.marioY);
         const remotes = Array.from(this.engine.remotePlayers.values());
@@ -1093,9 +1386,24 @@ export class MultiplayerClient {
       this.notify();
     } else if (type === 'player_left') {
       if (this.engine && senderId) {
+        const leftPlayer = this.engine.remotePlayers.get(senderId);
+        const leftName = payload?.name || leftPlayer?.name || 'Jogador';
         this.engine.remotePlayers.delete(senderId);
+        this.emitLogoffEvent({
+          type: 'remote_logoff',
+          playerName: leftName,
+          message: `${leftName} desconectou / saiu da sala.`,
+        });
       }
       this.notify();
+    } else if (type === 'room_expired') {
+      const msgText = payload?.message || 'Sala removida automaticamente após 5 minutos de inatividade.';
+      this.error = msgText;
+      this.emitLogoffEvent({
+        type: 'room_inactive',
+        message: msgText,
+      });
+      this.disconnectWebSocket();
     } else if (type === 'player_update') {
       if (this.engine && payload) {
         const prev = this.engine.remotePlayers.get(senderId);
@@ -1108,10 +1416,20 @@ export class MultiplayerClient {
           renderY: prev?.renderY,
           lastUpdated: Date.now(),
         };
+        if (
+          !prev ||
+          Math.abs(remoteState.x - prev.x) >= 1.5 ||
+          Math.abs(remoteState.y - prev.y) >= 1.5 ||
+          remoteState.state !== prev.state ||
+          remoteState.score !== prev.score
+        ) {
+          this.touchRoomActivity();
+        }
         this.engine.remotePlayers.set(senderId, remoteState);
         this.engine.evaluateMultiplayerMatchEnd();
       }
     } else if (type === 'world_event') {
+      this.touchRoomActivity();
       if (this.engine && payload) {
         const { eventType, data } = payload;
         if (eventType === 'enemy_defeat' && data) {
@@ -1137,6 +1455,7 @@ export class MultiplayerClient {
         }
       }
     } else if (type === 'chat' && payload) {
+      this.touchRoomActivity();
       this.chatListeners.forEach((cb) => cb(payload));
     }
   }
@@ -1144,6 +1463,7 @@ export class MultiplayerClient {
   // --- SHARED EVENTS & CHAT ---
   public async broadcastWorldEvent(eventType: 'enemy_defeat' | 'coin_collect' | 'brick_break' | 'level_change', data: { x: number; y: number; meta?: string }) {
     if (!this.connected) return;
+    this.touchRoomActivity();
     if (this.transport === 'websocket') {
       this.sendWs({
         type: 'world_event',
@@ -1175,6 +1495,7 @@ export class MultiplayerClient {
   public async sendChatMessage(text: string) {
     const clean = text.trim().slice(0, 120);
     if (!this.connected || !clean) return;
+    this.touchRoomActivity();
 
     if (this.transport === 'websocket') {
       this.sendWs({

@@ -16,6 +16,7 @@ import {
   LogOut,
   Plus,
   Crown,
+  Clock,
 } from 'lucide-react';
 
 interface MultiplayerModalProps {
@@ -486,11 +487,27 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
               </span>
             )}
           </div>
+          {!status.networkOnline && (
+            <p className="text-[11px] text-rose-300 mt-1 flex items-center gap-1.5 font-bold">
+              <WifiOff className="w-3.5 h-3.5 shrink-0" />
+              Sem conexão com a internet detectada.
+            </p>
+          )}
           {status.error && <p className="text-[11px] text-rose-300 mt-1">{status.error}</p>}
           {status.connected && (
-            <p className="text-[11px] text-emerald-300/80 mt-1">
-              Jogando como <strong className="text-white">{status.playerName}</strong> ({status.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'}) via {isFirebaseMode ? 'Firebase Firestore' : 'IP Local'}.
-            </p>
+            <div className="mt-1 space-y-1">
+              <p className="text-[11px] text-emerald-300/80">
+                Jogando como <strong className="text-white">{status.playerName}</strong> ({status.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'}) via {isFirebaseMode ? 'Firebase Firestore' : 'IP Local'}.
+              </p>
+              {status.inactivityRemainingSec !== null && status.inactivityRemainingSec <= 180 && (
+                <p className="text-[10px] text-amber-300 flex items-center gap-1">
+                  <Clock className="w-3 h-3 shrink-0" />
+                  Sala ociosa: será removida automaticamente em{' '}
+                  {Math.floor(status.inactivityRemainingSec / 60)}m{' '}
+                  {String(status.inactivityRemainingSec % 60).padStart(2, '0')}s se não houver atividade.
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -595,6 +612,9 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
           </p>
           <p>
             2. Crie uma sala ou entre em uma sala ativa da lista usando o mesmo código. As posições e fases são sincronizadas em tempo real pelo Firebase Firestore!
+          </p>
+          <p className="text-slate-500">
+            ⏱️ Detector de logoff ativo: jogadores desconectados são detectados automaticamente e salas inativas por mais de 5 minutos são removidas.
           </p>
         </div>
       </div>

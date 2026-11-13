@@ -13,9 +13,9 @@ import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
-import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult } from '../game/types.ts';
+import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2 } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -58,6 +58,7 @@ export const GameCanvas: React.FC = () => {
   const [resolutionScale, setResolutionScale] = useState<ResolutionScale>('fit');
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
+  const [multiplayerNotice, setMultiplayerNotice] = useState<MultiplayerLogoffEvent | null>(null);
 
   // Audio state
   const [soundStatus, setSoundStatus] = useState(() => SoundEngine.get().getStatus());
@@ -73,7 +74,7 @@ export const GameCanvas: React.FC = () => {
     pause: false,
   });
 
-  // Subscribe to multiplayer client & check URL invite room
+  // Subscribe to multiplayer client, logoff/inactivity events & check URL invite room
   useEffect(() => {
     const unsub = multiplayerClient.subscribe((status) => {
       setMultiplayerStatus(status);
@@ -84,13 +85,25 @@ export const GameCanvas: React.FC = () => {
         }
       }
     });
+    let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubLogoff = multiplayerClient.onLogoffEvent((evt) => {
+      setMultiplayerNotice(evt);
+      if (noticeTimer) clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => {
+        setMultiplayerNotice(null);
+      }, 5500);
+    });
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('room')) {
         setIsMultiplayerOpen(true);
       }
     }
-    return () => unsub();
+    return () => {
+      unsub();
+      unsubLogoff();
+      if (noticeTimer) clearTimeout(noticeTimer);
+    };
   }, []);
 
   // Initialize engine once
@@ -994,6 +1007,24 @@ export const GameCanvas: React.FC = () => {
         isOpen={isMultiplayerOpen}
         onClose={() => setIsMultiplayerOpen(false)}
       />
+
+      {/* Multiplayer Logoff / Room Inactivity Toast Notification */}
+      {multiplayerNotice && (
+        <div
+          className={`fixed top-14 z-50 px-4 py-2.5 rounded-xl border-2 font-mono text-xs shadow-2xl flex items-center gap-2 max-w-[92vw] ${
+            multiplayerNotice.type === 'room_inactive'
+              ? 'bg-amber-950/95 border-amber-400 text-amber-200'
+              : 'bg-rose-950/95 border-rose-500 text-rose-100'
+          }`}
+        >
+          {multiplayerNotice.type === 'room_inactive' ? (
+            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+          ) : (
+            <WifiOff className="w-4 h-4 text-rose-400 shrink-0" />
+          )}
+          <span>{multiplayerNotice.message}</span>
+        </div>
+      )}
 
       {/* Cheat Toast Notification */}
       {cheatToast && (

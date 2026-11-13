@@ -200,6 +200,7 @@ export interface FirebaseRoomSummary {
   endlessStage: number;
   seed: number;
   status: 'open' | 'playing' | 'closed';
+  updatedAtMs?: number;
 }
 
 export interface RemotePlayerState {
@@ -247,6 +248,13 @@ export interface MultiplayerMatchResult {
   standings: MultiplayerMatchPlayerStanding[];
 }
 
+export interface MultiplayerLogoffEvent {
+  type: 'remote_logoff' | 'local_logoff' | 'network_offline' | 'room_inactive';
+  message: string;
+  playerName?: string;
+  timestamp: number;
+}
+
 export interface MultiplayerMessage {
   type: 
     | 'join'
@@ -255,7 +263,8 @@ export interface MultiplayerMessage {
     | 'player_left'
     | 'player_update'
     | 'world_event'
-    | 'chat';
+    | 'chat'
+    | 'room_expired';
   roomId: string;
   senderId: string;
   payload?: any;
@@ -276,5 +285,7 @@ export interface MultiplayerStatus {
   authUser: FirebaseUserSummary | null;
   isHost: boolean;
   availableRooms: FirebaseRoomSummary[];
+  networkOnline: boolean;
+  inactivityRemainingSec: number | null;
 }
 
