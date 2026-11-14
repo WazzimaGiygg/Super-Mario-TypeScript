@@ -890,6 +890,7 @@ export class GameEngine {
 
     // Vertical Movement
     const prevMarioY = this.marioY;
+    const wasGrounded = this.marioGrounded;
     this.marioY += this.marioVy;
     this.marioGrounded = false;
 
@@ -966,6 +967,18 @@ export class GameEngine {
               life: 0,
               maxLife: 15,
             });
+          }
+
+          // Femboy Extra Ability: landing on the ground unleashes 2 pure white fireballs from both sides
+          const minLandingVy = this.level.theme === 'underwater' ? 0.5 : 0.9;
+          if (
+            this.marioPower === 'femboy' &&
+            !wasGrounded &&
+            impactVy >= minLandingVy &&
+            !this.isStageClear &&
+            this.marioState !== 'dead'
+          ) {
+            this.spawnFemboyGroundFireballs();
           }
 
           if (this.marioState === 'jumping' || this.marioState === 'falling') {
@@ -1952,6 +1965,41 @@ export class GameEngine {
     });
   }
 
+  private spawnFemboyGroundFireballs() {
+    // Allow up to 6 active white fireballs on screen so repeated landings always fire cleanly
+    const activeWhite = this.fireballs.filter(fb => fb.color === 'white' && fb.alive && !fb.exploding);
+    if (activeWhite.length >= 6) return;
+
+    const height = this.getMarioHeight();
+    const spawnY = this.marioY + height - 10;
+    this.sound.playFireball();
+
+    this.fireballs.push(
+      {
+        id: this.nextEntityId++,
+        x: this.marioX - 6,
+        y: spawnY,
+        vx: -4.4,
+        vy: -2.0,
+        alive: true,
+        exploding: false,
+        explodeTimer: 0,
+        color: 'white',
+      },
+      {
+        id: this.nextEntityId++,
+        x: this.marioX + 14,
+        y: spawnY,
+        vx: 4.4,
+        vy: -2.0,
+        alive: true,
+        exploding: false,
+        explodeTimer: 0,
+        color: 'white',
+      }
+    );
+  }
+
   private updateFireballs() {
     this.fireballs.forEach(fb => {
       if (fb.exploding) {
@@ -1959,16 +2007,27 @@ export class GameEngine {
         return;
       }
 
+      // Horizontal movement & wall collision
       fb.x += fb.vx;
+      const fbBoxH: Rect = { x: fb.x, y: fb.y, width: 8, height: 8 };
+      const tilesH = this.getTilesIntersecting(fbBoxH);
+      for (const t of tilesH) {
+        if (this.isSolidTile(t.tile.type)) {
+          fb.exploding = true;
+          break;
+        }
+      }
+      if (fb.exploding) return;
+
+      // Vertical movement & ground bounce
       fb.y += fb.vy;
       fb.vy += 0.4;
-
-      // Bounce on ground
       const fbBox: Rect = { x: fb.x, y: fb.y, width: 8, height: 8 };
-      const tiles = this.getTilesIntersecting(fbBox);
-      for (const t of tiles) {
+      const tilesV = this.getTilesIntersecting(fbBox);
+      for (const t of tilesV) {
         if (this.isSolidTile(t.tile.type)) {
           if (fb.vy > 0) {
+            fb.y = t.tileY * GameEngine.TILE_SIZE - 8;
             fb.vy = -3.8; // Bounce up
           } else {
             fb.exploding = true;
@@ -1976,6 +2035,8 @@ export class GameEngine {
           break;
         }
       }
+      if (fb.exploding) return;
+      fbBox.y = fb.y;
 
       // Check enemy hit
       this.enemies.forEach(e => {
@@ -1992,6 +2053,9 @@ export class GameEngine {
               e.vy = -5.5;
               this.triggerScreenShake(4.0, 12);
               this.addScore(5000, e.x, e.y, 'BOWSER!');
+              if (fb.color === 'white') {
+                this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y + 4);
+              }
             } else {
               this.addScore(100, e.x, e.y);
             }
@@ -2002,6 +2066,9 @@ export class GameEngine {
           e.vy = -5;
           this.sound.playKick();
           this.spawnEnemyDefeatParticles(e.x, e.y);
+          if (fb.color === 'white') {
+            this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y);
+          }
           this.addScore(200, e.x, e.y);
         }
       });
@@ -2109,10 +2176,27 @@ export class GameEngine {
         if (p.y <= 26) {
           p.life = p.maxLife;
         }
+      } else if (p.type === 'heart') {
+        p.x += Math.sin(p.life * 0.18) * 0.22;
+        p.vy *= 0.985;
       }
     });
 
     this.particles = this.particles.filter(p => p.life < p.maxLife);
+  }
+
+  private spawnFemboyHeartParticle(x: number, y: number) {
+    this.particles.push({
+      id: this.nextEntityId++,
+      type: 'heart',
+      x,
+      y,
+      vx: 0,
+      vy: -0.95,
+      life: 0,
+      maxLife: 46,
+      color: '#ff4d94',
+    });
   }
 
   // Helper to spawn glittering sparkles on coin collection
@@ -3276,7 +3360,15 @@ export class GameEngine {
     this.fireballs.forEach(fb => {
       const fx = fb.x - this.cameraX;
       if (fx < -8 || fx > GameEngine.NES_WIDTH + 8) return;
-      ctx.drawImage(this.atlas.fireballFrames[frame], fx, fb.y);
+      const frames = fb.color === 'white' ? this.atlas.whiteFireballFrames : this.atlas.fireballFrames;
+      if (fb.exploding) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - fb.explodeTimer / 10);
+        ctx.drawImage(frames[frame], fx, fb.y);
+        ctx.restore();
+      } else {
+        ctx.drawImage(frames[frame], fx, fb.y);
+      }
     });
 
     this.bossFireballs.forEach(bf => {
@@ -3559,6 +3651,41 @@ export class GameEngine {
         ctx.fillRect(px, p.y, sz, sz);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(px, p.y, 1, 1);
+      } else if (p.type === 'heart') {
+        const alpha = p.life > p.maxLife * 0.65
+          ? Math.max(0, 1 - (p.life - p.maxLife * 0.65) / (p.maxLife * 0.35))
+          : 1;
+        const hx = Math.round(px) - 4;
+        const hy = Math.round(p.y) - 4;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        // Clean symmetrical 1px dark outline around the 9x8 pixel heart
+        ctx.fillStyle = '#4a0020';
+        ctx.fillRect(hx + 1, hy - 1, 2, 1);
+        ctx.fillRect(hx + 6, hy - 1, 2, 1);
+        ctx.fillRect(hx, hy, 4, 1);
+        ctx.fillRect(hx + 5, hy, 4, 1);
+        ctx.fillRect(hx - 1, hy + 1, 11, 3);
+        ctx.fillRect(hx, hy + 4, 9, 1);
+        ctx.fillRect(hx + 1, hy + 5, 7, 1);
+        ctx.fillRect(hx + 2, hy + 6, 5, 1);
+        ctx.fillRect(hx + 3, hy + 7, 3, 1);
+        ctx.fillRect(hx + 4, hy + 8, 1, 1);
+        // Pink heart body (9x8 pixel-art)
+        ctx.fillStyle = p.color || '#ff4d94';
+        ctx.fillRect(hx + 1, hy, 2, 1);
+        ctx.fillRect(hx + 6, hy, 2, 1);
+        ctx.fillRect(hx, hy + 1, 4, 1);
+        ctx.fillRect(hx + 5, hy + 1, 4, 1);
+        ctx.fillRect(hx, hy + 2, 9, 2);
+        ctx.fillRect(hx + 1, hy + 4, 7, 1);
+        ctx.fillRect(hx + 2, hy + 5, 5, 1);
+        ctx.fillRect(hx + 3, hy + 6, 3, 1);
+        ctx.fillRect(hx + 4, hy + 7, 1, 1);
+        // Cute highlight glint
+        ctx.fillStyle = '#ffd6eb';
+        ctx.fillRect(hx + 1, hy + 1, 1, 2);
+        ctx.restore();
       } else if (p.type === 'score_text' && p.text) {
         const alpha = Math.max(0, 1 - (p.life / p.maxLife) * 0.5);
         ctx.save();

@@ -389,6 +389,7 @@ export class SpriteAtlas {
 
   // Particles & Projectiles
   public fireballFrames: HTMLCanvasElement[] = [];
+  public whiteFireballFrames: HTMLCanvasElement[] = [];
   public bowserFireFrames: HTMLCanvasElement[] = [];
   public brickDebris!: HTMLCanvasElement;
   public smokePuff!: HTMLCanvasElement;
@@ -2469,6 +2470,21 @@ export class SpriteAtlas {
       ctxFB.fillStyle = '#ffffff';
       ctxFB.fillRect(3, 3, 2, 2);
       this.fireballFrames.push(cFB);
+
+      // Pure White Ball (8x8) for Femboy landing ability
+      const [cWFB, ctxWFB] = createOffscreen(8, 8);
+      ctxWFB.fillStyle = '#ffffff';
+      if (i % 2 === 0) {
+        ctxWFB.fillRect(2, 0, 4, 8);
+        ctxWFB.fillRect(1, 1, 6, 6);
+        ctxWFB.fillRect(0, 2, 8, 4);
+      } else {
+        ctxWFB.fillRect(2, 1, 4, 6);
+        ctxWFB.fillRect(1, 2, 6, 4);
+        ctxWFB.fillRect(3, 0, 2, 8);
+        ctxWFB.fillRect(0, 3, 8, 2);
+      }
+      this.whiteFireballFrames.push(cWFB);
     }
 
     // Bowser Horizontal Fire Breath (16x8, facing left)
