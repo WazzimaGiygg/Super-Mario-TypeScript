@@ -35,7 +35,7 @@ import {
   RemotePlayerState,
 } from './types.ts';
 import { GameEngine } from './engine.ts';
-import { createEndlessLevel, createWorld1_1, createWorld1_2 } from './levels.ts';
+import { createEndlessLevel, createWorld1_1, createWorld1_2, createWorld2_2 } from './levels.ts';
 
 function sanitizeRoomId(raw: string): string {
   const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -1127,6 +1127,9 @@ export class MultiplayerClient {
     if (levelId.startsWith('endless-') && endlessStage > 0) {
       return createEndlessLevel(seed, endlessStage);
     }
+    if (levelId === 'world-2-2') {
+      return createWorld2_2();
+    }
     if (levelId === 'world-1-2') {
       return createWorld1_2();
     }
@@ -1143,6 +1146,11 @@ export class MultiplayerClient {
       if (currentStage === endlessStage && currentSeed === seed && currentId === levelId) return;
       this.isApplyingRemoteLevel = true;
       this.engine.loadLevel(createEndlessLevel(seed, endlessStage), true, false, false);
+      this.isApplyingRemoteLevel = false;
+      this.syncNow();
+    } else if (levelId === 'world-2-2' && currentId !== 'world-2-2') {
+      this.isApplyingRemoteLevel = true;
+      this.engine.loadLevel(createWorld2_2(), true, false, false);
       this.isApplyingRemoteLevel = false;
       this.syncNow();
     } else if (levelId === 'world-1-2' && currentId !== 'world-1-2') {

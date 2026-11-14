@@ -91,8 +91,8 @@ export function createWorld1_1(): LevelData {
   grid[9][23] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
   grid[9][24] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
-  // Higher ? block at tile 22
-  grid[5][22] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+  // Higher ? block at tile 22 (Femboy Power-Up: 2x Jump!)
+  grid[5][22] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
 
   // Goomba 1
   enemies.push({ type: 'goomba', x: 22 * 16, y: 12 * 16 });
@@ -378,6 +378,7 @@ export function createWorld1_2(): LevelData {
     grid[8][bx] = { type: 'underground_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
   grid[8][23] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[5][25] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
 
   // Hidden Starman Block at tile 85, y=9
   grid[9][85] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0, invisible: true };
@@ -449,6 +450,192 @@ export function createWorld1_2(): LevelData {
   };
 }
 
+// Build World 2-2 Underwater Stage
+export function createWorld2_2(): LevelData {
+  const width = 206;
+  const height = 15;
+  const grid = createEmptyGrid(width, height);
+  const enemies: { type: EnemyType; x: number; y: number }[] = [];
+  const coins: Point[] = [];
+
+  const pits = [
+    [42, 44],
+    [88, 91],
+    [134, 137],
+  ];
+
+  // Underwater floor (tiles 0-174)
+  for (let x = 0; x < 175; x++) {
+    const isPit = pits.some(([pStart, pEnd]) => x >= pStart && x <= pEnd);
+    if (!isPit) {
+      grid[13][x] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][x] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+
+  // Coin arcs above underwater abyss pits
+  pits.forEach(([pStart, pEnd]) => {
+    for (let cx = pStart; cx <= pEnd; cx++) {
+      coins.push({ x: cx * 16 + 8, y: 9 * 16 });
+      coins.push({ x: cx * 16 + 8, y: 11 * 16 });
+    }
+  });
+
+  // 1. Coral reefs & starter blocks
+  for (let x = 18; x <= 21; x++) {
+    grid[11][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  coins.push({ x: 19 * 16 + 8, y: 8 * 16 });
+  coins.push({ x: 20 * 16 + 8, y: 8 * 16 });
+
+  // Starter question blocks
+  grid[8][26] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[8][27] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[8][28] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[8][29] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+  grid[8][30] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  // Early underwater enemies
+  enemies.push({ type: 'cheep_cheep', x: 28 * 16, y: 6 * 16 });
+  enemies.push({ type: 'blooper', x: 35 * 16, y: 7 * 16 });
+
+  // 2. Coral tunnel & ceiling formation (tiles 50-63)
+  for (let x = 50; x <= 62; x++) {
+    grid[4][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    if (x >= 53 && x <= 59) {
+      grid[5][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+  for (let x = 52; x <= 60; x++) {
+    grid[11][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  for (let cx = 53; cx <= 59; cx++) {
+    coins.push({ x: cx * 16 + 8, y: 8 * 16 });
+  }
+  enemies.push({ type: 'cheep_cheep', x: 56 * 16, y: 9 * 16 });
+
+  // Hidden 1-UP block above coral ridge
+  grid[6][66] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
+
+  // Mid-sea floating coral platforms & power-up
+  for (let x = 72; x <= 78; x++) {
+    grid[9][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[6][75] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'blooper', x: 74 * 16, y: 5 * 16 });
+  enemies.push({ type: 'cheep_cheep', x: 80 * 16, y: 11 * 16 });
+
+  // 3. Second half (after checkpoint at tile 84)
+  enemies.push({ type: 'cheep_cheep', x: 96 * 16, y: 6 * 16 });
+  enemies.push({ type: 'blooper', x: 103 * 16, y: 8 * 16 });
+  enemies.push({ type: 'cheep_cheep', x: 110 * 16, y: 10 * 16 });
+
+  // High coral reefs + coins + Starman block
+  for (let x = 98; x <= 102; x++) {
+    grid[10][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[11][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[7][112] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
+  grid[7][113] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
+
+  for (let x = 118; x <= 126; x++) {
+    grid[5][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    coins.push({ x: x * 16 + 8, y: 8 * 16 });
+  }
+  enemies.push({ type: 'blooper', x: 122 * 16, y: 9 * 16 });
+  enemies.push({ type: 'cheep_cheep', x: 129 * 16, y: 7 * 16 });
+
+  // Final gauntlet before exit pipe
+  for (let x = 144; x <= 150; x++) {
+    grid[9][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[9][147] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'cheep_cheep', x: 146 * 16, y: 5 * 16 });
+  enemies.push({ type: 'blooper', x: 155 * 16, y: 7 * 16 });
+  enemies.push({ type: 'cheep_cheep', x: 160 * 16, y: 10 * 16 });
+
+  // Underwater exit warp pipe (tile 167-168) + coin marker above it
+  placePipe(grid, 167, 12, 3, true);
+  coins.push({ x: 167 * 16 + 16, y: 8 * 16 });
+
+  // Solid coral barrier wall dividing ocean from dry shore exit
+  for (let x = 172; x <= 174; x++) {
+    for (let y = 0; y <= 12; y++) {
+      grid[y][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+
+  // Dry outdoor surface finish zone (tiles 175-205)
+  for (let x = 175; x < width; x++) {
+    grid[13][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[14][x] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Surface emergence pipe (tile 180)
+  placePipe(grid, 180, 12, 2);
+
+  // Small staircase (tiles 185-188)
+  for (let s = 1; s <= 4; s++) {
+    const sx = 184 + s;
+    for (let sy = 13 - s; sy <= 12; sy++) {
+      grid[sy][sx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+
+  // Flagpole at tile 194
+  grid[12][194] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  for (let y = 3; y <= 11; y++) {
+    grid[y][194] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[2][194] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  // Castle at tiles 198-203
+  for (let cx = 198; cx <= 203; cx++) {
+    for (let cy = 8; cy <= 12; cy++) {
+      grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    if (cx % 2 === 0) {
+      grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+  grid[11][200] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[12][200] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  return {
+    id: 'world-2-2',
+    name: 'WORLD 2-2',
+    theme: 'underwater',
+    width,
+    height,
+    tiles: grid,
+    enemies,
+    coins,
+    marioStart: { x: 40, y: 144 },
+    flagX: 194 * 16,
+    castleX: 200 * 16,
+    dryFinishStartX: 175 * 16,
+    bgColor: '#1840b8',
+    timeLimit: 400,
+    checkpoints: [
+      {
+        x: 84 * 16,
+        respawnPos: { x: 84 * 16, y: 160 },
+      },
+    ],
+    pipeWarps: [
+      {
+        from: { x: 167 * 16 - 4, y: 9 * 16, width: 40, height: 24 },
+        toLevel: 'world-2-2',
+        toPos: { x: 180 * 16 + 8, y: 11 * 16 - 16 },
+        type: 'down',
+      },
+    ],
+  };
+}
+
 // Procedural Endless Level Generator with Progressive Difficulty & Random Biomes
 export function createEndlessLevel(
   seed: number = Date.now(),
@@ -467,22 +654,26 @@ export function createEndlessLevel(
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 
-  // Pick random world theme (Stage 1 can be overworld/underground; Stage 2+ rotates freely among all 3 biomes)
+  // Pick random world theme (Stage 1 can be overworld/underground; Stage 2+ rotates freely among all 4 biomes including underwater)
   const themeRoll = rand();
-  const theme: 'overworld' | 'underground' | 'castle' =
+  const theme: 'overworld' | 'underground' | 'castle' | 'underwater' =
     stage === 1
       ? themeRoll > 0.3 ? 'overworld' : 'underground'
-      : themeRoll < 0.42
+      : themeRoll < 0.34
       ? 'overworld'
-      : themeRoll < 0.74
+      : themeRoll < 0.58
       ? 'underground'
-      : 'castle';
+      : themeRoll < 0.78
+      ? 'castle'
+      : 'underwater';
 
   const bgColor =
     theme === 'overworld'
       ? '#5c94fc'
       : theme === 'underground'
       ? '#000000'
+      : theme === 'underwater'
+      ? '#1840b8'
       : '#1c0a0d';
 
   const groundTileType: TileType =
@@ -490,6 +681,8 @@ export function createEndlessLevel(
       ? 'underground_ground'
       : theme === 'castle'
       ? 'castle_brick'
+      : theme === 'underwater'
+      ? 'sea_ground'
       : 'ground';
 
   const brickTileType: TileType =
@@ -497,6 +690,8 @@ export function createEndlessLevel(
       ? 'underground_brick'
       : theme === 'castle'
       ? 'hard_block'
+      : theme === 'underwater'
+      ? 'coral'
       : 'brick';
 
   const width = Math.min(340, 210 + (stage - 1) * 14);
@@ -518,18 +713,29 @@ export function createEndlessLevel(
     }
   };
 
-  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'coin' => {
+  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'coin' => {
     const r = rand();
     // Power-ups become slightly scarcer on higher stages
     const powerChance = 0.55 - diffRatio * 0.28;
     if (r > powerChance) return 'coin';
     const typeRoll = rand();
-    if (typeRoll < 0.42) return 'mushroom';
-    if (typeRoll < 0.72) return 'fireflower';
-    return 'leaf';
+    if (typeRoll < 0.36) return 'mushroom';
+    if (typeRoll < 0.60) return 'fireflower';
+    if (typeRoll < 0.80) return 'leaf';
+    return 'femboy';
   };
 
   const spawnEnemy = (tx: number, tyTile: number, forceType?: EnemyType) => {
+    if (theme === 'underwater') {
+      const seaType: EnemyType = rand() < 0.38 ? 'blooper' : 'cheep_cheep';
+      const swimY = (5 + Math.floor(rand() * 6)) * 16;
+      enemies.push({
+        type: seaType,
+        x: tx * 16,
+        y: Math.min(swimY, (tyTile - 1) * 16),
+      });
+      return;
+    }
     const koopaChance = 0.25 + diffRatio * 0.4;
     const type: EnemyType = forceType ?? (rand() < koopaChance ? 'koopa' : 'goomba');
     enemies.push({
@@ -604,25 +810,27 @@ export function createEndlessLevel(
       const pipeH1 = 2 + Math.floor(rand() * 3);
       placePipe(grid, x + 2, 12, pipeH1);
       const piranhaChance = 0.35 + diffRatio * 0.55;
-      if (pipeH1 >= 2 && rand() < piranhaChance) {
+      if (theme !== 'underwater' && pipeH1 >= 2 && rand() < piranhaChance) {
         enemies.push({
           type: 'piranha',
           x: (x + 2) * 16 + 8,
           y: (13 - pipeH1) * 16,
         });
+      } else if (theme === 'underwater' && rand() < 0.55) {
+        spawnEnemy(x + 3, 9);
       }
 
       if (doublePipe) {
         const pipeH2 = 2 + Math.floor(rand() * 3);
         placePipe(grid, x + 7, 12, pipeH2);
-        if (rand() < piranhaChance) {
+        if (theme !== 'underwater' && rand() < piranhaChance) {
           enemies.push({
             type: 'piranha',
             x: (x + 7) * 16 + 8,
             y: (13 - pipeH2) * 16,
           });
         }
-        // Extra Goomba between pipes on harder levels
+        // Extra enemy between pipes on harder levels
         if (rand() < 0.3 + diffRatio * 0.5) {
           spawnEnemy(x + 5, 12);
         }
@@ -833,17 +1041,18 @@ export function createEndlessLevel(
     tiles: grid,
     enemies,
     coins,
-    marioStart: { x: 40, y: 192 },
+    marioStart: { x: 40, y: theme === 'underwater' ? 144 : 192 },
     flagX: flagXTile * 16,
     castleX: (castleXTile + 2) * 16,
+    dryFinishStartX: theme === 'underwater' ? (width - 24) * 16 : undefined,
     bgColor,
     timeLimit,
     endlessStage: stage,
     seed: normalizedSeed,
     enemySpeedMultiplier,
     checkpoints: [
-      { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: 192 } },
-      { x: cp2 * 16, respawnPos: { x: cp2 * 16, y: 192 } },
+      { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: theme === 'underwater' ? 160 : 192 } },
+      { x: cp2 * 16, respawnPos: { x: cp2 * 16, y: theme === 'underwater' ? 160 : 192 } },
     ],
   };
 }

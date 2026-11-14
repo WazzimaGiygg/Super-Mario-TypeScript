@@ -111,7 +111,7 @@ service cloud.firestore {
         && data.vx is number && data.vx >= -50 && data.vx <= 50
         && data.vy is number && data.vy >= -50 && data.vy <= 50
         && data.facing in ['left', 'right']
-        && data.power in ['small', 'super', 'fire', 'tanooki']
+        && data.power in ['small', 'super', 'fire', 'tanooki', 'femboy']
         && data.state is string && data.state.size() >= 1 && data.state.size() <= 32
         && data.animFrame is int && data.animFrame >= 0 && data.animFrame <= 10
         && data.isStatue is bool

@@ -204,10 +204,29 @@ export class SpriteAtlas {
   public wazzimaTanookiFlutter2!: HTMLCanvasElement;
   public wazzimaTanookiStatue!: HTMLCanvasElement;
 
+  // Femboy Mario (16x32 - 2x Jump Height)
+  public marioFemboyIdle!: HTMLCanvasElement;
+  public marioFemboyRun1!: HTMLCanvasElement;
+  public marioFemboyRun2!: HTMLCanvasElement;
+  public marioFemboyRun3!: HTMLCanvasElement;
+  public marioFemboyJump!: HTMLCanvasElement;
+  public marioFemboySkid!: HTMLCanvasElement;
+  public marioFemboyCrouch!: HTMLCanvasElement;
+  public marioFemboySlide!: HTMLCanvasElement;
+
+  public wazzimaFemboyIdle!: HTMLCanvasElement;
+  public wazzimaFemboyRun1!: HTMLCanvasElement;
+  public wazzimaFemboyRun2!: HTMLCanvasElement;
+  public wazzimaFemboyRun3!: HTMLCanvasElement;
+  public wazzimaFemboyJump!: HTMLCanvasElement;
+  public wazzimaFemboySkid!: HTMLCanvasElement;
+  public wazzimaFemboyCrouch!: HTMLCanvasElement;
+  public wazzimaFemboySlide!: HTMLCanvasElement;
+
   // Helper to obtain the correct sprite for any character (Mario or WazzimaGiygg)
   public getCharacterSprite(
     character: 'mario' | 'wazzima',
-    power: 'small' | 'super' | 'fire' | 'tanooki',
+    power: 'small' | 'super' | 'fire' | 'tanooki' | 'femboy',
     state: string,
     animFrame: number,
     options: {
@@ -281,6 +300,20 @@ export class SpriteAtlas {
       return isW ? this.wazzimaSuperIdle : this.marioSuperIdle;
     }
 
+    if (power === 'femboy') {
+      if (state === 'crouching') return isW ? this.wazzimaFemboyCrouch : this.marioFemboyCrouch;
+      if (state === 'jumping' || state === 'falling') return isW ? this.wazzimaFemboyJump : this.marioFemboyJump;
+      if (state === 'skidding') return isW ? this.wazzimaFemboySkid : this.marioFemboySkid;
+      if (state === 'pole_slide') return isW ? this.wazzimaFemboySlide : this.marioFemboySlide;
+      if (Math.abs(marioVx) > 0.1 || state === 'castle_walk') {
+        const frames = isW
+          ? [this.wazzimaFemboyRun1, this.wazzimaFemboyRun2, this.wazzimaFemboyRun3]
+          : [this.marioFemboyRun1, this.marioFemboyRun2, this.marioFemboyRun3];
+        return frames[animFrame % 3];
+      }
+      return isW ? this.wazzimaFemboyIdle : this.marioFemboyIdle;
+    }
+
     // Fire power
     if (state === 'crouching') return isW ? this.wazzimaFireCrouch : this.marioFireCrouch;
     if (state === 'jumping' || state === 'falling') return isW ? this.wazzimaFireJump : this.marioFireJump;
@@ -307,11 +340,18 @@ export class SpriteAtlas {
   public piranha1!: HTMLCanvasElement;
   public piranha2!: HTMLCanvasElement;
 
+  public blooper1!: HTMLCanvasElement;
+  public blooper2!: HTMLCanvasElement;
+  public cheepCheep1!: HTMLCanvasElement;
+  public cheepCheep2!: HTMLCanvasElement;
+
   // Tiles (16x16)
   public tileGround!: HTMLCanvasElement;
   public tileGroundUnderground!: HTMLCanvasElement;
   public tileBrick!: HTMLCanvasElement;
   public tileBrickUnderground!: HTMLCanvasElement;
+  public tileCoral!: HTMLCanvasElement;
+  public tileSeaGround!: HTMLCanvasElement;
   public tileQuestionFrames: HTMLCanvasElement[] = [];
   public tileQuestionEmpty!: HTMLCanvasElement;
   public tileHardBlock!: HTMLCanvasElement;
@@ -329,6 +369,7 @@ export class SpriteAtlas {
   public itemStarFrames: HTMLCanvasElement[] = [];
   public itemCoinFrames: HTMLCanvasElement[] = [];
   public itemSuperLeaf!: HTMLCanvasElement;
+  public itemFemboy!: HTMLCanvasElement;
   
   // Castle & Scenery
   public castleBrick!: HTMLCanvasElement;
@@ -825,6 +866,58 @@ export class SpriteAtlas {
     this.wazzimaFireSkid = makeSprite(superRun1, wazzimaFirePalette, 16, 32);
     this.wazzimaFireCrouch = makeSprite(superCrouch, wazzimaFirePalette, 16, 32);
     this.wazzimaFireSlide = makeSprite(superRun1, wazzimaFirePalette, 16, 32);
+
+    // Femboy Power-up Sprites (Pastel pink & white outfit + cute hair ribbon bow)
+    const makeFemboySprite = (pattern: string[], palette: Record<string, string>, isCrouch = false) => {
+      const canvas = makeSprite(pattern, palette, 16, 32);
+      const c = canvas.getContext('2d')!;
+      const bowY = isCrouch ? 8 : 0;
+      // Cute pink & white bow on cap
+      c.fillStyle = '#ff1f96';
+      c.fillRect(3, bowY, 2, 2);
+      c.fillRect(7, bowY, 2, 2);
+      c.fillStyle = '#ffffff';
+      c.fillRect(5, bowY, 2, 2);
+      // Striped thigh-high highlight
+      if (!isCrouch) {
+        c.fillStyle = '#ff66b8';
+        c.fillRect(3, 25, 3, 1);
+        c.fillRect(9, 25, 3, 1);
+      }
+      return canvas;
+    };
+
+    const femboyMarioPalette = {
+      '.': 'transparent',
+      'R': '#ff66b8', // Pastel hot-pink cap & top
+      'B': '#ffd6ee', // Soft blush white-pink skirt & thigh-highs
+      'S': NES_COLORS.MARIO_SKIN,
+    };
+
+    const femboyWazzimaPalette = {
+      '.': 'transparent',
+      'R': '#ff74c4', // Pastel pink bow & top
+      'B': '#b8ffd6', // Mint pastel skirt & thigh-highs
+      'S': NES_COLORS.MARIO_SKIN,
+    };
+
+    this.marioFemboyIdle = makeFemboySprite(superIdle, femboyMarioPalette);
+    this.marioFemboyRun1 = makeFemboySprite(superRun1, femboyMarioPalette);
+    this.marioFemboyRun2 = makeFemboySprite(superRun2, femboyMarioPalette);
+    this.marioFemboyRun3 = makeFemboySprite(superRun3, femboyMarioPalette);
+    this.marioFemboyJump = makeFemboySprite(superJump, femboyMarioPalette);
+    this.marioFemboySkid = makeFemboySprite(superRun1, femboyMarioPalette);
+    this.marioFemboyCrouch = makeFemboySprite(superCrouch, femboyMarioPalette, true);
+    this.marioFemboySlide = makeFemboySprite(superRun1, femboyMarioPalette);
+
+    this.wazzimaFemboyIdle = makeFemboySprite(superIdle, femboyWazzimaPalette);
+    this.wazzimaFemboyRun1 = makeFemboySprite(superRun1, femboyWazzimaPalette);
+    this.wazzimaFemboyRun2 = makeFemboySprite(superRun2, femboyWazzimaPalette);
+    this.wazzimaFemboyRun3 = makeFemboySprite(superRun3, femboyWazzimaPalette);
+    this.wazzimaFemboyJump = makeFemboySprite(superJump, femboyWazzimaPalette);
+    this.wazzimaFemboySkid = makeFemboySprite(superRun1, femboyWazzimaPalette);
+    this.wazzimaFemboyCrouch = makeFemboySprite(superCrouch, femboyWazzimaPalette, true);
+    this.wazzimaFemboySlide = makeFemboySprite(superRun1, femboyWazzimaPalette);
 
     // Tanooki Mario Palette
     const tanookiPalette: Record<string, string> = {
@@ -1509,6 +1602,117 @@ export class SpriteAtlas {
     const [p2, ctxP2] = createOffscreen(16, 16);
     drawPixelGrid(ctxP2, piranhaPattern2, piranhaPalette);
     this.piranha2 = p2;
+
+    // Blooper (Underwater Squid 16x16)
+    const blooperPalette = {
+      '.': 'transparent',
+      'W': '#ffffff',
+      'S': '#c8e0fc',
+      'K': '#000000',
+      'P': '#fca0c8',
+    };
+
+    const blooperPattern1 = [
+      '......WWWW......',
+      '....WWWWWWWW....',
+      '...WWWWWWWWWW...',
+      '..WWWWWWWWWWWW..',
+      '..WWKKWWWWKKWW..',
+      '.WWWKKWWWWKKWWW.',
+      '.WWWKWKKKKWKWWW.',
+      '.WWWWWWWWWWWWWW.',
+      '..WWPPPPPPPPWW..',
+      '...WWWWWWWWWW...',
+      '..WW.WW..WW.WW..',
+      '.WW..WW..WW..WW.',
+      '.W...W....W...W.',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const blooperPattern2 = [
+      '.......WW.......',
+      '.....WWWWWW.....',
+      '....WWWWWWWW....',
+      '...WWWWWWWWWW...',
+      '...WWKKWWKKWW...',
+      '..WWWKKWWKKWWW..',
+      '..WWWSKKKKWSWW..',
+      '..WWWWWWWWWWWW..',
+      '...WWPPPPPPWW...',
+      '....WWWWWWWW....',
+      '....WWWWWWWW....',
+      '....WW.WW.WW....',
+      '....W..WW..W....',
+      '.......WW.......',
+      '................',
+      '................',
+    ];
+
+    const [b1, ctxB1] = createOffscreen(16, 16);
+    drawPixelGrid(ctxB1, blooperPattern1, blooperPalette);
+    this.blooper1 = b1;
+
+    const [b2, ctxB2] = createOffscreen(16, 16);
+    drawPixelGrid(ctxB2, blooperPattern2, blooperPalette);
+    this.blooper2 = b2;
+
+    // Cheep-Cheep (Underwater Fish 16x16 facing left)
+    const cheepPalette = {
+      '.': 'transparent',
+      'R': '#e82800',
+      'O': '#fc7438',
+      'Y': '#fce078',
+      'W': '#ffffff',
+      'K': '#000000',
+    };
+
+    const cheepPattern1 = [
+      '......RRRR......',
+      '....RRRRRRRR....',
+      '...RROOOOOORR...',
+      '..RWWKRRRRRRYR..',
+      '.RWWWKRRRRYYYYR.',
+      '.RWWKKRRRRYYRRR.',
+      'KRRRRRRRRYYRRRRR',
+      'KRRRRRRRYYYRRRRR',
+      '.RRRRROOYYRRRROR',
+      '.RWWWWWWWWWRROOR',
+      '..WWWWWWWWWW.RRR',
+      '...WWWWWWWW....R',
+      '....YYYYYY......',
+      '.....YYYY.......',
+      '................',
+      '................',
+    ];
+
+    const cheepPattern2 = [
+      '......RRRR......',
+      '....RRRRRRRR....',
+      '...RROOOOOORR...',
+      '..RWWKRRRRRRRR..',
+      '.RWWWKRRRRRRRRYR',
+      '.RWWKKRRRRRRYYYY',
+      'KRRRRRRRRRRRRRRR',
+      'KRRRRRRRYRRRRRRR',
+      '.RRRRROOYYRRRRO.',
+      '.RWWWWWWYYYRROR.',
+      '..WWWWWWYYWW.RR.',
+      '...WWWWWWWW.....',
+      '....YYYYYY......',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const [cc1, ctxCc1] = createOffscreen(16, 16);
+    drawPixelGrid(ctxCc1, cheepPattern1, cheepPalette);
+    this.cheepCheep1 = cc1;
+
+    const [cc2, ctxCc2] = createOffscreen(16, 16);
+    drawPixelGrid(ctxCc2, cheepPattern2, cheepPalette);
+    this.cheepCheep2 = cc2;
   }
 
   private generateTiles() {
@@ -1582,6 +1786,49 @@ export class SpriteAtlas {
     ctxBrickUg.fillRect(4, 9, 7, 1);
     ctxBrickUg.fillRect(12, 9, 4, 1);
     this.tileBrickUnderground = cBrickUg;
+
+    // Underwater Sea Ground Tile (Teal/Cyan Ocean Floor)
+    const [cSeaGround, ctxSeaGround] = createOffscreen(16, 16);
+    ctxSeaGround.fillStyle = '#007898';
+    ctxSeaGround.fillRect(0, 0, 16, 16);
+    ctxSeaGround.fillStyle = '#60d8f8';
+    ctxSeaGround.fillRect(0, 0, 16, 2);
+    ctxSeaGround.fillRect(0, 0, 2, 16);
+    ctxSeaGround.fillStyle = '#003050';
+    ctxSeaGround.fillRect(0, 14, 16, 2);
+    ctxSeaGround.fillRect(14, 0, 2, 16);
+    ctxSeaGround.fillRect(4, 5, 3, 3);
+    ctxSeaGround.fillRect(10, 9, 3, 3);
+    this.tileSeaGround = cSeaGround;
+
+    // Underwater Coral Block Tile (Classic Pink/Magenta NES Coral)
+    const coralPalette = {
+      '.': '#d82878',
+      'L': '#fc88b8',
+      'W': '#ffd8ec',
+      'D': '#700838',
+    };
+    const coralPattern = [
+      'DDDDDDDDDDDDDDDD',
+      'DLLLLW..LLLLW..D',
+      'DL..W..DL..W..DD',
+      'D..DD..D..DD..LD',
+      'DLLL..DDLLL..LLD',
+      'DW..LLLL..W..LWD',
+      'D..DD..W..DD..DD',
+      'DDDD..DD..DDDD.D',
+      'DL..LLLL..L..WLD',
+      'DL.W..LL.DL..L.D',
+      'D..DD..D..DD...D',
+      'DLLL..DLLLL..WLD',
+      'DL.W..DL..W..L.D',
+      'D..DD..D..DD..DD',
+      'DDDDDDDDDDDDDDDD',
+      'DDDDDDDDDDDDDDDD',
+    ];
+    const [cCoral, ctxCoral] = createOffscreen(16, 16);
+    drawPixelGrid(ctxCoral, coralPattern, coralPalette);
+    this.tileCoral = cCoral;
 
     // 3. Question Blocks (4 animation frames)
     this.tileQuestionFrames = [];
@@ -1911,6 +2158,37 @@ export class SpriteAtlas {
     const [cLeaf, ctxLeaf] = createOffscreen(16, 16);
     drawPixelGrid(ctxLeaf, leafPattern, leafPalette);
     this.itemSuperLeaf = cLeaf;
+
+    // 5. Femboy Power-Up (Cute Pink Pastel Ribbon Bow)
+    const femboyItemPalette = {
+      '.': 'transparent',
+      'B': '#000000',
+      'P': '#ff5cb8',
+      'L': '#ffb8e6',
+      'W': '#ffffff',
+      'D': '#b0186c',
+    };
+    const femboyItemPattern = [
+      '................',
+      '..BBBB....BBBB..',
+      '.BPLWWB..BWWLPB.',
+      'BPPLLWWBBWWLLPPB',
+      'BPLLLPWWWWPLLLPB',
+      'BPPLPPWDDWPPPLPB',
+      '.BPPPBDDDDPBPPB.',
+      '..BBBBPDDPBBBB..',
+      '....BPPBBPPB....',
+      '...BPLPB.BPLPB..',
+      '..BPLPB...BPLPB.',
+      '..BPPB.....BPPB.',
+      '...BB.......BB..',
+      '................',
+      '................',
+      '................',
+    ];
+    const [cFemboy, ctxFemboy] = createOffscreen(16, 16);
+    drawPixelGrid(ctxFemboy, femboyItemPattern, femboyItemPalette);
+    this.itemFemboy = cFemboy;
   }
 
   private generateCastle() {

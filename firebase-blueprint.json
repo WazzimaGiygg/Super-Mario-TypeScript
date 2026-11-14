@@ -187,7 +187,7 @@
         },
         "power": {
           "type": "string",
-          "enum": ["small", "super", "fire", "tanooki"],
+          "enum": ["small", "super", "fire", "tanooki", "femboy"],
           "description": "Current power-up state"
         },
         "state": {

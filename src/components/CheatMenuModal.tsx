@@ -174,10 +174,22 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  onSetPowerUp('femboy');
+                  showSuccess('Power-up Femboy ativado! Altura do pulo dobrada (2x)!');
+                }}
+                className="p-2 rounded bg-stone-900 hover:bg-stone-700 border border-pink-500/60 text-left font-medium transition shadow-md shadow-pink-900/30"
+              >
+                <span className="block text-pink-400 font-bold">🎀 Femboy</span>
+                <span className="text-[10px] text-pink-200/80">Pulo com 2x mais altura!</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   onSetPowerUp('star');
                   showSuccess('Estrela de Invencibilidade ativada!');
                 }}
-                className="p-2 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-left font-medium transition col-span-2 sm:col-span-1"
+                className="p-2 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-left font-medium transition"
               >
                 <span className="block text-amber-300 font-bold">⭐ Estrela</span>
                 <span className="text-[10px] text-stone-400">Invulnerabilidade total</span>

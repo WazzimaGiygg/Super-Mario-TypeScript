@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type MarioPower = 'small' | 'super' | 'fire' | 'tanooki';
+export type MarioPower = 'small' | 'super' | 'fire' | 'tanooki' | 'femboy';
 
 export type MarioState = 
   | 'idle' 
@@ -56,9 +56,11 @@ export type TileType =
   | 'castle_door'
   | 'castle_window'
   | 'underground_ground'
-  | 'underground_brick';
+  | 'underground_brick'
+  | 'coral'
+  | 'sea_ground';
 
-export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'star' | '1up' | 'none';
+export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'star' | '1up' | 'none';
 
 export interface BlockTile {
   type: TileType;
@@ -69,7 +71,7 @@ export interface BlockTile {
   invisible?: boolean;
 }
 
-export type EnemyType = 'goomba' | 'koopa' | 'piranha';
+export type EnemyType = 'goomba' | 'koopa' | 'piranha' | 'blooper' | 'cheep_cheep';
 
 export interface Enemy {
   id: number;
@@ -91,7 +93,7 @@ export interface Enemy {
 
 export interface Item {
   id: number;
-  type: 'mushroom' | 'fireflower' | 'leaf' | 'star' | '1up' | 'coin';
+  type: 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'star' | '1up' | 'coin';
   x: number;
   y: number;
   vx: number;
@@ -121,7 +123,7 @@ export interface Particle {
   y: number;
   vx: number;
   vy: number;
-  type: 'brick_piece' | 'score_text' | 'smoke' | 'sparkle' | 'coin_glint' | 'enemy_poof' | 'star_burst';
+  type: 'brick_piece' | 'score_text' | 'smoke' | 'sparkle' | 'coin_glint' | 'enemy_poof' | 'star_burst' | 'bubble';
   text?: string;
   life: number;
   maxLife: number;
@@ -135,7 +137,7 @@ export interface Particle {
 export interface LevelData {
   id: string;
   name: string;
-  theme: 'overworld' | 'underground' | 'castle';
+  theme: 'overworld' | 'underground' | 'castle' | 'underwater';
   width: number; // in tiles (16px per tile)
   height: number; // usually 15 tiles (240px)
   tiles: (BlockTile | null)[][]; // [y][x]
@@ -144,6 +146,7 @@ export interface LevelData {
   marioStart: Point;
   flagX: number;
   castleX: number;
+  dryFinishStartX?: number;
   pipeWarps?: {
     from: Rect;
     toLevel: string;

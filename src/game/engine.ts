@@ -25,7 +25,7 @@ import {
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createEndlessLevel } from './levels.ts';
+import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createEndlessLevel } from './levels.ts';
 
 export class GameEngine {
   // Screen Dimensions (NES native 256x240)
@@ -186,7 +186,7 @@ export class GameEngine {
     this.pipeClipLipX = null;
     if (newLevel.endlessStage !== undefined) {
       this.endlessStage = newLevel.endlessStage;
-    } else if (newLevel.id === 'world-1-1' || newLevel.id === 'world-1-2') {
+    } else if (newLevel.id === 'world-1-1' || newLevel.id === 'world-1-2' || newLevel.id === 'world-2-2') {
       this.endlessStage = 0;
     }
 
@@ -224,7 +224,14 @@ export class GameEngine {
     this.marioState = 'idle';
     this.marioFacing = 'right';
     this.marioInvulnerableTimer = isRespawn ? 40 : 0;
-    this.stats.world = newLevel.id === 'world-1-1' ? '1-1' : newLevel.id === 'world-1-2' ? '1-2' : newLevel.name;
+    this.stats.world =
+      newLevel.id === 'world-1-1'
+        ? '1-1'
+        : newLevel.id === 'world-1-2'
+        ? '1-2'
+        : newLevel.id === 'world-2-2'
+        ? '2-2'
+        : newLevel.name;
     const timeBonus = this.difficulty === 'easy' ? 80 : this.difficulty === 'hard' ? -80 : 0;
     this.stats.time = Math.max(150, newLevel.timeLimit + timeBonus);
     this.stats.difficulty = this.difficulty;
@@ -282,6 +289,8 @@ export class GameEngine {
     // Start background music
     if (newLevel.theme === 'underground' || newLevel.theme === 'castle') {
       this.sound.playMusic('underground');
+    } else if (newLevel.theme === 'underwater') {
+      this.sound.playMusic('underwater');
     } else {
       this.sound.playMusic('overworld');
     }
@@ -293,6 +302,30 @@ export class GameEngine {
 
   private generateBackgroundScenery() {
     this.sceneries = [];
+    if (this.level.theme === 'underwater') {
+      const waterEnd = this.level.dryFinishStartX ?? this.level.width * 16;
+      for (let x = 24; x < waterEnd - 32; x += 96 + Math.random() * 64) {
+        this.sceneries.push({
+          type: Math.random() > 0.5 ? 'seaweed_tall' : 'seaweed_short',
+          x: x + Math.random() * 24,
+          y: 13 * 16,
+        });
+      }
+      if (this.level.dryFinishStartX !== undefined) {
+        this.sceneries.push({
+          type: 'cloud_med',
+          x: this.level.dryFinishStartX + 48,
+          y: 36,
+        });
+        this.sceneries.push({
+          type: 'bush_small',
+          x: this.level.dryFinishStartX + 24,
+          y: 13 * 16,
+        });
+      }
+      return;
+    }
+
     if (this.level.theme !== 'overworld') return;
 
     for (let x = 0; x < this.level.width * 16; x += 180 + Math.random() * 80) {
@@ -315,6 +348,13 @@ export class GameEngine {
         y: 13 * 16,
       });
     }
+  }
+
+  private isMarioUnderwater(): boolean {
+    return (
+      this.level.theme === 'underwater' &&
+      (this.level.dryFinishStartX === undefined || this.marioX < this.level.dryFinishStartX)
+    );
   }
 
   // --- GAME UPDATE LOOP ---
@@ -544,12 +584,13 @@ export class GameEngine {
       }
     }
 
+    const isUnderwater = this.isMarioUnderwater();
     const isRunning = this.controls.run;
-    const maxSpeed = isRunning ? 3.4 : 2.0;
-    const accel = isRunning ? 0.22 : 0.16;
+    const maxSpeed = isUnderwater ? (isRunning ? 2.2 : 1.55) : (isRunning ? 3.4 : 2.0);
+    const accel = isUnderwater ? 0.13 : (isRunning ? 0.22 : 0.16);
     // Ground friction: 0.72 stops Mario quickly when directional key is released (eliminates ice-like excessive sliding)
-    // Air friction: slightly looser (0.90) for natural aerial momentum control
-    const friction = this.marioGrounded ? 0.72 : 0.90;
+    // Air/Water friction: slightly looser for natural momentum control
+    const friction = isUnderwater ? (this.marioGrounded ? 0.78 : 0.92) : (this.marioGrounded ? 0.72 : 0.90);
 
     // Tanooki Statue Mode: Holding Down in Tanooki suit turns into invulnerable statue
     this.isStatue = this.marioPower === 'tanooki' && this.controls.down && this.marioGrounded;
@@ -559,7 +600,7 @@ export class GameEngine {
       this.marioFacing = 'left';
       if (this.marioVx > 0.3) {
         // Skidding / Quick turn-around brake
-        this.marioVx -= 0.45;
+        this.marioVx -= isUnderwater ? 0.25 : 0.45;
         this.marioState = 'skidding';
       } else {
         this.marioVx -= accel;
@@ -570,7 +611,7 @@ export class GameEngine {
       this.marioFacing = 'right';
       if (this.marioVx < -0.3) {
         // Skidding / Quick turn-around brake
-        this.marioVx += 0.45;
+        this.marioVx += isUnderwater ? 0.25 : 0.45;
         this.marioState = 'skidding';
       } else {
         this.marioVx += accel;
@@ -594,37 +635,79 @@ export class GameEngine {
       if (Math.abs(this.marioVx) < 0.2) this.marioVx = 0;
     }
 
-    // Jumping
+    // Jumping / Swimming
     const jumpPressed = this.controls.jump && !this.prevControls.jump;
-    if (jumpPressed && this.marioGrounded && !this.isStatue) {
-      const jumpImpulse = isRunning ? -8.4 : -7.4;
-      this.marioVy = jumpImpulse;
-      this.marioGrounded = false;
-      this.marioState = 'jumping';
-
-      if (this.marioPower === 'small') {
-        this.sound.playJumpSmall();
-      } else {
-        this.sound.playJumpSuper();
+    const jumpMult = this.marioPower === 'femboy' ? Math.SQRT2 : 1;
+    if (isUnderwater) {
+      if (jumpPressed && !this.isStatue) {
+        this.marioVy = (isRunning ? -2.9 : -2.55) * jumpMult;
+        this.marioGrounded = false;
+        this.marioState = 'jumping';
+        this.sound.playSwim();
+        this.particles.push({
+          id: this.nextEntityId++,
+          type: 'bubble',
+          x: this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+          y: this.marioY + 4,
+          vx: 0,
+          vy: -0.65,
+          life: 0,
+          maxLife: 90,
+          size: 3,
+        });
       }
-    }
 
-    // Tanooki Flutter / Slow Fall: holding or tapping jump while descending flutters tail and limits fall speed
-    this.isFluttering = false;
-    if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
-      this.isFluttering = true;
-      this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
-    }
+      // Gentle ambient bubbles while swimming
+      if (Math.random() < 0.03) {
+        this.particles.push({
+          id: this.nextEntityId++,
+          type: 'bubble',
+          x: this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+          y: this.marioY + 4,
+          vx: 0,
+          vy: -0.5,
+          life: 0,
+          maxLife: 80,
+          size: 2,
+        });
+      }
 
-    // Variable jump height: cut ascent when releasing jump button
-    if (!this.controls.jump && this.marioVy < -2.5) {
-      this.marioVy = -2.5;
-    }
+      // Buoyant underwater gravity
+      this.isFluttering = false;
+      this.marioVy += 0.085;
+      const maxUnderwaterFall = this.controls.jump ? 1.1 : 1.65;
+      if (this.marioVy > maxUnderwaterFall) this.marioVy = maxUnderwaterFall;
+    } else {
+      if (jumpPressed && this.marioGrounded && !this.isStatue) {
+        const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult;
+        this.marioVy = jumpImpulse;
+        this.marioGrounded = false;
+        this.marioState = 'jumping';
 
-    // Gravity
-    const gravity = this.isFluttering ? 0.08 : (this.marioVy < 0 ? 0.38 : 0.62);
-    this.marioVy += gravity;
-    if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
+        if (this.marioPower === 'small') {
+          this.sound.playJumpSmall();
+        } else {
+          this.sound.playJumpSuper();
+        }
+      }
+
+      // Tanooki Flutter / Slow Fall: holding or tapping jump while descending flutters tail and limits fall speed
+      this.isFluttering = false;
+      if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
+        this.isFluttering = true;
+        this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
+      }
+
+      // Variable jump height: cut ascent when releasing jump button
+      if (!this.controls.jump && this.marioVy < -2.5) {
+        this.marioVy = -2.5;
+      }
+
+      // Gravity
+      const gravity = this.isFluttering ? 0.08 : (this.marioVy < 0 ? 0.38 : 0.62);
+      this.marioVy += gravity;
+      if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
+    }
 
     // Check Pipe Warp: Down key on vertical pipe or Right key against horizontal pipe
     if (this.marioGrounded && (this.controls.down || this.controls.right)) {
@@ -645,6 +728,12 @@ export class GameEngine {
 
     // Apply Velocity with AABB Collision
     this.moveMarioWithCollision();
+
+    // Keep Mario beneath the water surface so he doesn't swim into the HUD
+    if (isUnderwater && this.marioY < 24) {
+      this.marioY = 24;
+      if (this.marioVy < 0) this.marioVy = 0;
+    }
 
     // Animation frames update
     if (this.marioGrounded) {
@@ -917,6 +1006,22 @@ export class GameEngine {
         emerging: true,
         emergeY: y - 24,
       });
+    } else if (content === 'femboy') {
+      this.sound.playPowerUpAppear();
+      this.items.push({
+        id: this.nextEntityId++,
+        type: 'femboy',
+        x,
+        y,
+        vx: 1.15,
+        vy: 0,
+        width: 16,
+        height: 16,
+        grounded: false,
+        collected: false,
+        emerging: true,
+        emergeY: y - 16,
+      });
     } else if (content === 'mushroom') {
       // If Mario already has Super power or above, give Super Leaf / Tanooki or Fire Flower!
       let itemType: 'mushroom' | 'fireflower' | 'leaf' = 'mushroom';
@@ -1110,6 +1215,70 @@ export class GameEngine {
         return;
       }
 
+      // Cheep-Cheep (Swimming fish AI)
+      if (e.type === 'cheep_cheep') {
+        e.stateTimer++;
+        e.animTimer++;
+        if (e.animTimer % 10 === 0) {
+          e.animFrame = (e.animFrame + 1) % 2;
+        }
+        e.x += e.vx;
+        e.y += Math.sin(e.stateTimer * 0.06) * 0.35;
+        if (this.level.dryFinishStartX !== undefined && e.x > this.level.dryFinishStartX - 24) {
+          e.vx = -Math.abs(e.vx);
+          e.facing = 'left';
+        }
+        const cheepHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: 12, height: 12 };
+        if (this.rectsIntersect(marioBox, cheepHitbox)) {
+          this.marioHitEnemy(e, false);
+        }
+        return;
+      }
+
+      // Blooper (Underwater squid AI: lunges diagonally toward Mario, then drifts downward)
+      if (e.type === 'blooper') {
+        e.stateTimer++;
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        const cycle = e.stateTimer % 72;
+        if (cycle === 1 && e.y > 38) {
+          const dirToMario = this.marioX >= e.x ? 1 : -1;
+          e.vx = dirToMario * 0.85 * speedMult;
+          e.vy = -1.65;
+          e.facing = dirToMario >= 0 ? 'right' : 'left';
+          e.animFrame = 0;
+        } else if (cycle < 22) {
+          e.vy += 0.07;
+          e.animFrame = 0;
+        } else {
+          e.vx *= 0.92;
+          e.vy = 0.45;
+          e.animFrame = 1;
+        }
+
+        e.x += e.vx;
+        e.y += e.vy;
+
+        // Keep Blooper below water surface and above sea floor
+        if (e.y < 28) {
+          e.y = 28;
+          e.vy = 0.4;
+        }
+        if (e.y > 11 * GameEngine.TILE_SIZE) {
+          e.y = 11 * GameEngine.TILE_SIZE;
+          e.vy = 0;
+        }
+        if (this.level.dryFinishStartX !== undefined && e.x > this.level.dryFinishStartX - 24) {
+          e.x = this.level.dryFinishStartX - 24;
+          e.vx = -Math.abs(e.vx);
+        }
+
+        const blooperHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: 12, height: 12 };
+        if (this.rectsIntersect(marioBox, blooperHitbox)) {
+          this.marioHitEnemy(e, false);
+        }
+        return;
+      }
+
       // Walking enemy animation
       e.animTimer++;
       if (e.animTimer % 10 === 0) {
@@ -1253,8 +1422,8 @@ export class GameEngine {
     // Tanooki statue is completely immune to normal enemy damage
     if (this.isStatue) return;
 
-    if (this.marioPower === 'tanooki') {
-      // Tanooki suit downgrades to Super Mario on damage
+    if (this.marioPower === 'tanooki' || this.marioPower === 'femboy') {
+      // Tanooki and Femboy power-ups downgrade to Super Mario on damage
       this.marioPower = 'super';
       this.marioInvulnerableTimer = 120;
       this.marioShrinkTimer = 25;
@@ -1418,6 +1587,16 @@ export class GameEngine {
       this.marioGrowthTimer = 36;
       this.addScore(1000, item.x, item.y, 'TANOOKI!');
       this.spawnPowerUpSparkles(this.marioX, this.marioY);
+    } else if (item.type === 'femboy') {
+      this.sound.playPowerUpEat();
+      const prevPower = this.marioPower;
+      this.marioPower = 'femboy';
+      if (prevPower === 'small') {
+        this.marioY -= 16;
+      }
+      this.marioGrowthTimer = 36;
+      this.addScore(1000, item.x, item.y, 'FEMBOY!');
+      this.spawnPowerUpSparkles(this.marioX, this.marioY);
     } else if (item.type === 'mushroom') {
       this.sound.playPowerUpEat();
       const prevPower = this.marioPower;
@@ -1552,6 +1731,11 @@ export class GameEngine {
       } else if (p.type === 'smoke') {
         p.vy *= 0.94;
         p.vx *= 0.94;
+      } else if (p.type === 'bubble') {
+        p.x += Math.sin(p.life * 0.22) * 0.2;
+        if (p.y <= 26) {
+          p.life = p.maxLife;
+        }
       }
     });
 
@@ -1825,6 +2009,18 @@ export class GameEngine {
       this.warpTimer = 0;
       this.pipeClipLipY = destPos.y;
       this.pipeClipLipX = null;
+    } else if (targetLevelId === 'world-2-2') {
+      if (this.level.id !== 'world-2-2') {
+        this.loadLevel(createWorld2_2(), false, false, true);
+      }
+      this.marioX = destPos.x;
+      this.marioY = destPos.y + 16;
+      this.cameraX = Math.max(0, this.marioX - 80);
+      this.marioState = 'pipe_exiting';
+      this.pipeExitDir = 'up';
+      this.warpTimer = 0;
+      this.pipeClipLipY = destPos.y;
+      this.pipeClipLipX = null;
     }
 
     this.sound.playPipe();
@@ -2055,6 +2251,8 @@ export class GameEngine {
   public advanceToNextLevel() {
     if (this.level.id === 'world-1-1') {
       this.loadLevel(createWorld1_2(), true, false);
+    } else if (this.level.id === 'world-1-2') {
+      this.loadLevel(createWorld2_2(), true, false);
     } else {
       const nextStage = (this.endlessStage || 0) + 1;
       this.loadLevel(createEndlessLevel(Date.now(), nextStage), true, false);
@@ -2187,7 +2385,9 @@ export class GameEngine {
       type === 'pipe_warp_top_left' ||
       type === 'pipe_warp_top_right' ||
       type === 'underground_ground' ||
-      type === 'underground_brick'
+      type === 'underground_brick' ||
+      type === 'coral' ||
+      type === 'sea_ground'
     );
   }
 
@@ -2240,9 +2440,25 @@ export class GameEngine {
       return;
     }
 
-    // 1. Background Fill
-    ctx.fillStyle = this.level.bgColor;
-    ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    // 1. Background Fill (Split ocean/sky smoothly at dryFinishStartX on underwater levels)
+    if (this.level.theme === 'underwater' && this.level.dryFinishStartX !== undefined) {
+      const splitScreenX = Math.round(this.level.dryFinishStartX - this.cameraX);
+      if (splitScreenX <= 0) {
+        ctx.fillStyle = '#5c94fc';
+        ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      } else if (splitScreenX >= GameEngine.NES_WIDTH) {
+        ctx.fillStyle = this.level.bgColor;
+        ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      } else {
+        ctx.fillStyle = this.level.bgColor;
+        ctx.fillRect(0, 0, splitScreenX, GameEngine.NES_HEIGHT);
+        ctx.fillStyle = '#5c94fc';
+        ctx.fillRect(splitScreenX, 0, GameEngine.NES_WIDTH - splitScreenX, GameEngine.NES_HEIGHT);
+      }
+    } else {
+      ctx.fillStyle = this.level.bgColor;
+      ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    }
 
     // Apply Screen Shake offset to all world entities and background scenery
     ctx.save();
@@ -2250,7 +2466,7 @@ export class GameEngine {
       ctx.translate(Math.round(this.screenShakeOffsetX), Math.round(this.screenShakeOffsetY));
     }
 
-    // 2. Background Scenery (Clouds, Hills, Bushes)
+    // 2. Background Scenery (Clouds, Hills, Bushes, Seaweed & Water Surface)
     this.renderScenery(ctx);
 
     // 3. Tilemap
@@ -2348,6 +2564,43 @@ export class GameEngine {
   }
 
   private renderScenery(ctx: CanvasRenderingContext2D) {
+    if (this.level.theme === 'underwater') {
+      const waterEndScreenX =
+        this.level.dryFinishStartX !== undefined
+          ? Math.min(GameEngine.NES_WIDTH, Math.round(this.level.dryFinishStartX - this.cameraX))
+          : GameEngine.NES_WIDTH;
+
+      if (waterEndScreenX > 0) {
+        // Animated shimmering top water wave line
+        const phase = Math.floor(Date.now() / 160);
+        ctx.fillStyle = '#3898ff';
+        ctx.fillRect(0, 0, waterEndScreenX, 26);
+        for (let wx = 0; wx < waterEndScreenX; wx += 8) {
+          const offset = ((wx / 8 + phase) % 2 === 0) ? 0 : 2;
+          ctx.fillStyle = '#74d8ff';
+          ctx.fillRect(wx, 24 + offset, 6, 2);
+          ctx.fillStyle = '#b8f4ff';
+          ctx.fillRect(wx + 1, 24 + offset, 3, 1);
+        }
+      }
+
+      this.sceneries.forEach(s => {
+        const sx = s.x - this.cameraX;
+        if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+
+        if (s.type === 'seaweed_tall') {
+          this.drawSeaweed(ctx, sx, s.y, 44);
+        } else if (s.type === 'seaweed_short') {
+          this.drawSeaweed(ctx, sx, s.y, 26);
+        } else if (s.type === 'cloud_med') {
+          this.drawCloud(ctx, sx, s.y, 32);
+        } else if (s.type === 'bush_small') {
+          this.drawBush(ctx, sx, s.y, 32);
+        }
+      });
+      return;
+    }
+
     if (this.level.theme !== 'overworld') return;
 
     this.sceneries.forEach(s => {
@@ -2368,6 +2621,17 @@ export class GameEngine {
         this.drawBush(ctx, sx, s.y, 32);
       }
     });
+  }
+
+  private drawSeaweed(ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
+    const sway = Math.floor(Date.now() / 320);
+    for (let seg = 0; seg < h; seg += 6) {
+      const dx = ((seg / 6 + sway) % 2 === 0) ? 0 : 2;
+      ctx.fillStyle = '#008858';
+      ctx.fillRect(x + dx, y - seg - 6, 6, 6);
+      ctx.fillStyle = '#20c888';
+      ctx.fillRect(x + dx + 1, y - seg - 5, 3, 4);
+    }
   }
 
   private drawCloud(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
@@ -2431,6 +2695,12 @@ export class GameEngine {
             break;
           case 'underground_brick':
             ctx.drawImage(this.atlas.tileBrickUnderground, screenX, screenY);
+            break;
+          case 'coral':
+            ctx.drawImage(this.atlas.tileCoral, screenX, screenY);
+            break;
+          case 'sea_ground':
+            ctx.drawImage(this.atlas.tileSeaGround, screenX, screenY);
             break;
           case 'question':
             ctx.drawImage(this.atlas.tileQuestionFrames[qFrame], screenX, screenY);
@@ -2503,6 +2773,8 @@ export class GameEngine {
         ctx.drawImage(this.atlas.itemCoinFrames[coinFrame], ix, item.y);
       } else if (item.type === 'star') {
         ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, item.y);
+      } else if (item.type === 'femboy') {
+        ctx.drawImage(this.atlas.itemFemboy, ix, item.y);
       }
     });
   }
@@ -2546,6 +2818,18 @@ export class GameEngine {
           }
           ctx.drawImage(frame, ex - 4, e.y);
           ctx.restore();
+        }
+      } else if (e.type === 'blooper') {
+        const frame = e.animFrame === 0 ? this.atlas.blooper1 : this.atlas.blooper2;
+        ctx.drawImage(frame, ex, e.y);
+      } else if (e.type === 'cheep_cheep') {
+        const frame = e.animFrame === 0 ? this.atlas.cheepCheep1 : this.atlas.cheepCheep2;
+        if (e.facing === 'right') {
+          ctx.translate(ex + 16, e.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(frame, 0, 0);
+        } else {
+          ctx.drawImage(frame, ex, e.y);
         }
       }
 
@@ -2612,8 +2896,10 @@ export class GameEngine {
       const isW = this.playerCharacter === 'wazzima';
       const sprite = isSmallFlicker
         ? (isW ? this.atlas.wazzimaSmallIdle : this.atlas.marioSmallIdle)
-        : (this.marioPower === 'tanooki' 
+        : (this.marioPower === 'tanooki'
             ? (isW ? this.atlas.wazzimaTanookiIdle : this.atlas.marioTanookiIdle)
+            : this.marioPower === 'femboy'
+            ? (isW ? this.atlas.wazzimaFemboyIdle : this.atlas.marioFemboyIdle)
             : (isW ? this.atlas.wazzimaSuperIdle : this.atlas.marioSuperIdle));
       const drawY = isSmallFlicker ? my + 16 : my;
       ctx.drawImage(sprite, mx, drawY);
@@ -2818,6 +3104,12 @@ export class GameEngine {
       } else if (p.type === 'sparkle') {
         ctx.fillStyle = p.color || '#fce078';
         ctx.fillRect(px, p.y, p.size || 4, p.size || 4);
+      } else if (p.type === 'bubble') {
+        const sz = p.size || 3;
+        ctx.fillStyle = '#88e8ff';
+        ctx.fillRect(px, p.y, sz, sz);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px, p.y, 1, 1);
       } else if (p.type === 'score_text' && p.text) {
         const alpha = Math.max(0, 1 - (p.life / p.maxLife) * 0.5);
         ctx.save();

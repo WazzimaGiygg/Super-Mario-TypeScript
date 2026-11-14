@@ -27,7 +27,7 @@ export class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.6;
   private musicEnabled: boolean = true;
-  private currentTrack: 'overworld' | 'underground' | 'none' = 'none';
+  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'none' = 'none';
 
   // Music sequence playback state
   private musicTimer: number | null = null;
@@ -97,6 +97,7 @@ export class SoundEngine {
     } else {
       if (this.currentTrack === 'overworld') this.playMusic('overworld');
       else if (this.currentTrack === 'underground') this.playMusic('underground');
+      else if (this.currentTrack === 'underwater') this.playMusic('underwater');
     }
     return this.musicEnabled;
   }
@@ -151,6 +152,27 @@ export class SoundEngine {
 
     osc.start(now);
     osc.stop(now + 0.22);
+  }
+
+  public playSwim() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(190, now);
+    osc.frequency.exponentialRampToValueAtTime(420, now + 0.11);
+
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.12);
   }
 
   public playCoin() {
@@ -502,7 +524,7 @@ export class SoundEngine {
 
   // --- BACKGROUND MUSIC ENGINE ---
 
-  public playMusic(track: 'overworld' | 'underground') {
+  public playMusic(track: 'overworld' | 'underground' | 'underwater') {
     this.currentTrack = track;
     if (!this.musicEnabled) return;
     this.stopMusicSequence();
@@ -512,6 +534,8 @@ export class SoundEngine {
       this.initOverworldMusic();
     } else if (track === 'underground') {
       this.initUndergroundMusic();
+    } else if (track === 'underwater') {
+      this.initUnderwaterMusic();
     }
   }
 
@@ -592,6 +616,56 @@ export class SoundEngine {
       [N.F3, E], [N.F4, E], [N.D3, E], [N.D4, E], [N.Ds3, E], [N.Ds4, E], [N.REST, E * 4],
     ];
     this.currentBass = this.currentScore;
+    this.musicStep = 0;
+    this.playNextMusicSlice();
+  }
+
+  private initUnderwaterMusic() {
+    // Classic 3/4 underwater waltz feel
+    const E = 0.18;
+    const Q = 0.36;
+    const H = 0.72;
+
+    this.currentScore = [
+      // Phrase 1
+      [N.D4, E], [N.E4, E], [N.Fs4, E], [N.G4, E], [N.A4, E], [N.As4, E],
+      [N.B4, Q], [N.B4, E], [N.B4, Q], [N.G4, E],
+      [N.E5, H], [N.D5, Q],
+      [N.C5, Q], [N.A4, E], [N.F4, Q], [N.D4, E],
+      [N.B4, H], [N.REST, Q],
+
+      // Phrase 2
+      [N.B4, Q], [N.B4, E], [N.B4, Q], [N.G4, E],
+      [N.F5, H], [N.E5, Q],
+      [N.D5, Q], [N.B4, E], [N.G4, Q], [N.E4, E],
+      [N.A4, H], [N.REST, Q],
+
+      // Phrase 3 (lift)
+      [N.D5, E], [N.E5, E], [N.F5, E], [N.G5, Q], [N.E5, E],
+      [N.C5, Q], [N.A4, E], [N.G4, Q], [N.E4, E],
+      [N.C5, H], [N.B4, Q],
+      [N.G4, H], [N.REST, Q],
+    ];
+
+    this.currentBass = [
+      // 3/4 waltz bass accompaniment
+      [N.G3, E], [N.REST, E], [N.D3, E], [N.G3, E], [N.REST, E], [N.D3, E],
+      [N.G3, Q], [N.D4, E], [N.G3, Q], [N.D4, E],
+      [N.C3, H], [N.G3, Q],
+      [N.F3, Q], [N.C4, E], [N.D3, Q], [N.A3, E],
+      [N.G3, H], [N.D3, Q],
+
+      [N.G3, Q], [N.D4, E], [N.G3, Q], [N.B3, E],
+      [N.D3, H], [N.A3, Q],
+      [N.G3, Q], [N.D4, E], [N.E3, Q], [N.B3, E],
+      [N.D3, H], [N.A3, Q],
+
+      [N.F3, E], [N.G3, E], [N.A3, E], [N.C4, Q], [N.G3, E],
+      [N.F3, Q], [N.C4, E], [N.E3, Q], [N.C4, E],
+      [N.D3, H], [N.G3, Q],
+      [N.C3, H], [N.G3, Q],
+    ];
+
     this.musicStep = 0;
     this.playNextMusicSlice();
   }
