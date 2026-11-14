@@ -11,6 +11,7 @@ interface RetroHUDProps {
   stats: GameStats;
   onOpenLeaderboard?: () => void;
   isCheatActive?: boolean;
+  isFemboy?: boolean;
   onOpenCheatMenu?: () => void;
 }
 
@@ -18,6 +19,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   stats,
   onOpenLeaderboard,
   isCheatActive = false,
+  isFemboy = false,
   onOpenCheatMenu,
 }) => {
   // Format numbers with leading zeroes
@@ -60,12 +62,29 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
       <div className="max-w-5xl mx-auto flex flex-col gap-1.5 sm:gap-2">
         {/* Main Scoreboard Row */}
         <div className="grid grid-cols-3 sm:grid-cols-5 items-center text-center gap-2 sm:gap-4">
-          {/* 1. Mario Score (Pontuação) */}
-          <div className="flex flex-col items-center sm:items-start bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border border-stone-800/80">
-            <span className="text-[9px] sm:text-[11px] text-amber-400 font-bold tracking-wider mb-0.5">
-              PONTOS
-            </span>
-            <span className="tabular-nums font-mono text-xs sm:text-sm md:text-base text-white tracking-widest drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]">
+          {/* 1. Mario Score (Pontuação / Love Points) */}
+          <div
+            className={`flex flex-col items-center sm:items-start bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border ${
+              isFemboy ? 'border-pink-500/60' : 'border-stone-800/80'
+            }`}
+          >
+            {isFemboy ? (
+              <span className="text-[9px] sm:text-[11px] text-pink-400 font-bold tracking-wider mb-0.5 flex items-center gap-1">
+                <Heart className="w-3 h-3 fill-pink-500 text-pink-400 animate-pulse" />
+                <span>LOVE POINTS</span>
+              </span>
+            ) : (
+              <span className="text-[9px] sm:text-[11px] text-amber-400 font-bold tracking-wider mb-0.5">
+                PONTOS
+              </span>
+            )}
+            <span
+              className={`tabular-nums font-mono text-xs sm:text-sm md:text-base tracking-widest ${
+                isFemboy
+                  ? 'text-pink-100 drop-shadow-[0_0_6px_rgba(244,114,182,0.6)]'
+                  : 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]'
+              }`}
+            >
               {formattedScore}
             </span>
             {isCheatActive && (

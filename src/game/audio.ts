@@ -32,6 +32,7 @@ export class SoundEngine {
   // Music sequence playback state
   private musicTimer: number | null = null;
   private musicStep: number = 0;
+  private musicPaused: boolean = false;
   private currentScore: Note[] = [];
   private currentBass: Note[] = [];
 
@@ -573,10 +574,43 @@ export class SoundEngine {
     });
   }
 
+  public playPause() {
+    if (this.isMuted || !this.ctx || !this.sfxGain) return;
+    this.resume();
+    const notes = [1318.51, 1046.5, 1318.51, 1046.5];
+    let t = this.ctx.currentTime;
+    notes.forEach(freq => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.16, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.055);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(t);
+      osc.stop(t + 0.06);
+      t += 0.06;
+    });
+  }
+
+  public setMusicPaused(paused: boolean) {
+    if (paused) {
+      this.musicPaused = true;
+      this.stopMusicSequence();
+    } else if (this.musicPaused) {
+      this.musicPaused = false;
+      if (this.musicEnabled && this.currentTrack !== 'none') {
+        this.playNextMusicSlice();
+      }
+    }
+  }
+
   // --- BACKGROUND MUSIC ENGINE ---
 
   public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle') {
     this.currentTrack = track;
+    this.musicPaused = false;
     if (!this.musicEnabled) return;
     this.stopMusicSequence();
     this.resume();
@@ -594,6 +628,7 @@ export class SoundEngine {
 
   public stopMusic() {
     this.currentTrack = 'none';
+    this.musicPaused = false;
     this.stopMusicSequence();
   }
 
@@ -747,7 +782,7 @@ export class SoundEngine {
   }
 
   private playNextMusicSlice() {
-    if (!this.musicEnabled || !this.ctx || !this.musicGain || this.currentScore.length === 0) return;
+    if (this.musicPaused || !this.musicEnabled || !this.ctx || !this.musicGain || this.currentScore.length === 0) return;
 
     const [noteFreq, noteDur] = this.currentScore[this.musicStep % this.currentScore.length];
     const [bassFreq] = this.currentBass[this.musicStep % this.currentBass.length];

@@ -2813,6 +2813,7 @@ export class GameEngine {
       difficulty: this.difficulty,
     };
 
+    this.isPaused = false;
     this.isGameStarted = true;
     this.endlessStage = 0;
     this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
@@ -2822,6 +2823,19 @@ export class GameEngine {
 
   public togglePause() {
     this.isPaused = !this.isPaused;
+    this.sound.playPause();
+    this.sound.setMusicPaused(this.isPaused);
+    if (this.isPaused) {
+      this.controls = {
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      };
+    }
   }
 
   // --- COLLISION UTILS ---
@@ -3001,11 +3015,25 @@ export class GameEngine {
       ctx.fillText(text, x, y);
     };
 
-    // 1. SCORE COLUMN (X: 16) - Shows WAZZIMA if playing as WazzimaGiygg!
-    const charName = this.playerCharacter === 'wazzima' ? 'WAZZIMA' : 'MARIO';
-    const charColor = this.playerCharacter === 'wazzima' ? '#38f838' : '#ffffff';
-    drawShadowText(charName, 16, 12, charColor);
-    drawShadowText(String(this.stats.score).padStart(6, '0'), 16, 21, '#ffffff');
+    // 1. SCORE COLUMN (X: 16) - Shows WazzimaGiygg if playing as WazzimaGiygg!
+    const isWazzima = this.playerCharacter === 'wazzima';
+    const isFemboy = this.marioPower === 'femboy';
+    const charName = isWazzima ? 'WazzimaGiygg' : 'MARIO';
+    const charColor = isWazzima ? '#38f838' : '#ffffff';
+    if (isWazzima) {
+      ctx.font = '5px "Press Start 2P", monospace';
+      drawShadowText(charName, 16, 12, charColor);
+      ctx.font = '8px "Press Start 2P", monospace';
+    } else {
+      drawShadowText(charName, 16, 12, charColor);
+    }
+    drawShadowText(String(this.stats.score).padStart(6, '0'), 16, 21, isFemboy ? '#ff99cc' : '#ffffff');
+
+    if (isFemboy) {
+      ctx.font = '5px "Press Start 2P", monospace';
+      drawShadowText('LOVE POINTS', 16, 29, '#ff4d94');
+      ctx.font = '8px "Press Start 2P", monospace';
+    }
 
     // 2. MULTIPLAYER BADGE (If other players connected via IP)
     if (this.remotePlayers.size > 0) {
@@ -3014,11 +3042,12 @@ export class GameEngine {
 
     // CHEAT USE warning badge if active
     if (this.isCheatActive) {
+      const cheatY = isFemboy ? 37 : 29;
       ctx.font = '6px "Press Start 2P", monospace';
       ctx.fillStyle = '#000000';
-      ctx.fillText('CHEAT USE', 17, 30);
+      ctx.fillText('CHEAT USE', 17, cheatY + 1);
       ctx.fillStyle = '#ff3333';
-      ctx.fillText('CHEAT USE', 16, 29);
+      ctx.fillText('CHEAT USE', 16, cheatY);
       ctx.font = '8px "Press Start 2P", monospace';
     }
 
@@ -3487,7 +3516,7 @@ export class GameEngine {
       const badgeY = my - 8;
       const isW = this.playerCharacter === 'wazzima';
       const badgeColor = isW ? '#00a800' : '#d82800';
-      const nameText = isW ? 'WAZZIMA' : 'MARIO';
+      const nameText = isW ? 'WazzimaGiygg' : 'MARIO';
 
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
@@ -3570,7 +3599,7 @@ export class GameEngine {
       const badgeY = py - 8;
       const isW = rp.character === 'wazzima';
       const badgeColor = isW ? '#00a800' : '#d82800';
-      const nameText = (rp.name || (isW ? 'Wazzima' : 'Mario')).substring(0, 12).toUpperCase();
+      const nameText = (rp.name || (isW ? 'WazzimaGiygg' : 'Mario')).substring(0, 12);
 
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'center';

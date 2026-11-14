@@ -37,6 +37,7 @@ export const GameCanvas: React.FC = () => {
 
   const [isPaused, setIsPaused] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [marioPower, setMarioPower] = useState<MarioPower>('small');
   const [isStageClear, setIsStageClear] = useState(false);
   const [waitingForPlayersFinish, setWaitingForPlayersFinish] = useState(false);
   const [waitingPlayersNames, setWaitingPlayersNames] = useState<string[]>([]);
@@ -138,6 +139,24 @@ export const GameCanvas: React.FC = () => {
     setTimeout(() => setCheatToast(''), 4500);
   }, []);
 
+  const togglePauseGame = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || !hasStarted || engine.isGameOver || engine.isMultiplayerMatchOver) return;
+    engine.togglePause();
+    setIsPaused(engine.isPaused);
+    if (engine.isPaused) {
+      setControls({
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      });
+    }
+  }, [hasStarted]);
+
   // Keyboard Event Listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -150,6 +169,23 @@ export const GameCanvas: React.FC = () => {
       }
 
       if (isMultiplayerOpen || isSettingsOpen || isLeaderboardOpen) {
+        return;
+      }
+
+      // Pause / Unpause on Escape or P (without starting splash screen or flickering on key repeat)
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        if (isCheatMenuOpen) {
+          if (e.code === 'Escape') {
+            e.preventDefault();
+            setIsCheatMenuOpen(false);
+          }
+          return;
+        }
+        if (!hasStarted || isGameOver || isMultiplayerMatchOver) return;
+        if (e.repeat) return;
+        e.preventDefault();
+        SoundEngine.get().resume();
+        togglePauseGame();
         return;
       }
 
@@ -181,7 +217,7 @@ export const GameCanvas: React.FC = () => {
       }
 
       const engine = engineRef.current;
-      if (!engine) return;
+      if (!engine || engine.isPaused) return;
 
       switch (e.code) {
         case 'ArrowLeft':
@@ -215,11 +251,6 @@ export const GameCanvas: React.FC = () => {
         case 'KeyK':
           engine.controls.run = true;
           setControls(c => ({ ...c, run: true }));
-          break;
-        case 'KeyP':
-        case 'Escape':
-          engine.togglePause();
-          setIsPaused(engine.isPaused);
           break;
         case 'KeyR':
           if (e.ctrlKey || e.metaKey) return;
@@ -285,7 +316,7 @@ export const GameCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [hasStarted, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat]);
+  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
 
   // Gamepad API Polling
   const pollGamepad = useCallback(() => {
@@ -323,10 +354,22 @@ export const GameCanvas: React.FC = () => {
     engine.controls.pause = btnStart;
   }, []);
 
-  // Main Game Loop (60 FPS)
+  // Main Game Loop (60 FPS) — Freezes canvas rendering & RAF loop completely while paused
   useEffect(() => {
+    if (isPaused) {
+      // Keep listening only for Gamepad Start button while paused so controller users can unpause
+      const gamepadPauseTimer = window.setInterval(() => {
+        pollGamepad();
+        if (engineRef.current && !engineRef.current.isPaused) {
+          setIsPaused(false);
+        }
+      }, 120);
+      return () => clearInterval(gamepadPauseTimer);
+    }
+
     let animationFrameId: number;
     let uiTimer = 0;
+    lastTimeRef.current = performance.now();
 
     const loop = (timestamp: number) => {
       const deltaMs = Math.min(32, timestamp - lastTimeRef.current);
@@ -338,6 +381,11 @@ export const GameCanvas: React.FC = () => {
       if (engine && canvas) {
         // Poll Gamepad
         pollGamepad();
+
+        if (engine.isPaused) {
+          setIsPaused(true);
+          return;
+        }
 
         // Update Physics & Game State
         engine.update(deltaMs);
@@ -353,6 +401,7 @@ export const GameCanvas: React.FC = () => {
         if (uiTimer >= 100) {
           uiTimer = 0;
           setStats({ ...engine.stats });
+          setMarioPower(engine.marioPower);
           setIsPaused(engine.isPaused);
           setIsGameOver(engine.isGameOver);
           setIsStageClear(engine.isStageClear);
@@ -371,7 +420,7 @@ export const GameCanvas: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [pollGamepad]);
+  }, [isPaused, pollGamepad]);
 
   // Audio Controls Handlers
   const toggleMute = () => {
@@ -399,7 +448,9 @@ export const GameCanvas: React.FC = () => {
       return;
     }
     if (engineRef.current) {
+      engineRef.current.isPaused = false;
       engineRef.current.loadLevel(level, true, false);
+      setIsPaused(false);
       setIsGameOver(false);
       setIsStageClear(false);
     }
@@ -408,7 +459,9 @@ export const GameCanvas: React.FC = () => {
   const handleRestart = () => {
     if (multiplayerStatus.connected) {
       if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
+        if (engineRef.current) engineRef.current.isPaused = false;
         multiplayerClient.startMultiplayerRematch();
+        setIsPaused(false);
         setIsGameOver(false);
         setIsStageClear(false);
       } else {
@@ -419,6 +472,7 @@ export const GameCanvas: React.FC = () => {
     }
     if (engineRef.current) {
       engineRef.current.restartGame();
+      setIsPaused(false);
       setIsGameOver(false);
       setIsStageClear(false);
     }
@@ -457,6 +511,7 @@ export const GameCanvas: React.FC = () => {
         stats={stats}
         onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
         isCheatActive={isCheatActive}
+        isFemboy={marioPower === 'femboy'}
         onOpenCheatMenu={() => setIsCheatMenuOpen(true)}
       />
 
@@ -593,18 +648,25 @@ export const GameCanvas: React.FC = () => {
 
           {/* Pause Overlay */}
           {isPaused && hasStarted && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-xs">
-              <h2 className="font-['Press_Start_2P',monospace] text-2xl sm:text-4xl text-amber-400 mb-6 tracking-widest animate-pulse">
-                PAUSADO
+            <div
+              role="dialog"
+              aria-label="PAUSED"
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-xs p-4 text-center"
+            >
+              <h2 className="font-['Press_Start_2P',monospace] text-2xl sm:text-4xl text-amber-400 mb-3 tracking-widest drop-shadow-[0_3px_0_rgba(0,0,0,0.9)]">
+                PAUSED
               </h2>
+              <p className="text-stone-300 font-mono text-xs mb-6">
+                Pressione <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">ESC</kbd> ou{' '}
+                <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">P</kbd> para continuar
+              </p>
               <div className="flex gap-4">
                 <button
                   type="button"
                   onClick={() => {
-                    engineRef.current?.togglePause();
-                    setIsPaused(false);
+                    togglePauseGame();
                   }}
-                  className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-['Press_Start_2P',monospace] text-xs shadow"
+                  className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-['Press_Start_2P',monospace] text-xs shadow cursor-pointer"
                 >
                   CONTINUAR
                 </button>
@@ -614,7 +676,7 @@ export const GameCanvas: React.FC = () => {
                     handleRestart();
                     setIsPaused(false);
                   }}
-                  className="px-6 py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white font-['Press_Start_2P',monospace] text-xs shadow"
+                  className="px-6 py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white font-['Press_Start_2P',monospace] text-xs shadow cursor-pointer"
                 >
                   REINICIAR
                 </button>
@@ -760,7 +822,10 @@ export const GameCanvas: React.FC = () => {
                 GAME OVER
               </h2>
               <p className="text-stone-300 font-mono text-sm mb-6">
-                PONTUAÇÃO FINAL: <span className="text-amber-400 font-bold text-base">{stats.score}</span>
+                {marioPower === 'femboy' ? 'LOVE POINTS FINAIS: ' : 'PONTUAÇÃO FINAL: '}
+                <span className={`font-bold text-base ${marioPower === 'femboy' ? 'text-pink-400' : 'text-amber-400'}`}>
+                  {stats.score}
+                </span>
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
@@ -933,10 +998,7 @@ export const GameCanvas: React.FC = () => {
         controls={controls}
         onControlChange={handleControlChange}
         isPaused={isPaused}
-        onTogglePause={() => {
-          engineRef.current?.togglePause();
-          setIsPaused(prev => !prev);
-        }}
+        onTogglePause={togglePauseGame}
         isMuted={soundStatus.muted}
         onToggleMute={toggleMute}
         onRestart={handleRestart}
@@ -989,12 +1051,16 @@ export const GameCanvas: React.FC = () => {
         isOpen={isCheatMenuOpen}
         onClose={() => setIsCheatMenuOpen(false)}
         infiniteLives={engineRef.current?.infiniteLives || false}
+        isFemboy={marioPower === 'femboy'}
         onToggleInfiniteLives={() => {
           engineRef.current?.toggleInfiniteLives();
           setStats({ ...engineRef.current!.stats });
         }}
         onSetPowerUp={(power: MarioPower | 'star') => {
           engineRef.current?.setPowerUp(power);
+          if (engineRef.current) {
+            setMarioPower(engineRef.current.marioPower);
+          }
         }}
         onAddScore={(pts: number) => {
           engineRef.current?.addCheatScore(pts);

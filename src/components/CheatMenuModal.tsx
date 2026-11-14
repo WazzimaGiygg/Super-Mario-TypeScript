@@ -11,6 +11,7 @@ interface CheatMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
   infiniteLives: boolean;
+  isFemboy?: boolean;
   onToggleInfiniteLives: () => void;
   onSetPowerUp: (power: MarioPower | 'star') => void;
   onAddScore: (points: number) => void;
@@ -20,6 +21,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
   isOpen,
   onClose,
   infiniteLives,
+  isFemboy = false,
   onToggleInfiniteLives,
   onSetPowerUp,
   onAddScore,
@@ -39,7 +41,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
     const pts = parseInt(customPoints, 10);
     if (!isNaN(pts) && pts > 0) {
       onAddScore(pts);
-      showSuccess(`+${pts.toLocaleString()} pontos adicionados!`);
+      showSuccess(`+${pts.toLocaleString()} ${isFemboy ? 'love points' : 'pontos'} adicionados!`);
       setCustomPoints('');
     }
   };
@@ -200,9 +202,9 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
           {/* 3. Adicionar Pontuação */}
           <div className="bg-stone-800/80 p-3.5 rounded-lg border border-stone-700 space-y-2">
             <div className="flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-emerald-400" />
-              <h3 className="font-['Press_Start_2P',monospace] text-[10px] text-stone-200">
-                ADICIONAR PONTOS
+              <PlusCircle className={`w-4 h-4 ${isFemboy ? 'text-pink-400' : 'text-emerald-400'}`} />
+              <h3 className={`font-['Press_Start_2P',monospace] text-[10px] ${isFemboy ? 'text-pink-300' : 'text-stone-200'}`}>
+                {isFemboy ? 'ADICIONAR LOVE POINTS' : 'ADICIONAR PONTOS'}
               </h3>
             </div>
 
@@ -212,7 +214,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
                 type="button"
                 onClick={() => {
                   onAddScore(1000);
-                  showSuccess('+1.000 pontos!');
+                  showSuccess(`+1.000 ${isFemboy ? 'love points' : 'pontos'}!`);
                 }}
                 className="py-1.5 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-amber-300 transition"
               >
@@ -222,7 +224,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
                 type="button"
                 onClick={() => {
                   onAddScore(10000);
-                  showSuccess('+10.000 pontos!');
+                  showSuccess(`+10.000 ${isFemboy ? 'love points' : 'pontos'}!`);
                 }}
                 className="py-1.5 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-amber-300 transition"
               >
@@ -232,7 +234,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
                 type="button"
                 onClick={() => {
                   onAddScore(50000);
-                  showSuccess('+50.000 pontos!');
+                  showSuccess(`+50.000 ${isFemboy ? 'love points' : 'pontos'}!`);
                 }}
                 className="py-1.5 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-amber-300 transition"
               >
@@ -242,7 +244,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
                 type="button"
                 onClick={() => {
                   onAddScore(100000);
-                  showSuccess('+100.000 pontos!');
+                  showSuccess(`+100.000 ${isFemboy ? 'love points' : 'pontos'}!`);
                 }}
                 className="py-1.5 rounded bg-stone-900 hover:bg-stone-700 border border-stone-700 text-amber-300 transition"
               >
@@ -263,9 +265,11 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
               <button
                 type="submit"
                 disabled={!customPoints}
-                className="px-3 py-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold rounded flex items-center gap-1 font-['Press_Start_2P',monospace] text-[9px]"
+                className={`px-3 py-1 disabled:opacity-50 text-white text-xs font-bold rounded flex items-center gap-1 font-['Press_Start_2P',monospace] text-[9px] ${
+                  isFemboy ? 'bg-pink-600 hover:bg-pink-500' : 'bg-red-700 hover:bg-red-600'
+                }`}
               >
-                + PONTOS
+                {isFemboy ? '+ LOVE POINTS' : '+ PONTOS'}
               </button>
             </form>
           </div>
