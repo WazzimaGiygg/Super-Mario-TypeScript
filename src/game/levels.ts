@@ -302,7 +302,7 @@ export function createSecretVault(): LevelData {
   grid[8][3] = { type: 'brick', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
 
   // Exit pipe at right
-  placePipe(grid, 20, 12, 4);
+  placePipe(grid, 20, 12, 4, true);
 
   return {
     id: 'secret-vault',
@@ -320,13 +320,13 @@ export function createSecretVault(): LevelData {
     timeLimit: 400,
     pipeWarps: [
       {
-        from: { x: 20 * 16 - 4, y: 7 * 16, width: 36, height: 24 },
+        from: { x: 20 * 16, y: 8 * 16, width: 32, height: 16 },
         toLevel: 'world-1-1',
         toPos: { x: 163 * 16 + 8, y: 11 * 16 - 16 },
         type: 'down',
       },
       {
-        from: { x: 20 * 16 - 8, y: 8 * 16, width: 24, height: 64 },
+        from: { x: 20 * 16 - 6, y: 9 * 16, width: 8, height: 64 },
         toLevel: 'world-1-1',
         toPos: { x: 163 * 16 + 8, y: 11 * 16 - 16 },
         type: 'right',
@@ -384,7 +384,7 @@ export function createWorld1_2(): LevelData {
   grid[9][85] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0, invisible: true };
 
   // Underground exit pipe (Tile 145, 4 tiles high)
-  placePipe(grid, 145, 12, 4);
+  placePipe(grid, 145, 12, 4, true);
 
   // Surface emergence pipe (Tile 154, 2 tiles high)
   placePipe(grid, 154, 12, 2);
@@ -441,7 +441,7 @@ export function createWorld1_2(): LevelData {
     ],
     pipeWarps: [
       {
-        from: { x: 145 * 16 - 4, y: 7 * 16, width: 36, height: 24 },
+        from: { x: 145 * 16, y: 8 * 16, width: 32, height: 16 },
         toLevel: 'world-1-2',
         toPos: { x: 154 * 16 + 8, y: 11 * 16 - 16 },
         type: 'down',
@@ -627,7 +627,7 @@ export function createWorld2_2(): LevelData {
     ],
     pipeWarps: [
       {
-        from: { x: 167 * 16 - 4, y: 9 * 16, width: 40, height: 24 },
+        from: { x: 167 * 16, y: 9 * 16, width: 32, height: 16 },
         toLevel: 'world-2-2',
         toPos: { x: 180 * 16 + 8, y: 11 * 16 - 16 },
         type: 'down',

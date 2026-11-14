@@ -132,7 +132,7 @@ export interface Particle {
   y: number;
   vx: number;
   vy: number;
-  type: 'brick_piece' | 'score_text' | 'smoke' | 'sparkle' | 'coin_glint' | 'enemy_poof' | 'star_burst' | 'bubble' | 'heart';
+  type: 'brick_piece' | 'score_text' | 'smoke' | 'dust' | 'sparkle' | 'coin_glint' | 'enemy_poof' | 'star_burst' | 'bubble' | 'heart';
   text?: string;
   life: number;
   maxLife: number;

@@ -25,6 +25,7 @@ import {
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
+import { ParticleSystem } from './particles.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from './levels.ts';
 
 export class GameEngine {
@@ -119,7 +120,12 @@ export class GameEngine {
   public items: Item[] = [];
   public fireballs: Fireball[] = [];
   public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
-  public particles: Particle[] = [];
+  public particleSystem: ParticleSystem = new ParticleSystem();
+  private skidDustTimer: number = 0;
+
+  public get particles(): Particle[] {
+    return this.particleSystem.particles;
+  }
 
   // Castle Axe & Bridge Collapse State
   public bridgeCollapseQueue: { tx: number; ty: number }[] = [];
@@ -187,6 +193,8 @@ export class GameEngine {
     this.timeCountTickCounter = 0;
     this.warpTimer = 0;
     this.warpTarget = null;
+    this.warpDir = 'down';
+    this.pipeExitDir = 'up';
     this.pipeClipLipY = null;
     this.pipeClipLipX = null;
     this.bridgeCollapseQueue = [];
@@ -303,7 +311,7 @@ export class GameEngine {
     });
 
     this.fireballs = [];
-    this.particles = [];
+    this.particleSystem.clear();
     this.generateBackgroundScenery();
 
     // Start background music
@@ -425,8 +433,7 @@ export class GameEngine {
         const nextTile = this.bridgeCollapseQueue.shift();
         if (nextTile) {
           this.level.tiles[nextTile.ty][nextTile.tx] = null;
-          this.particles.push({
-            id: this.nextEntityId++,
+          this.particleSystem.add({
             type: 'smoke',
             x: nextTile.tx * GameEngine.TILE_SIZE + 4,
             y: nextTile.ty * GameEngine.TILE_SIZE,
@@ -443,7 +450,7 @@ export class GameEngine {
         }
       }
       this.updateEnemies();
-      this.updateParticles();
+      this.particleSystem.update();
       this.prevControls = { ...this.controls };
       return;
     }
@@ -462,7 +469,7 @@ export class GameEngine {
     this.updateBossFireballs();
 
     // Update Particles
-    this.updateParticles();
+    this.particleSystem.update();
 
     // Update Block Bumps
     this.updateBlocks();
@@ -511,34 +518,61 @@ export class GameEngine {
       return;
     }
 
-    // 4. Pipe entering animation (sinking into pipe)
+    // 4. Pipe entering animation (sinking smoothly into pipe until fully hidden)
     if (this.marioState === 'pipe_entering') {
       this.warpTimer++;
       if (this.warpDir === 'down') {
-        this.marioY += 0.7;
+        this.marioVx = 0;
+        this.marioY += 0.8;
+        const sinkDoneY = (this.pipeClipLipY ?? this.marioY) + 2;
+        if (this.marioY >= sinkDoneY || this.warpTimer >= 52) {
+          this.finishPipeWarp();
+        }
       } else {
-        this.marioX += 0.7;
-      }
-      if (this.warpTimer >= 48) {
-        this.finishPipeWarp();
+        this.marioVx = 0.75;
+        this.marioX += 0.75;
+        this.marioAnimTimer++;
+        if (this.marioAnimTimer >= 6) {
+          this.marioAnimTimer = 0;
+          this.marioAnimFrame = (this.marioAnimFrame + 1) % 3;
+        }
+        const enterDoneX = (this.pipeClipLipX ?? this.marioX) + 2;
+        if (this.marioX >= enterDoneX || this.warpTimer >= 44) {
+          this.finishPipeWarp();
+        }
       }
       return;
     }
 
-    // 4b. Pipe exiting animation (rising smoothly out of pipe)
+    // 4b. Pipe exiting animation (rising smoothly out of pipe until feet stand flush on rim)
     if (this.marioState === 'pipe_exiting') {
       this.warpTimer++;
+      this.marioVx = 0;
       if (this.pipeExitDir === 'up') {
-        this.marioY -= 0.7;
+        this.marioY -= 0.75;
+        const targetTopY = (this.pipeClipLipY ?? this.marioY) - this.getMarioHeight();
+        if (this.marioY <= targetTopY || this.warpTimer >= 60) {
+          this.marioY = targetTopY;
+          this.marioVy = 0;
+          this.marioGrounded = true;
+          this.marioState = 'idle';
+          this.pipeClipLipY = null;
+          this.pipeClipLipX = null;
+        }
       } else if (this.pipeExitDir === 'down') {
-        this.marioY += 0.7;
+        this.marioY += 0.75;
+        if (this.warpTimer >= 48) {
+          this.marioState = 'idle';
+          this.pipeClipLipY = null;
+          this.pipeClipLipX = null;
+        }
       } else {
-        this.marioX += 0.7;
-      }
-      if (this.warpTimer >= 48) {
-        this.marioState = 'idle';
-        this.pipeClipLipY = null;
-        this.pipeClipLipX = null;
+        this.marioX += 0.75;
+        if (this.warpTimer >= 48) {
+          this.marioState = 'idle';
+          this.pipeClipLipY = null;
+          this.pipeClipLipX = null;
+        }
       }
       return;
     }
@@ -684,7 +718,16 @@ export class GameEngine {
       }
     }
 
-    // Crouch (Super/Fire/Tanooki)
+      if (this.marioState === 'skidding' && this.marioGrounded && !isUnderwater && Math.abs(this.marioVx) > 0.9) {
+        this.skidDustTimer++;
+        if (this.skidDustTimer % 4 === 1) {
+          this.particleSystem.emitSkidDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
+        }
+      } else {
+        this.skidDustTimer = 0;
+      }
+
+      // Crouch (Super/Fire/Tanooki)
     const isCrouching = this.controls.down && this.marioGrounded && this.marioPower !== 'small';
     if (isCrouching) {
       this.marioState = 'crouching';
@@ -701,32 +744,22 @@ export class GameEngine {
         this.marioGrounded = false;
         this.marioState = 'jumping';
         this.sound.playSwim();
-        this.particles.push({
-          id: this.nextEntityId++,
-          type: 'bubble',
-          x: this.marioX + (this.marioFacing === 'right' ? 12 : 2),
-          y: this.marioY + 4,
-          vx: 0,
-          vy: -0.65,
-          life: 0,
-          maxLife: 90,
-          size: 3,
-        });
+        this.particleSystem.emitBubble(
+          this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+          this.marioY + 4,
+          3,
+          -0.65
+        );
       }
 
       // Gentle ambient bubbles while swimming
       if (Math.random() < 0.03) {
-        this.particles.push({
-          id: this.nextEntityId++,
-          type: 'bubble',
-          x: this.marioX + (this.marioFacing === 'right' ? 12 : 2),
-          y: this.marioY + 4,
-          vx: 0,
-          vy: -0.5,
-          life: 0,
-          maxLife: 80,
-          size: 2,
-        });
+        this.particleSystem.emitBubble(
+          this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+          this.marioY + 4,
+          2,
+          -0.5
+        );
       }
 
       // Buoyant underwater gravity
@@ -737,6 +770,7 @@ export class GameEngine {
     } else {
       if (jumpPressed && this.marioGrounded && !this.isStatue) {
         const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult;
+        this.particleSystem.emitJumpDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
         this.marioVy = jumpImpulse;
         this.marioGrounded = false;
         this.marioState = 'jumping';
@@ -766,9 +800,14 @@ export class GameEngine {
       if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
     }
 
-    // Check Pipe Warp: Down key on vertical pipe or Right key against horizontal pipe
-    if (this.marioGrounded && (this.controls.down || this.controls.right)) {
-      this.checkPipeWarp();
+    // Check Pipe Warp: Down key on vertical pipe (grounded or underwater) or Right key against horizontal pipe
+    if (
+      (this.marioGrounded && (this.controls.down || this.controls.right)) ||
+      (isUnderwater && this.controls.down)
+    ) {
+      if (this.checkPipeWarp()) {
+        return;
+      }
     }
 
     // Action button pressed (Run button):
@@ -832,16 +871,9 @@ export class GameEngine {
           this.activatedCheckpointIndices.add(idx);
           this.activeCheckpoint = { ...cp.respawnPos };
           this.sound.playPowerUpEat();
-          this.particles.push({
-            id: this.nextEntityId++,
-            type: 'score_text',
-            text: 'CHECKPOINT!',
-            x: this.marioX - 24,
-            y: this.marioY - 20,
-            vx: 0,
-            vy: -1.0,
-            life: 0,
+          this.particleSystem.emitScoreText('CHECKPOINT!', this.marioX - 24, this.marioY - 20, {
             maxLife: 60,
+            vy: -1.0,
           });
         }
       });
@@ -946,27 +978,9 @@ export class GameEngine {
             const intensity = this.isStatue ? 4.5 : Math.min(5.0, (impactVy - 4.5) * 2.2);
             this.triggerScreenShake(intensity, 12);
             this.sound.playBump();
-            // Emit landing dust/impact particles
-            this.particles.push({
-              id: this.nextEntityId++,
-              type: 'smoke',
-              x: this.marioX - 4,
-              y: this.marioY + height - 4,
-              vx: -1.2,
-              vy: -0.5,
-              life: 0,
-              maxLife: 15,
-            });
-            this.particles.push({
-              id: this.nextEntityId++,
-              type: 'smoke',
-              x: this.marioX + 12,
-              y: this.marioY + height - 4,
-              vx: 1.2,
-              vy: -0.5,
-              life: 0,
-              maxLife: 15,
-            });
+            this.particleSystem.emitLandingDust(this.marioX + 8, this.marioY + height, true);
+          } else if (!wasGrounded && impactVy >= 1.5 && this.level.theme !== 'underwater') {
+            this.particleSystem.emitLandingDust(this.marioX + 8, this.marioY + height, false);
           }
 
           // Femboy Extra Ability: landing on the ground unleashes 2 pure white fireballs from both sides
@@ -1033,8 +1047,7 @@ export class GameEngine {
 
       if (wasInvisible) {
         // Secret discovery sparkles
-        this.particles.push({
-          id: this.nextEntityId++,
+        this.particleSystem.add({
           type: 'sparkle',
           x: tx * GameEngine.TILE_SIZE + 4,
           y: ty * GameEngine.TILE_SIZE + 4,
@@ -1181,8 +1194,7 @@ export class GameEngine {
     this.spawnCoinParticles(x, y);
 
     // Bouncing coin particle
-    this.particles.push({
-      id: this.nextEntityId++,
+    this.particleSystem.add({
       type: 'sparkle',
       x: x + 4,
       y: y,
@@ -1194,44 +1206,7 @@ export class GameEngine {
   }
 
   public createBrickDebris(x: number, y: number) {
-    const velocities = [
-      { vx: -2.2, vy: -5.2, rot: -0.16 },
-      { vx: 2.2, vy: -5.2, rot: 0.16 },
-      { vx: -1.4, vy: -3.2, rot: -0.11 },
-      { vx: 1.4, vy: -3.2, rot: 0.11 },
-    ];
-
-    velocities.forEach(v => {
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'brick_piece',
-        x: x + 4,
-        y: y + 4,
-        vx: v.vx,
-        vy: v.vy,
-        life: 0,
-        maxLife: 42,
-        rotation: 0,
-        rotSpeed: v.rot,
-        gravity: 0.38,
-      });
-    });
-
-    // Dust and smoke puffs around shattered brick
-    for (let i = 0; i < 4; i++) {
-      const angle = (Math.PI * 2 * i) / 4 + Math.PI / 4;
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'smoke',
-        x: x + 6,
-        y: y + 6,
-        vx: Math.cos(angle) * 1.5,
-        vy: Math.sin(angle) * 1.5 - 0.4,
-        life: 0,
-        maxLife: 18,
-        size: 3 + (i % 2),
-      });
-    }
+    this.particleSystem.emitBrickBreak(x, y, this.level.theme);
   }
 
   // --- ENEMIES UPDATE ---
@@ -1931,22 +1906,7 @@ export class GameEngine {
   }
 
   public spawnPowerUpSparkles(x: number, y: number) {
-    const colors = ['#ffffff', '#fc5454', '#fce078', '#5c94fc'];
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8;
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'sparkle',
-        x: x + 8,
-        y: y + 16,
-        vx: Math.cos(angle) * 1.6,
-        vy: Math.sin(angle) * 1.6 - 0.5,
-        life: 0,
-        maxLife: 26,
-        color: colors[i % colors.length],
-        size: 3,
-      });
-    }
+    this.particleSystem.emitPowerUpSparkles(x, y);
   }
 
   // --- FIREBALLS UPDATE ---
@@ -2152,110 +2112,18 @@ export class GameEngine {
   }
 
   // --- PARTICLES & SCORE POPUPS ---
-  private updateParticles() {
-    this.particles.forEach(p => {
-      p.life++;
-      p.x += p.vx;
-      p.y += p.vy;
-
-      if (p.rotation !== undefined && p.rotSpeed !== undefined) {
-        p.rotation += p.rotSpeed;
-      }
-
-      if (p.gravity !== undefined) {
-        p.vy += p.gravity;
-      } else if (p.type === 'brick_piece') {
-        p.vy += 0.38; // Classic gravity on debris
-      } else if (p.type === 'coin_glint') {
-        p.vy += 0.08;
-      } else if (p.type === 'smoke') {
-        p.vy *= 0.94;
-        p.vx *= 0.94;
-      } else if (p.type === 'bubble') {
-        p.x += Math.sin(p.life * 0.22) * 0.2;
-        if (p.y <= 26) {
-          p.life = p.maxLife;
-        }
-      } else if (p.type === 'heart') {
-        p.x += Math.sin(p.life * 0.18) * 0.22;
-        p.vy *= 0.985;
-      }
-    });
-
-    this.particles = this.particles.filter(p => p.life < p.maxLife);
-  }
-
   private spawnFemboyHeartParticle(x: number, y: number) {
-    this.particles.push({
-      id: this.nextEntityId++,
-      type: 'heart',
-      x,
-      y,
-      vx: 0,
-      vy: -0.95,
-      life: 0,
-      maxLife: 46,
-      color: '#ff4d94',
-    });
+    this.particleSystem.emitHeart(x, y);
   }
 
   // Helper to spawn glittering sparkles on coin collection
   public spawnCoinParticles(x: number, y: number) {
-    const colors = ['#ffffff', '#fce078', '#fc9838', '#f8d838'];
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8 + (Math.random() * 0.4 - 0.2);
-      const speed = 1.4 + Math.random() * 1.8;
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'coin_glint',
-        x: x + 6,
-        y: y + 6,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 1.0,
-        life: 0,
-        maxLife: 24 + Math.floor(Math.random() * 10),
-        color: colors[i % colors.length],
-        size: 2 + (i % 2),
-        gravity: 0.12,
-      });
-    }
+    this.particleSystem.emitCoinSparkles(x, y);
   }
 
   // Helper to spawn impact stars and poof clouds when defeating an enemy
-  public spawnEnemyDefeatParticles(x: number, y: number, color: string = '#ffffff') {
-    // 1. Star bursts
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI * 2 * i) / 6;
-      const speed = 1.8 + Math.random() * 1.6;
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'star_burst',
-        x: x + 8,
-        y: y + 8,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 0.8,
-        life: 0,
-        maxLife: 18 + Math.floor(Math.random() * 8),
-        color: i % 2 === 0 ? '#fffa50' : '#ffffff',
-        size: 3,
-        rotation: 0,
-        rotSpeed: 0.2,
-      });
-    }
-    // 2. Poof cloud
-    for (let i = 0; i < 4; i++) {
-      this.particles.push({
-        id: this.nextEntityId++,
-        type: 'smoke',
-        x: x + 4 + (i % 2) * 8,
-        y: y + 4 + Math.floor(i / 2) * 8,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: -0.6 - Math.random() * 0.8,
-        life: 0,
-        maxLife: 20,
-        size: 4 + Math.floor(Math.random() * 3),
-      });
-    }
+  public spawnEnemyDefeatParticles(x: number, y: number) {
+    this.particleSystem.emitEnemyDefeat(x, y);
   }
 
   private addScore(points: number, x: number, y: number, customText?: string) {
@@ -2265,17 +2133,7 @@ export class GameEngine {
       this.stats.highScore = this.stats.score;
     }
 
-    this.particles.push({
-      id: this.nextEntityId++,
-      type: 'score_text',
-      text: customText || `${points}`,
-      x,
-      y: y - 8,
-      vx: 0,
-      vy: -0.8,
-      life: 0,
-      maxLife: 30,
-    });
+    this.particleSystem.emitScoreText(customText || `${points}`, x, y - 8);
   }
 
   // --- CHEAT ENGINE METHODS ("lula132026") ---
@@ -2284,16 +2142,9 @@ export class GameEngine {
     this.infiniteLives = true;
     this.stats.lives = 99;
     this.sound.playPowerUpEat();
-    this.particles.push({
-      id: this.nextEntityId++,
-      type: 'score_text',
-      text: 'CHEAT ON!',
-      x: this.marioX,
-      y: this.marioY - 16,
-      vx: 0,
-      vy: -1.2,
-      life: 0,
+    this.particleSystem.emitScoreText('CHEAT ON!', this.marioX, this.marioY - 16, {
       maxLife: 45,
+      vy: -1.2,
     });
   }
 
@@ -2329,16 +2180,9 @@ export class GameEngine {
   public addCheatScore(points: number) {
     this.stats.score += points;
     this.sound.playCoin();
-    this.particles.push({
-      id: this.nextEntityId++,
-      type: 'score_text',
-      text: `+${points}`,
-      x: this.marioX,
-      y: this.marioY - 14,
-      vx: 0,
-      vy: -1.2,
-      life: 0,
+    this.particleSystem.emitScoreText(`+${points}`, this.marioX, this.marioY - 14, {
       maxLife: 35,
+      vy: -1.2,
     });
   }
 
@@ -2395,34 +2239,58 @@ export class GameEngine {
   }
 
   // --- PIPE WARP & FLAGPOLE ---
-  private checkPipeWarp() {
-    if (!this.level.pipeWarps) return;
+  private checkPipeWarp(): boolean {
+    if (!this.level.pipeWarps) return false;
     const marioBox = this.getMarioHitbox();
+    const isUnderwater = this.isMarioUnderwater();
 
     for (const pw of this.level.pipeWarps) {
-      if (this.rectsIntersect(marioBox, pw.from)) {
-        // Must press down for down pipe or right for right pipe
-        if (pw.type === 'down' && !this.controls.down) continue;
-        if (pw.type === 'right' && !this.controls.right) continue;
+      // Must press down for down pipe or right for right pipe
+      if (pw.type === 'down' && !this.controls.down) continue;
+      if (pw.type === 'right' && !this.controls.right) continue;
+
+      // Underwater pipes allow a 4px vertical tolerance so swimming down onto the rim triggers reliably
+      const triggerRect: Rect =
+        pw.type === 'down' && isUnderwater
+          ? { x: pw.from.x, y: pw.from.y - 2, width: pw.from.width, height: pw.from.height + 6 }
+          : pw.from;
+
+      if (this.rectsIntersect(marioBox, triggerRect)) {
+        // For downward pipes, ensure Mario's feet are near/above the rim (not standing on the floor beside a tall pipe)
+        if (pw.type === 'down') {
+          const rimY = pw.from.y + pw.from.height;
+          const marioBottom = this.marioY + this.getMarioHeight();
+          if (marioBottom > rimY + 6) continue;
+        }
 
         this.marioState = 'pipe_entering';
+        this.isStatue = false;
+        this.marioVx = 0;
+        this.marioVy = 0;
         this.warpTimer = 0;
         this.warpTarget = { toLevel: pw.toLevel, toPos: pw.toPos };
         this.warpDir = pw.type;
+        this.pipeExitDir = 'up';
 
-        // Visual clip lip: Mario sinks directly inside this pipe opening!
+        // Visual clip lip & exact character alignment with pipe opening
         if (pw.type === 'down') {
-          this.pipeClipLipY = pw.from.y;
+          const rimY = pw.from.y + pw.from.height;
+          this.pipeClipLipY = rimY;
           this.pipeClipLipX = null;
+          // Center Mario cleanly inside the 32px pipe and align feet flush with rim
+          this.marioX = pw.from.x + (pw.from.width - 16) / 2;
+          this.marioY = rimY - this.getMarioHeight();
         } else {
-          this.pipeClipLipX = pw.from.x;
+          const rimX = pw.from.x + pw.from.width;
+          this.pipeClipLipX = rimX;
           this.pipeClipLipY = null;
         }
 
         this.sound.playPipe();
-        break;
+        return true;
       }
     }
+    return false;
   }
 
   private finishPipeWarp() {
@@ -2436,47 +2304,40 @@ export class GameEngine {
       this.loadLevel(createSecretVault(), false, false, false);
       this.marioX = destPos.x;
       this.marioY = destPos.y;
+      this.marioVx = 0;
+      this.marioVy = 0;
+      this.marioGrounded = false;
       this.cameraX = 0;
-      // Mario smoothly drops down out of vault pipe ceiling
-      this.marioState = 'pipe_exiting';
-      this.pipeExitDir = 'down';
-      this.warpTimer = 20;
-      this.pipeClipLipY = 4 * GameEngine.TILE_SIZE;
+      this.marioState = 'falling';
+      this.pipeClipLipY = null;
       this.pipeClipLipX = null;
-    } else if (targetLevelId === 'world-1-1') {
-      const overworld = createWorld1_1();
-      this.loadLevel(overworld, false, false, !returningFromSubArea);
-      this.marioX = destPos.x;
-      // Start inside the pipe and rise smoothly up out of it
-      this.marioY = destPos.y + 16;
-      this.cameraX = Math.max(0, this.marioX - 80);
-      this.marioState = 'pipe_exiting';
-      this.pipeExitDir = 'up';
-      this.warpTimer = 0;
-      this.pipeClipLipY = destPos.y;
-      this.pipeClipLipX = null;
-    } else if (targetLevelId === 'world-1-2') {
-      const lvl = createWorld1_2();
-      this.loadLevel(lvl, false, false, true);
-      this.marioX = destPos.x;
-      this.marioY = destPos.y + 16;
-      this.cameraX = Math.max(0, this.marioX - 80);
-      this.marioState = 'pipe_exiting';
-      this.pipeExitDir = 'up';
-      this.warpTimer = 0;
-      this.pipeClipLipY = destPos.y;
-      this.pipeClipLipX = null;
-    } else if (targetLevelId === 'world-2-2') {
-      if (this.level.id !== 'world-2-2') {
+    } else if (
+      targetLevelId === 'world-1-1' ||
+      targetLevelId === 'world-1-2' ||
+      targetLevelId === 'world-2-2'
+    ) {
+      if (targetLevelId === 'world-1-1') {
+        this.loadLevel(createWorld1_1(), false, false, !returningFromSubArea);
+      } else if (targetLevelId === 'world-1-2' && this.level.id !== 'world-1-2') {
+        this.loadLevel(createWorld1_2(), false, false, true);
+      } else if (targetLevelId === 'world-2-2' && this.level.id !== 'world-2-2') {
         this.loadLevel(createWorld2_2(), false, false, true);
       }
+
+      const rimY = destPos.y + 16;
       this.marioX = destPos.x;
-      this.marioY = destPos.y + 16;
-      this.cameraX = Math.max(0, this.marioX - 80);
+      this.marioY = rimY;
+      this.marioVx = 0;
+      this.marioVy = 0;
+      this.marioGrounded = false;
+      this.cameraX = Math.max(
+        0,
+        Math.min(this.level.width * GameEngine.TILE_SIZE - GameEngine.NES_WIDTH, this.marioX - 80)
+      );
       this.marioState = 'pipe_exiting';
       this.pipeExitDir = 'up';
       this.warpTimer = 0;
-      this.pipeClipLipY = destPos.y;
+      this.pipeClipLipY = rimY;
       this.pipeClipLipX = null;
     }
 
@@ -2995,7 +2856,7 @@ export class GameEngine {
     this.renderMario(ctx);
 
     // 10. Particles & Floating Scores
-    this.renderParticles(ctx);
+    this.particleSystem.render(ctx, this.cameraX, GameEngine.NES_WIDTH, this.atlas);
 
     ctx.restore();
 
@@ -3434,21 +3295,26 @@ export class GameEngine {
 
     // Authentic NES Pipe Entering / Exiting Clipping:
     // Mario visually sinks INSIDE the pipe rather than rendering on top of the rim!
-    if ((this.marioState === 'pipe_entering' || this.marioState === 'pipe_exiting')) {
+    if (this.marioState === 'pipe_entering' || this.marioState === 'pipe_exiting') {
       if (this.pipeClipLipY !== null) {
         ctx.beginPath();
-        if (this.pipeExitDir === 'down') {
+        if (this.marioState === 'pipe_exiting' && this.pipeExitDir === 'down') {
           // Exiting down from ceiling: clip to below lip
           ctx.rect(0, this.pipeClipLipY, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT - this.pipeClipLipY);
         } else {
-          // Entering down or exiting up: clip to above pipe rim
+          // Entering down or exiting up: clip strictly above pipe rim
           ctx.rect(0, 0, GameEngine.NES_WIDTH, this.pipeClipLipY);
         }
         ctx.clip();
       } else if (this.pipeClipLipX !== null) {
         const lipScreenX = this.pipeClipLipX - this.cameraX;
         ctx.beginPath();
-        ctx.rect(lipScreenX, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+        if (this.marioState === 'pipe_entering' && this.warpDir === 'right') {
+          // Entering horizontally to the right: hide everything past the pipe opening
+          ctx.rect(0, 0, Math.max(0, lipScreenX), GameEngine.NES_HEIGHT);
+        } else {
+          ctx.rect(Math.max(0, lipScreenX), 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+        }
         ctx.clip();
       }
     }
@@ -3617,115 +3483,6 @@ export class GameEngine {
       ctx.fillText(nameText, px + 8, badgeY);
 
       ctx.restore();
-    });
-  }
-
-  private renderParticles(ctx: CanvasRenderingContext2D) {
-    this.particles.forEach(p => {
-      const px = p.x - this.cameraX;
-      if (px < -30 || px > GameEngine.NES_WIDTH + 30) return;
-
-      if (p.type === 'brick_piece') {
-        if (p.rotation !== undefined) {
-          ctx.save();
-          ctx.translate(px + 4, p.y + 4);
-          ctx.rotate(p.rotation);
-          ctx.drawImage(this.atlas.brickDebris, -4, -4);
-          ctx.restore();
-        } else {
-          ctx.drawImage(this.atlas.brickDebris, px, p.y);
-        }
-      } else if (p.type === 'coin_glint') {
-        const alpha = Math.max(0, 1 - p.life / p.maxLife);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = p.color || '#fce078';
-        const sz = p.size || 2;
-        ctx.fillRect(px - sz, p.y, sz * 2 + 1, 1);
-        ctx.fillRect(px, p.y - sz, 1, sz * 2 + 1);
-        ctx.fillRect(px - 1, p.y - 1, 3, 3);
-        ctx.restore();
-      } else if (p.type === 'star_burst') {
-        const alpha = Math.max(0, 1 - p.life / p.maxLife);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.translate(px, p.y);
-        if (p.rotation !== undefined) {
-          ctx.rotate(p.rotation);
-        }
-        ctx.fillStyle = p.color || '#fffa50';
-        const sz = p.size || 3;
-        ctx.fillRect(-sz * 1.8, -1, sz * 3.6, 2);
-        ctx.fillRect(-1, -sz * 1.8, 2, sz * 3.6);
-        ctx.fillRect(-sz, -sz, sz * 2, sz * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-1, -1, 2, 2);
-        ctx.restore();
-      } else if (p.type === 'smoke' || p.type === 'enemy_poof') {
-        const alpha = Math.max(0, 1 - p.life / p.maxLife);
-        const sz = (p.size || 4) + (p.life / p.maxLife) * 3;
-        ctx.save();
-        ctx.globalAlpha = alpha * 0.9;
-        ctx.fillStyle = p.color || '#f8f8f8';
-        ctx.fillRect(px - sz / 2, p.y - sz / 2, sz, sz);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(px - sz / 4, p.y - sz / 4, sz / 2, sz / 2);
-        ctx.restore();
-      } else if (p.type === 'sparkle') {
-        ctx.fillStyle = p.color || '#fce078';
-        ctx.fillRect(px, p.y, p.size || 4, p.size || 4);
-      } else if (p.type === 'bubble') {
-        const sz = p.size || 3;
-        ctx.fillStyle = '#88e8ff';
-        ctx.fillRect(px, p.y, sz, sz);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(px, p.y, 1, 1);
-      } else if (p.type === 'heart') {
-        const alpha = p.life > p.maxLife * 0.65
-          ? Math.max(0, 1 - (p.life - p.maxLife * 0.65) / (p.maxLife * 0.35))
-          : 1;
-        const hx = Math.round(px) - 4;
-        const hy = Math.round(p.y) - 4;
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        // Clean symmetrical 1px dark outline around the 9x8 pixel heart
-        ctx.fillStyle = '#4a0020';
-        ctx.fillRect(hx + 1, hy - 1, 2, 1);
-        ctx.fillRect(hx + 6, hy - 1, 2, 1);
-        ctx.fillRect(hx, hy, 4, 1);
-        ctx.fillRect(hx + 5, hy, 4, 1);
-        ctx.fillRect(hx - 1, hy + 1, 11, 3);
-        ctx.fillRect(hx, hy + 4, 9, 1);
-        ctx.fillRect(hx + 1, hy + 5, 7, 1);
-        ctx.fillRect(hx + 2, hy + 6, 5, 1);
-        ctx.fillRect(hx + 3, hy + 7, 3, 1);
-        ctx.fillRect(hx + 4, hy + 8, 1, 1);
-        // Pink heart body (9x8 pixel-art)
-        ctx.fillStyle = p.color || '#ff4d94';
-        ctx.fillRect(hx + 1, hy, 2, 1);
-        ctx.fillRect(hx + 6, hy, 2, 1);
-        ctx.fillRect(hx, hy + 1, 4, 1);
-        ctx.fillRect(hx + 5, hy + 1, 4, 1);
-        ctx.fillRect(hx, hy + 2, 9, 2);
-        ctx.fillRect(hx + 1, hy + 4, 7, 1);
-        ctx.fillRect(hx + 2, hy + 5, 5, 1);
-        ctx.fillRect(hx + 3, hy + 6, 3, 1);
-        ctx.fillRect(hx + 4, hy + 7, 1, 1);
-        // Cute highlight glint
-        ctx.fillStyle = '#ffd6eb';
-        ctx.fillRect(hx + 1, hy + 1, 1, 2);
-        ctx.restore();
-      } else if (p.type === 'score_text' && p.text) {
-        const alpha = Math.max(0, 1 - (p.life / p.maxLife) * 0.5);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.font = '8px "Press Start 2P", monospace';
-        ctx.fillStyle = '#000000';
-        ctx.fillText(p.text, px + 1, p.y + 1);
-        ctx.fillStyle = p.color || '#ffffff';
-        ctx.fillText(p.text, px, p.y);
-        ctx.restore();
-      }
     });
   }
 }
