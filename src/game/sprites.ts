@@ -344,6 +344,10 @@ export class SpriteAtlas {
   public blooper2!: HTMLCanvasElement;
   public cheepCheep1!: HTMLCanvasElement;
   public cheepCheep2!: HTMLCanvasElement;
+  public bowser1!: HTMLCanvasElement;
+  public bowser2!: HTMLCanvasElement;
+  public lavaBubble1!: HTMLCanvasElement;
+  public lavaBubble2!: HTMLCanvasElement;
 
   // Tiles (16x16)
   public tileGround!: HTMLCanvasElement;
@@ -352,6 +356,9 @@ export class SpriteAtlas {
   public tileBrickUnderground!: HTMLCanvasElement;
   public tileCoral!: HTMLCanvasElement;
   public tileSeaGround!: HTMLCanvasElement;
+  public tileLavaFrames: HTMLCanvasElement[] = [];
+  public tileBridge!: HTMLCanvasElement;
+  public tileAxeFrames: HTMLCanvasElement[] = [];
   public tileQuestionFrames: HTMLCanvasElement[] = [];
   public tileQuestionEmpty!: HTMLCanvasElement;
   public tileHardBlock!: HTMLCanvasElement;
@@ -382,6 +389,7 @@ export class SpriteAtlas {
 
   // Particles & Projectiles
   public fireballFrames: HTMLCanvasElement[] = [];
+  public bowserFireFrames: HTMLCanvasElement[] = [];
   public brickDebris!: HTMLCanvasElement;
   public smokePuff!: HTMLCanvasElement;
 
@@ -1713,6 +1721,132 @@ export class SpriteAtlas {
     const [cc2, ctxCc2] = createOffscreen(16, 16);
     drawPixelGrid(ctxCc2, cheepPattern2, cheepPalette);
     this.cheepCheep2 = cc2;
+
+    // Bowser (Castle Boss 24x24 facing left)
+    const bowserPalette = {
+      '.': 'transparent',
+      'K': '#000000',
+      'G': '#00a800',
+      'L': '#80d010',
+      'R': '#d82800',
+      'O': '#fc9838',
+      'Y': '#fce078',
+      'W': '#ffffff',
+    };
+
+    const bowserPattern1 = [
+      '.....KK.................',
+      '....KWWK...KK...........',
+      '...KWWWK..KRRK..........',
+      '..KGGGGKKKRRRK..........',
+      '.KGGGLLLLGGGGKKK........',
+      '.KGGKWWKGGGGKWWK........',
+      'KGGGKWKKGGGGGKWK.KK.....',
+      'KGGGGGGGGGGGGGGKKWWK....',
+      'KYYYGGGGGGGGGGGKWWWK....',
+      'KWWKYGGGGGGGGGGKGGGK....',
+      '.KK.KRRRRRRGGGGKGGGK.KK.',
+      '...KYYYYYYKGGGGGGGGKKWWK',
+      '..KYYYYYYYKGGGGGGGGKWWWK',
+      '..KYYYYYYYKGGGGGGGGKGGGK',
+      '..KYYYYYYKGGGGGGGGGGKGGK',
+      '...KYYYYKGGGGGGGGGGKWWWK',
+      '....KYYYKGGGGGGGGGGKGGGK',
+      '....KGGGGGGGGGGGGGGKGGK.',
+      '....KGGGGGGKKGGGGGGKK...',
+      '...KGGGGGGK..KGGGGGK....',
+      '...KGGGGGKK..KGGGGGKK...',
+      '..KWWKWWKK....KWWKWWKK..',
+      '..KKKKKKK.....KKKKKKKK..',
+      '........................',
+    ];
+
+    const bowserPattern2 = [
+      '.....KK.................',
+      '....KWWK...KK...........',
+      '...KWWWK..KRRK..........',
+      '..KGGGGKKKRRRK..........',
+      '.KGGGLLLLGGGGKKK........',
+      '.KGGKWWKGGGGKWWK........',
+      'KGGGKWKKGGGGGKWK.KK.....',
+      'KGGGGGGGGGGGGGGKKWWK....',
+      'KYYYGGGGGGGGGGGKWWWK....',
+      'KWWKKGGGGGGGGGGKGGGK....',
+      'KOOOKRRRRRRGGGGKGGGK.KK.',
+      'KWWKYGGGGGGGGGGGGGGKKWWK',
+      '.KKKYYYYYYKGGGGGGGGKWWWK',
+      '..KYYYYYYYKGGGGGGGGKGGGK',
+      '..KYYYYYYKGGGGGGGGGGKGGK',
+      '...KYYYYKGGGGGGGGGGKWWWK',
+      '....KYYYKGGGGGGGGGGKGGGK',
+      '....KGGGGGGGGGGGGGGKGGK.',
+      '....KGGGGGGKKGGGGGGKK...',
+      '....KGGGGGK..KGGGGGGK...',
+      '....KGGGGKK..KGGGGGGKK..',
+      '...KWWKWWKK...KWWKWWKK..',
+      '...KKKKKKK....KKKKKKKK..',
+      '........................',
+    ];
+
+    const [bw1, ctxBw1] = createOffscreen(24, 24);
+    drawPixelGrid(ctxBw1, bowserPattern1, bowserPalette);
+    this.bowser1 = bw1;
+
+    const [bw2, ctxBw2] = createOffscreen(24, 24);
+    drawPixelGrid(ctxBw2, bowserPattern2, bowserPalette);
+    this.bowser2 = bw2;
+
+    // Lava Bubble / Podoboo (16x16)
+    const bubblePalette = {
+      '.': 'transparent',
+      'R': '#d82800',
+      'O': '#fc7438',
+      'Y': '#fce078',
+      'W': '#ffffff',
+    };
+    const bubblePattern1 = [
+      '.......RR.......',
+      '......RRRR......',
+      '.....ROOOOR.....',
+      '....ROYYYYOR....',
+      '...ROYYWWYYOR...',
+      '...ROYWWWWYOR...',
+      '..ROYYWWWWYYOR..',
+      '..ROYYYYYYYYOR..',
+      '..ROOOYYYYOOOR..',
+      '...RROOOOOORR...',
+      '...R.RROORR.R...',
+      '.....R.RR.R.....',
+      '....R..RR..R....',
+      '.......R........',
+      '................',
+      '................',
+    ];
+    const bubblePattern2 = [
+      '.......RR.......',
+      '......ROOR......',
+      '.....ROYYOR.....',
+      '....ROYYYYOR....',
+      '....ROYWWYOR....',
+      '...ROYWWWWYOR...',
+      '...ROYYYYYYOR...',
+      '...ROOYYYYOOR...',
+      '....RROOOORR....',
+      '....R.RRRR.R....',
+      '......RRRR......',
+      '.....R.RR.R.....',
+      '.......RR.......',
+      '................',
+      '................',
+      '................',
+    ];
+    const [lb1, ctxLb1] = createOffscreen(16, 16);
+    drawPixelGrid(ctxLb1, bubblePattern1, bubblePalette);
+    this.lavaBubble1 = lb1;
+
+    const [lb2, ctxLb2] = createOffscreen(16, 16);
+    drawPixelGrid(ctxLb2, bubblePattern2, bubblePalette);
+    this.lavaBubble2 = lb2;
   }
 
   private generateTiles() {
@@ -1898,6 +2032,84 @@ export class SpriteAtlas {
     ctxHard.fillRect(2, 12, 2, 2);
     ctxHard.fillRect(12, 12, 2, 2);
     this.tileHardBlock = cHard;
+
+    // 4b. Castle Lava (2 animated 16x16 frames)
+    this.tileLavaFrames = [];
+    for (let f = 0; f < 2; f++) {
+      const [cLava, ctxLava] = createOffscreen(16, 16);
+      ctxLava.fillStyle = '#c81c00';
+      ctxLava.fillRect(0, 0, 16, 16);
+      // Glowing bright molten wave crest
+      ctxLava.fillStyle = '#fc7438';
+      for (let wx = 0; wx < 16; wx += 4) {
+        const crestY = ((wx / 4 + f) % 2 === 0) ? 1 : 3;
+        ctxLava.fillRect(wx, crestY, 4, 4);
+      }
+      ctxLava.fillStyle = '#fce078';
+      ctxLava.fillRect(f === 0 ? 2 : 8, 2, 4, 2);
+      ctxLava.fillRect(f === 0 ? 10 : 0, 4, 3, 1);
+      ctxLava.fillStyle = '#ff9838';
+      ctxLava.fillRect(f === 0 ? 4 : 10, 9, 4, 2);
+      ctxLava.fillRect(f === 0 ? 11 : 3, 12, 3, 2);
+      this.tileLavaFrames.push(cLava);
+    }
+
+    // 4c. Castle Bridge (16x16)
+    const [cBridge, ctxBridge] = createOffscreen(16, 16);
+    ctxBridge.fillStyle = '#502800';
+    ctxBridge.fillRect(0, 2, 16, 6);
+    ctxBridge.fillStyle = '#c86810';
+    ctxBridge.fillRect(0, 0, 16, 3);
+    ctxBridge.fillStyle = '#fcb040';
+    ctxBridge.fillRect(1, 0, 6, 1);
+    ctxBridge.fillRect(9, 0, 6, 1);
+    // Plank dividers & chain supports
+    ctxBridge.fillStyle = '#000000';
+    ctxBridge.fillRect(7, 0, 2, 8);
+    ctxBridge.fillRect(15, 0, 1, 8);
+    ctxBridge.fillStyle = '#bcbcbc';
+    ctxBridge.fillRect(3, 8, 2, 4);
+    ctxBridge.fillRect(11, 8, 2, 4);
+    this.tileBridge = cBridge;
+
+    // 4d. Castle Axe (2 animated 16x16 frames)
+    this.tileAxeFrames = [];
+    const axePalette0 = {
+      '.': 'transparent',
+      'K': '#000000',
+      'Y': '#fce078',
+      'O': '#fc9838',
+      'W': '#ffffff',
+      'B': '#a85800',
+    };
+    const axePalette1 = {
+      ...axePalette0,
+      'Y': '#ffffff',
+      'O': '#fce078',
+    };
+    const axePattern = [
+      '......KKKK......',
+      '....KKYYYYKK....',
+      '...KWWYYYYYYK...',
+      '..KWWYYYYYOOOK..',
+      '..KWWYYYYOOOOK..',
+      '..KWWYYYYOOOBK..',
+      '...KYYYYYYBBBK..',
+      '....KKKKKBBBBK..',
+      '.......KBBBBK...',
+      '.......KBBBBK...',
+      '.......KBBBBK...',
+      '.......KBBBBK...',
+      '.......KBBBBK...',
+      '.......KBBBBK...',
+      '.......KKKKKK...',
+      '................',
+    ];
+    [axePalette0, axePalette1].forEach(pal => {
+      const [cAxe, ctxAxe] = createOffscreen(16, 16);
+      drawPixelGrid(ctxAxe, axePattern, pal);
+      this.tileAxeFrames.push(cAxe);
+    });
 
     // 5. Pipes (Green Overworld)
     // Top-Left (16x16)
@@ -2257,6 +2469,22 @@ export class SpriteAtlas {
       ctxFB.fillStyle = '#ffffff';
       ctxFB.fillRect(3, 3, 2, 2);
       this.fireballFrames.push(cFB);
+    }
+
+    // Bowser Horizontal Fire Breath (16x8, facing left)
+    this.bowserFireFrames = [];
+    for (let i = 0; i < 2; i++) {
+      const [cBF, ctxBF] = createOffscreen(16, 8);
+      ctxBF.fillStyle = '#d82800';
+      ctxBF.fillRect(0, 2, 16, 4);
+      ctxBF.fillRect(3, 1, 10, 6);
+      ctxBF.fillStyle = '#fc9838';
+      ctxBF.fillRect(2, 2, 11, 4);
+      ctxBF.fillStyle = i === 0 ? '#fce078' : '#ffffff';
+      ctxBF.fillRect(3, 3, 6, 2);
+      ctxBF.fillStyle = '#ffffff';
+      ctxBF.fillRect(2, 3, 2, 2);
+      this.bowserFireFrames.push(cBF);
     }
 
     // Brick Debris (8x8)

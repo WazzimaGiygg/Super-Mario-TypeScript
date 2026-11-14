@@ -6,7 +6,7 @@
 import React from 'react';
 import { Volume2, VolumeX, Music, Tv, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Sparkles } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createEndlessLevel } from '../game/levels.ts';
+import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -129,13 +129,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  onSelectLevel(createWorld1_4());
+                  onClose();
+                }}
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-red-500 font-medium text-left transition flex flex-col"
+              >
+                <span className="font-bold text-red-400">Mundo 1-4 (Castelo)</span>
+                <span className="text-[10px] text-stone-400">Lava, Ponte e Rei Koopa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   onSelectLevel(createEndlessLevel(Date.now(), 1));
                   onClose();
                 }}
-                className="col-span-2 px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 font-medium text-left transition flex flex-col"
               >
-                <span className="font-bold text-emerald-400">Modo Sem Fim</span>
-                <span className="text-[10px] text-stone-400">Mundos aleatórios mais difíceis a cada fase (inclui água!)</span>
+                <span className="font-bold text-emerald-400">Modo Sem Fim (Cíclico)</span>
+                <span className="text-[10px] text-stone-400">1 Overworld → 2 Caverna → 3 Água → 4 Castelo</span>
               </button>
             </div>
           </div>

@@ -52,13 +52,17 @@ export type TileType =
   | 'pole'
   | 'pole_top'
   | 'castle_brick'
+  | 'castle_stone'
   | 'castle_crenel'
   | 'castle_door'
   | 'castle_window'
   | 'underground_ground'
   | 'underground_brick'
   | 'coral'
-  | 'sea_ground';
+  | 'sea_ground'
+  | 'lava'
+  | 'bridge'
+  | 'axe';
 
 export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'star' | '1up' | 'none';
 
@@ -71,7 +75,7 @@ export interface BlockTile {
   invisible?: boolean;
 }
 
-export type EnemyType = 'goomba' | 'koopa' | 'piranha' | 'blooper' | 'cheep_cheep';
+export type EnemyType = 'goomba' | 'koopa' | 'piranha' | 'blooper' | 'cheep_cheep' | 'bowser' | 'lava_bubble';
 
 export interface Enemy {
   id: number;
@@ -89,6 +93,10 @@ export interface Enemy {
   animFrame: number;
   animTimer: number;
   pipeOriginY?: number;
+  hp?: number;
+  hitFlashTimer?: number;
+  originX?: number;
+  fireTimer?: number;
 }
 
 export interface Item {
@@ -158,6 +166,7 @@ export interface LevelData {
   endlessStage?: number;
   seed?: number;
   enemySpeedMultiplier?: number;
+  biomeLabel?: string;
   checkpoints?: { x: number; respawnPos: Point }[];
 }
 

@@ -11,7 +11,7 @@ type Note = [freq: number, duration: number];
 const N = {
   REST: 0,
   G2: 98.00,
-  C3: 130.81, D3: 146.83, Ds3: 155.56, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, As3: 233.08, B3: 246.94,
+  C3: 130.81, D3: 146.83, Ds3: 155.56, E3: 164.81, F3: 174.61, Fs3: 185.00, G3: 196.00, Gs3: 207.65, A3: 220.00, As3: 233.08, B3: 246.94,
   C4: 261.63, Cs4: 277.18, D4: 293.66, Ds4: 311.13, E4: 329.63, F4: 349.23, Fs4: 369.99, G4: 392.00, Gs4: 415.30, A4: 440.00, As4: 466.16, B4: 493.88,
   C5: 523.25, Cs5: 554.37, D5: 587.33, Ds5: 622.25, E5: 659.25, F5: 698.46, Fs5: 739.99, G5: 783.99, Gs5: 830.61, A5: 880.00, As5: 932.33, B5: 987.77,
   C6: 1046.50, D6: 1174.66, Ds6: 1244.51, E6: 1318.51, F6: 1396.91, Fs6: 1479.98, G6: 1567.98, Gs6: 1661.22, A6: 1760.00, As6: 1864.66, B6: 1975.53,
@@ -27,7 +27,7 @@ export class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.6;
   private musicEnabled: boolean = true;
-  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'none' = 'none';
+  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'none' = 'none';
 
   // Music sequence playback state
   private musicTimer: number | null = null;
@@ -98,6 +98,7 @@ export class SoundEngine {
       if (this.currentTrack === 'overworld') this.playMusic('overworld');
       else if (this.currentTrack === 'underground') this.playMusic('underground');
       else if (this.currentTrack === 'underwater') this.playMusic('underwater');
+      else if (this.currentTrack === 'castle') this.playMusic('castle');
     }
     return this.musicEnabled;
   }
@@ -388,6 +389,56 @@ export class SoundEngine {
     osc.stop(now + 0.09);
   }
 
+  public playBowserFire() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.28);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(950, now);
+    filter.frequency.exponentialRampToValueAtTime(180, now + 0.28);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    noise.start(now);
+  }
+
+  public playBridgeCollapse() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.55);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.55);
+  }
+
   public playFlagpole() {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;
@@ -524,7 +575,7 @@ export class SoundEngine {
 
   // --- BACKGROUND MUSIC ENGINE ---
 
-  public playMusic(track: 'overworld' | 'underground' | 'underwater') {
+  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle') {
     this.currentTrack = track;
     if (!this.musicEnabled) return;
     this.stopMusicSequence();
@@ -536,6 +587,8 @@ export class SoundEngine {
       this.initUndergroundMusic();
     } else if (track === 'underwater') {
       this.initUnderwaterMusic();
+    } else if (track === 'castle') {
+      this.initCastleMusic();
     }
   }
 
@@ -666,6 +719,29 @@ export class SoundEngine {
       [N.C3, H], [N.G3, Q],
     ];
 
+    this.musicStep = 0;
+    this.playNextMusicSlice();
+  }
+
+  private initCastleMusic() {
+    // Tense, driving 8-bit Castle theme
+    const S = 0.095;
+    this.currentScore = [
+      [N.D4, S], [N.G4, S], [N.Fs4, S], [N.G4, S], [N.Gs4, S], [N.G4, S], [N.Fs4, S], [N.G4, S],
+      [N.D4, S], [N.G4, S], [N.Fs4, S], [N.G4, S], [N.As4, S], [N.A4, S], [N.Gs4, S], [N.G4, S],
+      [N.Cs4, S], [N.Fs4, S], [N.F4, S], [N.Fs4, S], [N.G4, S], [N.Fs4, S], [N.F4, S], [N.Fs4, S],
+      [N.Cs4, S], [N.Fs4, S], [N.F4, S], [N.Fs4, S], [N.A4, S], [N.Gs4, S], [N.G4, S], [N.Fs4, S],
+      [N.E4, S], [N.A4, S], [N.Gs4, S], [N.A4, S], [N.B4, S], [N.A4, S], [N.Gs4, S], [N.A4, S],
+      [N.F4, S], [N.As4, S], [N.A4, S], [N.As4, S], [N.C5, S], [N.B4, S], [N.As4, S], [N.A4, S],
+    ];
+    this.currentBass = [
+      [N.G3, S], [N.REST, S], [N.G3, S], [N.D3, S], [N.G3, S], [N.REST, S], [N.G3, S], [N.D3, S],
+      [N.G3, S], [N.REST, S], [N.G3, S], [N.D3, S], [N.As3, S], [N.A3, S], [N.Gs3, S], [N.G3, S],
+      [N.Fs3, S], [N.REST, S], [N.Fs3, S], [N.Cs4, S], [N.Fs3, S], [N.REST, S], [N.Fs3, S], [N.Cs4, S],
+      [N.Fs3, S], [N.REST, S], [N.Fs3, S], [N.Cs4, S], [N.A3, S], [N.Gs3, S], [N.G3, S], [N.Fs3, S],
+      [N.A3, S], [N.REST, S], [N.A3, S], [N.E3, S], [N.A3, S], [N.REST, S], [N.A3, S], [N.E3, S],
+      [N.As3, S], [N.REST, S], [N.As3, S], [N.F3, S], [N.C4, S], [N.B3, S], [N.As3, S], [N.A3, S],
+    ];
     this.musicStep = 0;
     this.playNextMusicSlice();
   }

@@ -25,7 +25,7 @@ import {
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createEndlessLevel } from './levels.ts';
+import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from './levels.ts';
 
 export class GameEngine {
   // Screen Dimensions (NES native 256x240)
@@ -118,7 +118,12 @@ export class GameEngine {
   public enemies: Enemy[] = [];
   public items: Item[] = [];
   public fireballs: Fireball[] = [];
+  public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
   public particles: Particle[] = [];
+
+  // Castle Axe & Bridge Collapse State
+  public bridgeCollapseQueue: { tx: number; ty: number }[] = [];
+  public bridgeCollapseTimer: number = 0;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -184,9 +189,17 @@ export class GameEngine {
     this.warpTarget = null;
     this.pipeClipLipY = null;
     this.pipeClipLipX = null;
+    this.bridgeCollapseQueue = [];
+    this.bridgeCollapseTimer = 0;
+    this.bossFireballs = [];
     if (newLevel.endlessStage !== undefined) {
       this.endlessStage = newLevel.endlessStage;
-    } else if (newLevel.id === 'world-1-1' || newLevel.id === 'world-1-2' || newLevel.id === 'world-2-2') {
+    } else if (
+      newLevel.id === 'world-1-1' ||
+      newLevel.id === 'world-1-2' ||
+      newLevel.id === 'world-2-2' ||
+      newLevel.id === 'world-1-4'
+    ) {
       this.endlessStage = 0;
     }
 
@@ -231,6 +244,8 @@ export class GameEngine {
         ? '1-2'
         : newLevel.id === 'world-2-2'
         ? '2-2'
+        : newLevel.id === 'world-1-4'
+        ? '1-4'
         : newLevel.name;
     const timeBonus = this.difficulty === 'easy' ? 80 : this.difficulty === 'hard' ? -80 : 0;
     this.stats.time = Math.max(150, newLevel.timeLimit + timeBonus);
@@ -238,6 +253,7 @@ export class GameEngine {
     this.flagY = 3 * GameEngine.TILE_SIZE;
 
     const speedMult = newLevel.enemySpeedMultiplier ?? 1;
+    const bowserHp = 5 + Math.floor(((newLevel.endlessStage || 1) - 1) / 4) * 2;
 
     // Load enemies (avoid spawning enemies directly on top of Mario's respawn position)
     this.enemies = newLevel.enemies
@@ -250,17 +266,21 @@ export class GameEngine {
         type: e.type,
         x: e.x,
         y: e.y,
-        vx: -0.7 * speedMult,
+        vx: e.type === 'bowser' ? -0.45 * speedMult : -0.7 * speedMult,
         vy: 0,
-        width: 16,
-        height: e.type === 'koopa' ? 24 : 16,
+        width: e.type === 'bowser' ? 24 : 16,
+        height: e.type === 'bowser' ? 24 : e.type === 'koopa' ? 24 : 16,
         alive: true,
         state: 'walk' as const,
         stateTimer: 0,
         facing: 'left' as const,
         animFrame: 0,
         animTimer: 0,
-        pipeOriginY: e.type === 'piranha' ? e.y : undefined,
+        pipeOriginY: e.type === 'piranha' || e.type === 'lava_bubble' ? e.y : undefined,
+        hp: e.type === 'bowser' ? bowserHp : undefined,
+        hitFlashTimer: 0,
+        originX: e.x,
+        fireTimer: e.type === 'bowser' ? 50 : undefined,
       }));
 
     // Place standalone coins as items
@@ -287,8 +307,10 @@ export class GameEngine {
     this.generateBackgroundScenery();
 
     // Start background music
-    if (newLevel.theme === 'underground' || newLevel.theme === 'castle') {
+    if (newLevel.theme === 'underground') {
       this.sound.playMusic('underground');
+    } else if (newLevel.theme === 'castle') {
+      this.sound.playMusic('castle');
     } else if (newLevel.theme === 'underwater') {
       this.sound.playMusic('underwater');
     } else {
@@ -396,6 +418,36 @@ export class GameEngine {
       }
     }
 
+    // Castle Axe bridge collapse animation
+    if (this.bridgeCollapseQueue.length > 0) {
+      this.bridgeCollapseTimer++;
+      if (this.bridgeCollapseTimer % 2 === 0) {
+        const nextTile = this.bridgeCollapseQueue.shift();
+        if (nextTile) {
+          this.level.tiles[nextTile.ty][nextTile.tx] = null;
+          this.particles.push({
+            id: this.nextEntityId++,
+            type: 'smoke',
+            x: nextTile.tx * GameEngine.TILE_SIZE + 4,
+            y: nextTile.ty * GameEngine.TILE_SIZE,
+            vx: 0,
+            vy: -0.6,
+            life: 0,
+            maxLife: 16,
+          });
+        }
+        if (this.bridgeCollapseQueue.length === 0) {
+          this.marioState = 'castle_walk';
+          this.marioFacing = 'right';
+          this.sound.playStageClear();
+        }
+      }
+      this.updateEnemies();
+      this.updateParticles();
+      this.prevControls = { ...this.controls };
+      return;
+    }
+
     // Update Mario
     this.updateMario(deltaMs);
 
@@ -407,6 +459,7 @@ export class GameEngine {
 
     // Update Fireballs
     this.updateFireballs();
+    this.updateBossFireballs();
 
     // Update Particles
     this.updateParticles();
@@ -509,8 +562,12 @@ export class GameEngine {
 
     // 6. Castle walk animation
     if (this.marioState === 'castle_walk') {
-      // Anchored firmly to the ground row 13 floor - eliminates mid-air hovering completely!
-      this.marioY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
+      const targetFloorY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
+      if (this.marioY < targetFloorY) {
+        this.marioY = Math.min(targetFloorY, this.marioY + 2.0);
+      } else {
+        this.marioY = targetFloorY;
+      }
       this.marioX += 1.2;
       this.marioAnimTimer++;
       if (this.marioAnimTimer >= 6) {
@@ -753,6 +810,20 @@ export class GameEngine {
 
     // Flagpole Collision Check
     this.checkFlagpoleCollision();
+
+    // Castle Lava & Axe Tile Collision Checks
+    const hazardCheckBox = this.getMarioHitbox();
+    const overlappingTiles = this.getTilesIntersecting(hazardCheckBox);
+    for (const t of overlappingTiles) {
+      if (t.tile.type === 'axe' && !this.isStageClear && this.bridgeCollapseQueue.length === 0) {
+        this.triggerCastleAxeClear(t.tileX, t.tileY);
+        return;
+      }
+      if (t.tile.type === 'lava') {
+        this.killMario(true);
+        return;
+      }
+    }
 
     // Checkpoint Activation Check
     if (this.level.checkpoints && this.level.checkpoints.length > 0) {
@@ -1279,7 +1350,115 @@ export class GameEngine {
         return;
       }
 
-      // Walking enemy animation
+      // Lava Bubble / Podoboo (Leaps vertically from lava pools)
+      if (e.type === 'lava_bubble') {
+        e.stateTimer++;
+        e.animTimer++;
+        if (e.animTimer % 6 === 0) {
+          e.animFrame = (e.animFrame + 1) % 2;
+        }
+        const originY = e.pipeOriginY ?? 13 * GameEngine.TILE_SIZE;
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        const cycleLen = Math.max(70, Math.round(125 / Math.sqrt(speedMult)));
+        const cycle = e.stateTimer % cycleLen;
+        if (cycle === 1) {
+          e.y = originY;
+          e.vy = -5.4 - Math.min(1.0, (speedMult - 1) * 0.6);
+        } else if (cycle < cycleLen - 25) {
+          e.vy += 0.16;
+          e.y += e.vy;
+          if (e.y > originY) {
+            e.y = originY;
+            e.vy = 0;
+          }
+        } else {
+          e.y = originY + 8;
+          e.vy = 0;
+        }
+
+        if (e.y < originY - 4) {
+          const bubbleHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: 12, height: 12 };
+          if (this.rectsIntersect(marioBox, bubbleHitbox)) {
+            this.marioHitEnemy(e, false);
+          }
+        }
+        return;
+      }
+
+      // Bowser (Castle Boss AI: patrols bridge, jumps, breathes fireballs)
+      if (e.type === 'bowser') {
+        if (e.hitFlashTimer && e.hitFlashTimer > 0) {
+          e.hitFlashTimer--;
+        }
+        e.stateTimer++;
+        e.animTimer++;
+        if (e.animTimer % 12 === 0) {
+          e.animFrame = (e.animFrame + 1) % 2;
+        }
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        e.facing = this.marioX < e.x ? 'left' : 'right';
+
+        const arenaCenter = e.originX ?? e.x;
+        const minX = arenaCenter - 52;
+        const maxX = arenaCenter + 40;
+        e.x += e.vx;
+        if (e.x <= minX) {
+          e.x = minX;
+          e.vx = Math.abs(e.vx);
+        } else if (e.x >= maxX) {
+          e.x = maxX;
+          e.vx = -Math.abs(e.vx);
+        }
+
+        // Periodic jump on bridge
+        const jumpInterval = Math.max(65, Math.round(115 / Math.sqrt(speedMult)));
+        if (e.stateTimer % jumpInterval === 0 && Math.abs(e.vy) < 0.05) {
+          e.vy = -4.9;
+        }
+
+        e.vy += 0.28;
+        if (e.vy > 5.5) e.vy = 5.5;
+        e.y += e.vy;
+
+        const bowserBoxV: Rect = { x: e.x + 2, y: e.y, width: e.width - 4, height: e.height };
+        const tilesV = this.getTilesIntersecting(bowserBoxV);
+        for (const t of tilesV) {
+          if (this.isSolidTile(t.tile.type) && e.vy > 0) {
+            e.y = t.tileY * GameEngine.TILE_SIZE - e.height;
+            e.vy = 0;
+            break;
+          }
+        }
+
+        // Breathe horizontal fireball toward Mario when Mario is within range
+        if (e.fireTimer !== undefined) {
+          e.fireTimer--;
+          if (e.fireTimer <= 0) {
+            const cycleCount = Math.floor(((this.level.endlessStage || 1) - 1) / 4);
+            e.fireTimer = Math.max(48, 108 - cycleCount * 14);
+            if (Math.abs(this.marioX - e.x) < 230 && this.bridgeCollapseQueue.length === 0) {
+              const dir = e.facing === 'left' ? -1 : 1;
+              this.sound.playBowserFire();
+              this.bossFireballs.push({
+                id: this.nextEntityId++,
+                x: dir < 0 ? e.x - 10 : e.x + e.width,
+                y: e.y + 6 + (e.stateTimer % 2 === 0 ? 0 : 8),
+                vx: dir * (2.0 + Math.min(1.4, (speedMult - 1) * 0.9)),
+                animTimer: 0,
+              });
+            }
+          }
+        }
+
+        const bowserHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: e.width - 4, height: e.height - 2 };
+        if (this.rectsIntersect(marioBox, bowserHitbox)) {
+          // Bowser cannot be stomped from above!
+          this.marioHitEnemy(e, false);
+        }
+        return;
+      }
+
+      // Walking enemy animation (Goomba & Koopa)
       e.animTimer++;
       if (e.animTimer % 10 === 0) {
         e.animFrame = (e.animFrame + 1) % 2;
@@ -1288,14 +1467,30 @@ export class GameEngine {
       // Apply horizontal speed
       e.x += e.vx;
 
-      // Wall collision check
-      const enemyBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height - 2 };
-      const tilesH = this.getTilesIntersecting(enemyBox);
+      // World boundary collision check (keeps Goombas/enemies inside level horizontally)
+      const levelPixelWidth = this.level.width * GameEngine.TILE_SIZE;
+      if (e.x < 0) {
+        e.x = 0;
+        e.vx = Math.abs(e.vx);
+        e.facing = 'right';
+      } else if (e.x + e.width > levelPixelWidth) {
+        e.x = levelPixelWidth - e.width;
+        e.vx = -Math.abs(e.vx);
+        e.facing = 'left';
+      }
+
+      // Horizontal wall & pipe collision check with exact boundary snapping
+      const enemyBoxH: Rect = { x: e.x, y: e.y + 1, width: e.width, height: e.height - 3 };
+      const tilesH = this.getTilesIntersecting(enemyBoxH);
       for (const t of tilesH) {
         if (this.isSolidTile(t.tile.type)) {
+          if (e.vx > 0) {
+            e.x = t.tileX * GameEngine.TILE_SIZE - e.width;
+          } else if (e.vx < 0) {
+            e.x = (t.tileX + 1) * GameEngine.TILE_SIZE;
+          }
           e.vx = -e.vx;
           e.facing = e.vx > 0 ? 'right' : 'left';
-          e.x += e.vx * 2;
           break;
         }
       }
@@ -1305,8 +1500,8 @@ export class GameEngine {
       if (e.vy > 6.0) e.vy = 6.0;
       e.y += e.vy;
 
-      // Floor collision check
-      const enemyBoxV: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
+      // Vertical floor/pipe-top/ceiling collision check
+      const enemyBoxV: Rect = { x: e.x + 1, y: e.y, width: e.width - 2, height: e.height };
       const tilesV = this.getTilesIntersecting(enemyBoxV);
       for (const t of tilesV) {
         if (this.isSolidTile(t.tile.type)) {
@@ -1314,14 +1509,27 @@ export class GameEngine {
             e.y = t.tileY * GameEngine.TILE_SIZE - e.height;
             e.vy = 0;
             break;
+          } else if (e.vy < 0) {
+            e.y = (t.tileY + 1) * GameEngine.TILE_SIZE;
+            e.vy = 0;
+            break;
           }
         }
       }
 
-      // Moving shell kills other enemies with impact screen-shake
+      // Clean up enemies that fall into pits
+      if (e.y > GameEngine.NES_HEIGHT + 32) {
+        e.alive = false;
+        e.state = 'flipped';
+        return;
+      }
+
+      // Ground enemy-to-enemy interactions
       if (e.state === 'shell_moving') {
+        // Moving shell kills other enemies with impact screen-shake
+        const shellBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
         this.enemies.forEach(other => {
-          if (other.id !== e.id && other.alive && this.rectsIntersect(enemyBox, { x: other.x, y: other.y, width: other.width, height: other.height })) {
+          if (other.id !== e.id && other.alive && this.rectsIntersect(shellBox, { x: other.x, y: other.y, width: other.width, height: other.height })) {
             other.alive = false;
             other.state = 'flipped';
             other.vy = -5;
@@ -1331,31 +1539,100 @@ export class GameEngine {
             this.addScore(200, other.x, other.y);
           }
         });
+      } else if (e.state === 'walk') {
+        // Walking Goombas & Koopas bump and reverse direction on contact with each other or idle shells
+        for (const other of this.enemies) {
+          if (
+            other.id === e.id ||
+            !other.alive ||
+            (other.state !== 'walk' && other.state !== 'shell_idle') ||
+            other.type === 'piranha' ||
+            other.type === 'blooper' ||
+            other.type === 'cheep_cheep'
+          ) {
+            continue;
+          }
+
+          const overlapX = Math.min(e.x + e.width, other.x + other.width) - Math.max(e.x, other.x);
+          const overlapY = Math.min(e.y + e.height, other.y + other.height) - Math.max(e.y, other.y);
+          if (overlapX > 0 && overlapY > 2) {
+            const eCenter = e.x + e.width / 2;
+            const otherCenter = other.x + other.width / 2;
+            const eLeft = eCenter <= otherCenter;
+            const prevEX = e.x;
+            const prevOtherX = other.x;
+
+            if (other.state === 'walk') {
+              const halfPush = overlapX / 2;
+              e.x += eLeft ? -halfPush : halfPush;
+              other.x += eLeft ? halfPush : -halfPush;
+              e.vx = eLeft ? -Math.abs(e.vx) : Math.abs(e.vx);
+              e.facing = e.vx > 0 ? 'right' : 'left';
+              other.vx = eLeft ? Math.abs(other.vx) : -Math.abs(other.vx);
+              other.facing = other.vx > 0 ? 'right' : 'left';
+            } else {
+              e.x = eLeft ? other.x - e.width : other.x + other.width;
+              e.vx = eLeft ? -Math.abs(e.vx) : Math.abs(e.vx);
+              e.facing = e.vx > 0 ? 'right' : 'left';
+            }
+
+            // Ensure separation doesn't push either enemy into a solid pipe/wall
+            const eHitsWall = this.getTilesIntersecting({ x: e.x, y: e.y + 1, width: e.width, height: e.height - 3 }).some(t => this.isSolidTile(t.tile.type));
+            if (eHitsWall) {
+              e.x = prevEX;
+            }
+            if (other.state === 'walk') {
+              const otherHitsWall = this.getTilesIntersecting({ x: other.x, y: other.y + 1, width: other.width, height: other.height - 3 }).some(t => this.isSolidTile(t.tile.type));
+              if (otherHitsWall) {
+                other.x = prevOtherX;
+              }
+            }
+          }
+        }
       }
 
-      // Check collision with Mario
-      const enemyHitbox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
-      if (this.rectsIntersect(marioBox, enemyHitbox)) {
-        // Is Mario jumping down on top of enemy?
-        const isStomp = this.marioVy > 0 && this.marioY + this.getMarioHeight() - this.marioVy <= e.y + 8;
-        this.marioHitEnemy(e, isStomp);
+      // Check collision with Mario (only during active playable states)
+      const canCollideWithMario =
+        this.marioState !== 'dead' &&
+        this.marioState !== 'pipe_entering' &&
+        this.marioState !== 'pipe_exiting' &&
+        this.marioState !== 'pole_slide' &&
+        this.marioState !== 'castle_walk' &&
+        this.marioState !== 'castle_entered';
+
+      if (canCollideWithMario) {
+        const currentMarioBox = this.getMarioHitbox();
+        const enemyHitbox: Rect = { x: e.x + 1, y: e.y + 1, width: e.width - 2, height: e.height - 1 };
+        if (this.rectsIntersect(currentMarioBox, enemyHitbox)) {
+          // Is Mario jumping/falling down on top of enemy?
+          const prevMarioBottom = currentMarioBox.y + currentMarioBox.height - this.marioVy;
+          const isStomp = this.marioVy > 0 && prevMarioBottom <= e.y + 8;
+          this.marioHitEnemy(e, isStomp);
+        }
       }
     });
 
-    // Cleanup offscreen dead enemies
-    this.enemies = this.enemies.filter(e => e.state !== 'squashed' || e.stateTimer < 30);
+    // Cleanup squashed and fallen offscreen dead enemies
+    this.enemies = this.enemies.filter(
+      e => (e.state !== 'squashed' || e.stateTimer < 30) && (e.state !== 'flipped' || e.y <= GameEngine.NES_HEIGHT + 48)
+    );
   }
 
   private marioHitEnemy(e: Enemy, isStomp: boolean) {
-    // Starman kills everything!
+    // Starman kills everything except lava sparks
     if (this.marioStarTimer > 0) {
+      if (e.type === 'lava_bubble') return;
       e.alive = false;
       e.state = 'flipped';
       e.vy = -5;
       this.sound.playKick();
       this.triggerScreenShake(3.5, 8);
       this.spawnEnemyDefeatParticles(e.x, e.y);
-      this.addScore(200, e.x, e.y);
+      if (e.type === 'bowser') {
+        this.addScore(5000, e.x, e.y, 'BOWSER!');
+      } else {
+        this.addScore(200, e.x, e.y);
+      }
       return;
     }
 
@@ -1417,7 +1694,18 @@ export class GameEngine {
   }
 
   private damageMario() {
-    if (this.marioInvulnerableTimer > 0 || this.marioState === 'dead' || this.isStageClear || this.marioState === 'pole_slide' || this.marioState === 'castle_walk' || this.marioState === 'castle_entered') return;
+    if (
+      this.marioInvulnerableTimer > 0 ||
+      this.marioState === 'dead' ||
+      this.marioState === 'pipe_entering' ||
+      this.marioState === 'pipe_exiting' ||
+      this.isStageClear ||
+      this.marioState === 'pole_slide' ||
+      this.marioState === 'castle_walk' ||
+      this.marioState === 'castle_entered'
+    ) {
+      return;
+    }
 
     // Tanooki statue is completely immune to normal enemy damage
     if (this.isStatue) return;
@@ -1693,6 +1981,22 @@ export class GameEngine {
       this.enemies.forEach(e => {
         if (e.alive && !fb.exploding && this.rectsIntersect(fbBox, { x: e.x, y: e.y, width: e.width, height: e.height })) {
           fb.exploding = true;
+          if (e.type === 'bowser') {
+            e.hp = (e.hp ?? 5) - 1;
+            e.hitFlashTimer = 10;
+            this.sound.playKick();
+            this.spawnEnemyDefeatParticles(fb.x, fb.y);
+            if (e.hp <= 0) {
+              e.alive = false;
+              e.state = 'flipped';
+              e.vy = -5.5;
+              this.triggerScreenShake(4.0, 12);
+              this.addScore(5000, e.x, e.y, 'BOWSER!');
+            } else {
+              this.addScore(100, e.x, e.y);
+            }
+            return;
+          }
           e.alive = false;
           e.state = 'flipped';
           e.vy = -5;
@@ -1709,6 +2013,75 @@ export class GameEngine {
     });
 
     this.fireballs = this.fireballs.filter(fb => fb.alive && fb.explodeTimer < 10);
+  }
+
+  private updateBossFireballs() {
+    if (this.bossFireballs.length === 0) return;
+    const canHitMario =
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting' &&
+      this.marioState !== 'pole_slide' &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered';
+    const marioBox = this.getMarioHitbox();
+
+    this.bossFireballs.forEach(bf => {
+      bf.x += bf.vx;
+      bf.animTimer++;
+      if (canHitMario) {
+        const bfBox: Rect = { x: bf.x + 1, y: bf.y + 1, width: 14, height: 6 };
+        if (this.rectsIntersect(marioBox, bfBox)) {
+          if (this.marioStarTimer <= 0) {
+            this.damageMario();
+          }
+        }
+      }
+    });
+
+    this.bossFireballs = this.bossFireballs.filter(
+      bf => bf.x > this.cameraX - 64 && bf.x < this.cameraX + GameEngine.NES_WIDTH + 64
+    );
+  }
+
+  private triggerCastleAxeClear(axeTX: number, axeTY: number) {
+    this.level.tiles[axeTY][axeTX] = null;
+    this.bossFireballs = [];
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.sound.stopMusic();
+    this.sound.playBridgeCollapse();
+    this.triggerScreenShake(3.5, 14);
+
+    // Collect bridge tiles left-to-right to collapse sequentially
+    const bridgeTiles: { tx: number; ty: number }[] = [];
+    for (let tx = 0; tx < this.level.width; tx++) {
+      for (let ty = 0; ty < this.level.height; ty++) {
+        if (this.level.tiles[ty][tx]?.type === 'bridge') {
+          bridgeTiles.push({ tx, ty });
+        }
+      }
+    }
+    this.bridgeCollapseQueue = bridgeTiles;
+    this.bridgeCollapseTimer = 0;
+
+    // Drop Bowser into the lava
+    this.enemies.forEach(e => {
+      if (e.type === 'bowser' && e.alive) {
+        e.alive = false;
+        e.state = 'flipped';
+        e.vy = -1.5;
+        e.vx = 0;
+        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.addScore(5000, e.x, e.y, 'BOWSER!');
+      }
+    });
+
+    if (bridgeTiles.length === 0) {
+      this.marioState = 'castle_walk';
+      this.marioFacing = 'right';
+      this.sound.playStageClear();
+    }
   }
 
   // --- PARTICLES & SCORE POPUPS ---
@@ -2038,9 +2411,26 @@ export class GameEngine {
 
     // Defeat enemies struck by tail whip
     this.enemies.forEach(e => {
-      if (!e.alive || e.state === 'flipped' || e.state === 'squashed') return;
+      if (!e.alive || e.state === 'flipped' || e.state === 'squashed' || e.type === 'lava_bubble') return;
       const eBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
       if (this.rectsIntersect(whipBox, eBox)) {
+        if (e.type === 'bowser') {
+          if (e.hitFlashTimer && e.hitFlashTimer > 0) return;
+          e.hp = (e.hp ?? 5) - 1;
+          e.hitFlashTimer = 14;
+          this.sound.playKick();
+          this.triggerScreenShake(2.5, 6);
+          this.spawnEnemyDefeatParticles(e.x, e.y);
+          if (e.hp <= 0) {
+            e.alive = false;
+            e.state = 'flipped';
+            e.vy = -5.5;
+            this.addScore(5000, e.x, e.y, 'BOWSER!');
+          } else {
+            this.addScore(100, e.x, e.y);
+          }
+          return;
+        }
         e.alive = false;
         e.state = 'flipped';
         e.vy = -5.5;
@@ -2253,6 +2643,11 @@ export class GameEngine {
       this.loadLevel(createWorld1_2(), true, false);
     } else if (this.level.id === 'world-1-2') {
       this.loadLevel(createWorld2_2(), true, false);
+    } else if (this.level.id === 'world-2-2') {
+      this.loadLevel(createWorld1_4(), true, false);
+    } else if (this.level.id === 'world-1-4') {
+      // After beating Castle 1-4, continue infinitely through Cycle 2+ (Overworld -> Caverna -> Água -> Castelo)
+      this.loadLevel(createEndlessLevel(Date.now(), 5), true, false);
     } else {
       const nextStage = (this.endlessStage || 0) + 1;
       this.loadLevel(createEndlessLevel(Date.now(), nextStage), true, false);
@@ -2384,10 +2779,14 @@ export class GameEngine {
       type === 'pipe_body_right' ||
       type === 'pipe_warp_top_left' ||
       type === 'pipe_warp_top_right' ||
+      type === 'pipe_horiz_top' ||
+      type === 'pipe_horiz_bottom' ||
       type === 'underground_ground' ||
       type === 'underground_brick' ||
       type === 'coral' ||
-      type === 'sea_ground'
+      type === 'sea_ground' ||
+      type === 'bridge' ||
+      type === 'castle_stone'
     );
   }
 
@@ -2429,6 +2828,13 @@ export class GameEngine {
 
       // WORLD 1-1
       ctx.fillText(`WORLD ${this.stats.world}`, GameEngine.NES_WIDTH / 2, 90);
+      if (this.level.biomeLabel) {
+        ctx.fillStyle = '#fce078';
+        ctx.font = '6px "Press Start 2P", monospace';
+        ctx.fillText(this.level.biomeLabel, GameEngine.NES_WIDTH / 2, 106);
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillStyle = '#ffffff';
+      }
 
       // Mario Icon + x + Lives
       const iconX = GameEngine.NES_WIDTH / 2 - 24;
@@ -2726,6 +3132,7 @@ export class GameEngine {
             ctx.drawImage(this.atlas.pipeBodyRight, screenX, screenY);
             break;
           case 'castle_brick':
+          case 'castle_stone':
             ctx.drawImage(this.atlas.castleBrick, screenX, screenY);
             break;
           case 'castle_door':
@@ -2740,6 +3147,19 @@ export class GameEngine {
           case 'pole_top':
             ctx.drawImage(this.atlas.flagPoleTop, screenX, screenY);
             break;
+          case 'lava': {
+            const lavaFrame = Math.floor((Date.now() / 220) % 2);
+            ctx.drawImage(this.atlas.tileLavaFrames[lavaFrame], screenX, screenY);
+            break;
+          }
+          case 'bridge':
+            ctx.drawImage(this.atlas.tileBridge, screenX, screenY);
+            break;
+          case 'axe': {
+            const axeFrame = Math.floor((Date.now() / 160) % 2);
+            ctx.drawImage(this.atlas.tileAxeFrames[axeFrame], screenX, screenY);
+            break;
+          }
         }
       }
     }
@@ -2831,6 +3251,20 @@ export class GameEngine {
         } else {
           ctx.drawImage(frame, ex, e.y);
         }
+      } else if (e.type === 'lava_bubble') {
+        const frame = e.animFrame === 0 ? this.atlas.lavaBubble1 : this.atlas.lavaBubble2;
+        ctx.drawImage(frame, ex, e.y);
+      } else if (e.type === 'bowser') {
+        if (!e.hitFlashTimer || Math.floor(e.hitFlashTimer / 2) % 2 === 0) {
+          const frame = e.animFrame === 0 ? this.atlas.bowser1 : this.atlas.bowser2;
+          if (e.facing === 'right') {
+            ctx.translate(ex + 24, e.y);
+            ctx.scale(-1, 1);
+            ctx.drawImage(frame, 0, 0);
+          } else {
+            ctx.drawImage(frame, ex, e.y);
+          }
+        }
       }
 
       ctx.restore();
@@ -2843,6 +3277,21 @@ export class GameEngine {
       const fx = fb.x - this.cameraX;
       if (fx < -8 || fx > GameEngine.NES_WIDTH + 8) return;
       ctx.drawImage(this.atlas.fireballFrames[frame], fx, fb.y);
+    });
+
+    this.bossFireballs.forEach(bf => {
+      const bx = bf.x - this.cameraX;
+      if (bx < -20 || bx > GameEngine.NES_WIDTH + 20) return;
+      const bFrame = Math.floor(bf.animTimer / 4) % 2;
+      ctx.save();
+      if (bf.vx > 0) {
+        ctx.translate(bx + 16, bf.y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(this.atlas.bowserFireFrames[bFrame], 0, 0);
+      } else {
+        ctx.drawImage(this.atlas.bowserFireFrames[bFrame], bx, bf.y);
+      }
+      ctx.restore();
     });
   }
 
