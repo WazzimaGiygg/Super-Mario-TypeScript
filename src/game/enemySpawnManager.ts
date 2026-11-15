@@ -82,12 +82,12 @@ export class EnemySpawnManager {
         unlockedTypes.push('fast_cheep');
       }
     } else {
-      unlockedTypes.push('goomba', 'koopa');
+      unlockedTypes.push('goomba', 'koopa', 'paratroopa');
       if (cycleNumber >= 2 || safeStage >= 3) {
         unlockedTypes.push('red_koopa');
       }
-      if (cycleNumber >= 2) {
-        unlockedTypes.push('paratroopa');
+      if (cycleNumber >= 2 || safeStage >= 2 || theme === 'castle') {
+        unlockedTypes.push('hammer_bro');
       }
       if (cycleNumber >= 3 || (cycleNumber >= 2 && theme === 'castle')) {
         unlockedTypes.push('bullet_bill');
@@ -122,6 +122,9 @@ export class EnemySpawnManager {
         break;
       case 'paratroopa':
         baseSpeed = 1.18;
+        break;
+      case 'hammer_bro':
+        baseSpeed = 0.52;
         break;
       case 'cheep_cheep':
         baseSpeed = 0.82;
@@ -172,24 +175,30 @@ export class EnemySpawnManager {
         ? (forDynamic ? Math.min(0.34, 0.18 + (cycleNumber - 2) * 0.06) : Math.min(0.22, 0.10 + (cycleNumber - 2) * 0.04))
         : 0;
 
-    // Paratroopa: fast winged hopper unlocked in Cycle 2+
+    // Paratroopa: winged bouncing Koopa
     const paratroopaChance =
       allowAerial && profile.unlockedTypes.includes('paratroopa')
-        ? Math.min(0.30, 0.16 + (cycleNumber - 2) * 0.06)
+        ? Math.min(0.28, 0.14 + (cycleNumber - 1) * 0.05)
         : 0;
+
+    // Hammer Brother: hammer-throwing Koopa elite
+    const hammerBroChance = profile.unlockedTypes.includes('hammer_bro')
+      ? Math.min(0.22, 0.12 + (cycleNumber - 1) * 0.04)
+      : 0;
 
     // Red Koopa: fast ground runner unlocked from Stage 3+ / Cycle 2+
     const redKoopaChance = profile.unlockedTypes.includes('red_koopa')
-      ? Math.min(0.34, 0.16 + (cycleNumber - 1) * 0.07)
+      ? Math.min(0.30, 0.15 + (cycleNumber - 1) * 0.06)
       : 0;
 
     // Classic Green Koopa
-    const koopaChance = Math.max(0.14, 0.28 - (cycleNumber - 1) * 0.03);
+    const koopaChance = Math.max(0.14, 0.25 - (cycleNumber - 1) * 0.03);
 
     if (r < bulletChance) return 'bullet_bill';
     if (r < bulletChance + paratroopaChance) return 'paratroopa';
-    if (r < bulletChance + paratroopaChance + redKoopaChance) return 'red_koopa';
-    if (r < bulletChance + paratroopaChance + redKoopaChance + koopaChance) return 'koopa';
+    if (r < bulletChance + paratroopaChance + hammerBroChance) return 'hammer_bro';
+    if (r < bulletChance + paratroopaChance + hammerBroChance + redKoopaChance) return 'red_koopa';
+    if (r < bulletChance + paratroopaChance + hammerBroChance + redKoopaChance + koopaChance) return 'koopa';
     return 'goomba';
   }
 
@@ -217,7 +226,7 @@ export class EnemySpawnManager {
       };
     }
 
-    if (type === 'koopa' || type === 'red_koopa' || type === 'paratroopa') {
+    if (type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' || type === 'hammer_bro') {
       return {
         type,
         x: tx * 16,
@@ -347,7 +356,8 @@ export class EnemySpawnManager {
     if (tx < 2 || tx >= level.width - 4) return null;
 
     const width = 16;
-    const height = type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' ? 24 : 16;
+    const height =
+      type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' || type === 'hammer_bro' ? 24 : 16;
     const vx = EnemySpawnManager.getInitialVelocity(type, speedMult, -1);
 
     if (type === 'cheep_cheep' || type === 'fast_cheep' || type === 'blooper') {
@@ -427,7 +437,7 @@ export class EnemySpawnManager {
       x: spawnX,
       y: spawnY,
       vx,
-      vy: type === 'paratroopa' ? -2.2 : 0,
+      vy: type === 'paratroopa' ? -2.8 : 0,
       width,
       height,
       alive: true,
@@ -436,6 +446,8 @@ export class EnemySpawnManager {
       facing: 'left',
       animFrame: 0,
       animTimer: 0,
+      originX: spawnX,
+      fireTimer: type === 'hammer_bro' ? 42 : undefined,
     };
   }
 }

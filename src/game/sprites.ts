@@ -394,6 +394,11 @@ export class SpriteAtlas {
 
   public paratroopa1!: HTMLCanvasElement;
   public paratroopa2!: HTMLCanvasElement;
+
+  public hammerBroWalk1!: HTMLCanvasElement;
+  public hammerBroWalk2!: HTMLCanvasElement;
+  public hammerBroThrow!: HTMLCanvasElement;
+  public hammerFrames: HTMLCanvasElement[] = [];
   
   public piranha1!: HTMLCanvasElement;
   public piranha2!: HTMLCanvasElement;
@@ -448,6 +453,8 @@ export class SpriteAtlas {
   public flagPoleTop!: HTMLCanvasElement;
   public flagPoleBody!: HTMLCanvasElement;
   public flagTriangle!: HTMLCanvasElement;
+  public toodleSprite!: HTMLCanvasElement;
+  public toodleHappySprite!: HTMLCanvasElement;
 
   // Particles & Projectiles
   public fireballFrames: HTMLCanvasElement[] = [];
@@ -1804,6 +1811,177 @@ export class SpriteAtlas {
     drawPixelGrid(ctxPt2, paratroopa2Pattern, redKoopaPalette);
     this.paratroopa2 = pt2;
 
+    // Hammer Brother (16x24 green-helmeted Koopa warrior facing left)
+    const hammerBroPalette = {
+      '.': 'transparent',
+      'K': '#000000',
+      'G': '#00a800',
+      'L': '#58d838',
+      'W': '#ffffff',
+      'S': NES_COLORS.MARIO_SKIN,
+      'B': '#fce078',
+      'M': '#883800',
+      'H': '#606878',
+    };
+
+    const hammerBroWalk1Pattern = [
+      '.....KKKKKK.....',
+      '....KGGGGGGK....',
+      '...KGGGLLGGGK...',
+      '...KGWWWWWWGK...',
+      '..KGGWKKWWKKGK..',
+      '..KGGSSKKSSKK...',
+      '...KSSSSSSSSK...',
+      '....KSSSSSSK....',
+      '...KKGGGGGGKK...',
+      '..KGGLLLLLLGGK..',
+      '.KGGLLLLLLLLGGK.',
+      '.KGGGBBBBBBBGGK.',
+      '..KMMBBBBBBBGGK.',
+      '.KHHMBBBBBBBGGK.',
+      '.KHHKGGGGGGGGK..',
+      '..KKKGGGGGGGK...',
+      '....KGG..GGK....',
+      '...KSSK..KSSK...',
+      '..KSSSK..KSSSK..',
+      '..KKKK....KKKK..',
+      '................',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const hammerBroWalk2Pattern = [
+      '.....KKKKKK.....',
+      '....KGGGGGGK....',
+      '...KGGGLLGGGK...',
+      '...KGWWWWWWGK...',
+      '..KGGWKKWWKKGK..',
+      '..KGGSSKKSSKK...',
+      '...KSSSSSSSSK...',
+      '....KSSSSSSK....',
+      '...KKGGGGGGKK...',
+      '..KGGLLLLLLGGK..',
+      '.KGGLLLLLLLLGGK.',
+      '.KGGGBBBBBBBGGK.',
+      '..KGGMBBBBBBBGK.',
+      '..KHHMBBBBBBBGK.',
+      '..KHHKGGGGGGGK..',
+      '...KKKGGGGGGK...',
+      '.....KG..GGK....',
+      '....KSSKKSSK....',
+      '...KSSSKKSSSK...',
+      '...KKKK..KKKK...',
+      '................',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const hammerBroThrowPattern = [
+      '..KHHK..........',
+      '.KHHMK..........',
+      '..KMMKKKKKK.....',
+      '...KGGGGGGGGK...',
+      '...KGGGLLGGGK...',
+      '...KGWWWWWWGK...',
+      '..KGGWKKWWKKGK..',
+      '..KGGSSKKSSKK...',
+      '...KSSSSSSSSK...',
+      '..KKSSSSSSSSK...',
+      '.KSSKGGGGGGKK...',
+      '..KKGGLLLLLLGK..',
+      '..KGGLLLLLLLGGK.',
+      '..KGGGBBBBBBBGK.',
+      '..KGGGBBBBBBBGK.',
+      '...KKGGGGGGGGK..',
+      '....KGG..GGK....',
+      '...KSSK..KSSK...',
+      '..KSSSK..KSSSK..',
+      '..KKKK....KKKK..',
+      '................',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const [hb1, ctxHb1] = createOffscreen(16, 24);
+    drawPixelGrid(ctxHb1, hammerBroWalk1Pattern, hammerBroPalette);
+    this.hammerBroWalk1 = hb1;
+
+    const [hb2, ctxHb2] = createOffscreen(16, 24);
+    drawPixelGrid(ctxHb2, hammerBroWalk2Pattern, hammerBroPalette);
+    this.hammerBroWalk2 = hb2;
+
+    const [hbT, ctxHbT] = createOffscreen(16, 24);
+    drawPixelGrid(ctxHbT, hammerBroThrowPattern, hammerBroPalette);
+    this.hammerBroThrow = hbT;
+
+    // Rotating Hammer Projectile (12x12, 4 spin orientations)
+    const hammerSpinPatterns: string[][] = [
+      [
+        '..KKKKKK....',
+        '.KHHHHHHK...',
+        '.KHWWHHHK...',
+        '.KHHHHHHK...',
+        '..KKKKKK....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KKK.....',
+        '............',
+      ],
+      [
+        '.....KKKK...',
+        '....KHHHHK..',
+        '....KHWWKHK.',
+        '..KKKHHHHHK.',
+        '.KMMKKKKKK..',
+        'KMMK........',
+        'KMK.........',
+        '.K..........',
+        '............',
+        '............',
+        '............',
+        '............',
+      ],
+      [
+        '............',
+        '....KKK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '....KMK.....',
+        '..KKKKKK....',
+        '.KHHHHHHK...',
+        '.KHHHWWHK...',
+        '.KHHHHHHK...',
+        '..KKKKKK....',
+        '............',
+      ],
+      [
+        '............',
+        '............',
+        '.........K..',
+        '........KMK.',
+        '.......KMMK.',
+        '..KKKKKKMMK.',
+        '.KHHHHHKMK..',
+        '.KHWWKHHK...',
+        '..KHHHHK....',
+        '...KKKK.....',
+        '............',
+        '............',
+      ],
+    ];
+    this.hammerFrames = hammerSpinPatterns.map(pat => {
+      const [cH, ctxH] = createOffscreen(12, 12);
+      drawPixelGrid(ctxH, pat, hammerBroPalette);
+      return cH;
+    });
+
     // Piranha Plant
     const piranhaPalette = {
       '.': 'transparent',
@@ -2783,6 +2961,80 @@ export class SpriteAtlas {
     ctxFlag.fillStyle = '#80d010';
     ctxFlag.fillRect(10, 5, 4, 6);
     this.flagTriangle = cFlag;
+
+    // Toodle (Toad) 16x24 NES Pixel Art Sprite (Standing & Cheering frames facing left)
+    const toodlePalette = {
+      '.': 'transparent',
+      'K': '#000000',
+      'W': '#ffffff',
+      'R': '#d82800',
+      'S': NES_COLORS.MARIO_SKIN,
+      'B': '#2038ec',
+      'G': '#fce078',
+      'F': '#a04000',
+    };
+
+    const toodleIdlePattern = [
+      '....KKKKKKKK....',
+      '..KKWWWWWWWWKK..',
+      '.KWWWRRRRRRWWWK.',
+      'KWWRRRRRRRRRRWWK',
+      'KWRRRRRWWWRRRRWK',
+      'KWWRRRWWWWWRRWWK',
+      'KWWWWWWWWWWWWWWK',
+      'KRRWWWWWWWWWWWRK',
+      'KRRRWWWWWWWWWRRK',
+      '.KKSSSSSSSSSSKK.',
+      '..KSSKKSSKKSSK..',
+      '..KSSKKSSKKSSK..',
+      '..KSSSSSSSSSSK..',
+      '...KKSSSSSSKK...',
+      '..KBBWWWWWWBBK..',
+      '.KWBBWWGGWWBBWK.',
+      '.KWBBWWWWWWBBWK.',
+      '.KSBBWWWWWWBBSK.',
+      '..KWWWWWWWWWWK..',
+      '..KWWWWWWWWWWK..',
+      '...KFFF..FFFK...',
+      '..KFFFF..FFFFK..',
+      '..KKKKK..KKKKK..',
+      '................',
+    ];
+
+    const toodleHappyPattern = [
+      '....KKKKKKKK....',
+      '..KKWWWWWWWWKK..',
+      '.KWWWRRRRRRWWWK.',
+      'KWWRRRRRRRRRRWWK',
+      'KWRRRRRWWWRRRRWK',
+      'KWWRRRWWWWWRRWWK',
+      'KWWWWWWWWWWWWWWK',
+      'KRRWWWWWWWWWWWRK',
+      'KRRRWWWWWWWWWRRK',
+      '.KKSSSSSSSSSSKK.',
+      'KSKSSKKSSKKSSKSK',
+      'KWWSSKKSSKKSSWWK',
+      '.KWSSSSSSSSSSWK.',
+      '..KKKSSSSSSKKK..',
+      '..KBBWWWWWWBBK..',
+      '..KBBWWGGWWBBK..',
+      '..KBBWWWWWWBBK..',
+      '..KBBWWWWWWBBK..',
+      '..KWWWWWWWWWWK..',
+      '..KWWWWWWWWWWK..',
+      '...KFFF..FFFK...',
+      '..KFFFF..FFFFK..',
+      '..KKKKK..KKKKK..',
+      '................',
+    ];
+
+    const [cToodle1, ctxToodle1] = createOffscreen(16, 24);
+    drawPixelGrid(ctxToodle1, toodleIdlePattern, toodlePalette);
+    this.toodleSprite = cToodle1;
+
+    const [cToodle2, ctxToodle2] = createOffscreen(16, 24);
+    drawPixelGrid(ctxToodle2, toodleHappyPattern, toodlePalette);
+    this.toodleHappySprite = cToodle2;
   }
 
   private generateParticles() {

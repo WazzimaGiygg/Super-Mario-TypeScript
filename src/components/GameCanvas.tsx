@@ -11,11 +11,12 @@ import { SettingsModal } from './SettingsModal.tsx';
 import { LeaderboardModal } from './LeaderboardModal.tsx';
 import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
+import { LevelEditorModal } from './LevelEditorModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
 import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -77,6 +78,9 @@ export const GameCanvas: React.FC = () => {
   const [difficulty, setDifficulty] = useState<GameDifficulty>('normal');
   const [resolutionScale, setResolutionScale] = useState<ResolutionScale>('fit');
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
+  const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
+  const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
+  const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
   const [multiplayerNotice, setMultiplayerNotice] = useState<MultiplayerLogoffEvent | null>(null);
 
@@ -216,7 +220,7 @@ export const GameCanvas: React.FC = () => {
         return;
       }
 
-      if (isMultiplayerOpen || isSettingsOpen || isLeaderboardOpen) {
+      if (isMultiplayerOpen || isSettingsOpen || isLeaderboardOpen || isLevelEditorOpen) {
         return;
       }
 
@@ -364,7 +368,7 @@ export const GameCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
+  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, isLevelEditorOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
 
   // Gamepad API Polling
   const pollGamepad = useCallback(() => {
@@ -504,6 +508,48 @@ export const GameCanvas: React.FC = () => {
       setIsStageClear(false);
     }
   };
+
+  const openLevelEditor = useCallback(() => {
+    const engine = engineRef.current;
+    if (engine && hasStarted && !engine.isPaused && !engine.isGameOver && !engine.isMultiplayerMatchOver) {
+      engine.togglePause();
+      setIsPaused(true);
+    }
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    });
+    setIsSettingsOpen(false);
+    setIsLevelEditorOpen(true);
+  }, [hasStarted]);
+
+  const handlePlayCustomLevel = useCallback(
+    (level: LevelData) => {
+      if (multiplayerStatus.connected) {
+        setCheatToast('Saia da sala multiplayer para testar fases personalizadas!');
+        setTimeout(() => setCheatToast(''), 3500);
+        return;
+      }
+      SoundEngine.get().resume();
+      setIsLevelEditorOpen(false);
+      setIsSettingsOpen(false);
+      setHasStarted(true);
+      if (engineRef.current) {
+        engineRef.current.playCustomLevel(level);
+        setIsPaused(false);
+        setIsGameOver(false);
+        setIsStageClear(false);
+        setStats({ ...engineRef.current.stats, isNewHighScore: engineRef.current.isNewHighScore });
+        setMarioPower(engineRef.current.marioPower);
+      }
+    },
+    [multiplayerStatus.connected]
+  );
 
   const handleRestart = () => {
     if (multiplayerStatus.connected) {
@@ -730,31 +776,47 @@ export const GameCanvas: React.FC = () => {
 
           {/* Start Screen Splash (Initial User Interaction) */}
           {!hasStarted && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 p-6 text-center animate-in fade-in overflow-y-auto">
-              <div className="mb-3">
-                <span className="block text-amber-400 font-['Press_Start_2P',monospace] text-xl sm:text-3xl font-extrabold tracking-wider drop-shadow-md">
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-start sm:justify-center bg-black/85 p-4 sm:p-6 text-center animate-in fade-in overflow-y-auto">
+              <div className="mb-2.5 sm:mb-3">
+                <span className="block text-amber-400 font-['Press_Start_2P',monospace] text-lg sm:text-3xl font-extrabold tracking-wider drop-shadow-md">
                   SUPER MARIO BROS.
                 </span>
-                <span className="inline-block mt-2 px-3 py-1 bg-red-800/80 text-white rounded font-['Press_Start_2P',monospace] text-[10px] tracking-widest">
+                <span className="inline-block mt-1.5 px-3 py-1 bg-red-800/80 text-white rounded font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] tracking-widest">
                   TYPESCRIPT & CANVAS
                 </span>
               </div>
 
-              <div className="max-w-md bg-stone-900/90 border-2 border-stone-700 rounded-xl p-4 sm:p-5 mb-4 text-stone-300 text-xs sm:text-sm font-sans space-y-1.5">
+              {/* Aviso de Classificação Indicativa 16+ */}
+              <div className="max-w-md w-full bg-amber-950/90 border-2 border-amber-500/85 rounded-xl px-3.5 py-2.5 mb-3 text-left flex items-start gap-3 shadow-lg">
+                <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-500 text-stone-950 font-['Press_Start_2P',monospace] text-[10px] font-extrabold flex items-center justify-center border border-amber-200 shadow">
+                  16+
+                </div>
+                <div className="text-[11px] sm:text-xs font-sans leading-snug text-amber-100">
+                  <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                    Recomendado para maiores de 16 anos
+                  </p>
+                  <p className="text-amber-100/90 mt-0.5">
+                    Este jogo é recomendado para públicos maiores de 16 anos, pois pode haver mensagens sugestivas no jogo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-w-md w-full bg-stone-900/90 border-2 border-stone-700 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 text-stone-300 text-xs sm:text-sm font-sans space-y-1">
                 <p className="font-semibold text-white">Pronto para jogar no clássico NES?</p>
-                <p className="text-stone-400 text-xs">
+                <p className="text-stone-400 text-[11px] sm:text-xs">
                   Renderização pura em Canvas a 60 FPS com sintetizador Web Audio 8-bit, física original, Goombas, Koopas e canos secretos!
                 </p>
-                <div className="pt-1 text-[11px] text-amber-300 font-mono">
+                <div className="pt-1 text-[10px] sm:text-[11px] text-amber-300 font-mono">
                   [Espaço / Z] Pular • [Shift / X] Correr / Bola de Fogo
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-center justify-center">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 sm:gap-3 items-center justify-center">
                 <button
                   type="button"
                   onClick={handleStartGame}
-                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 font-['Press_Start_2P',monospace] text-white text-xs sm:text-sm font-bold shadow-xl shadow-red-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+                  className="px-7 py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 font-['Press_Start_2P',monospace] text-white text-xs sm:text-sm font-bold shadow-xl shadow-red-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" />
                   JOGAR AGORA
@@ -762,8 +824,17 @@ export const GameCanvas: React.FC = () => {
 
                 <button
                   type="button"
+                  onClick={openLevelEditor}
+                  className="px-5 py-3 rounded-xl bg-sky-950/90 hover:bg-sky-900 border-2 border-sky-500 text-sky-200 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl shadow-sky-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Hammer className="w-4 h-4 text-sky-400" />
+                  EDITOR DE FASES
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsMultiplayerOpen(true)}
-                  className="px-6 py-3.5 rounded-xl bg-emerald-950/90 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-['Press_Start_2P',monospace] text-xs font-bold shadow-xl shadow-emerald-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-3 rounded-xl bg-emerald-950/90 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl shadow-emerald-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
                 >
                   <Users className="w-4 h-4 text-emerald-400" />
                   MULTIPLAYER (GOOGLE)
@@ -853,6 +924,14 @@ export const GameCanvas: React.FC = () => {
                 >
                   <Trophy className="w-3.5 h-3.5 text-amber-400" />
                   RANKING
+                </button>
+                <button
+                  type="button"
+                  onClick={openLevelEditor}
+                  className="px-5 py-2.5 rounded-lg bg-sky-900 hover:bg-sky-800 border border-sky-400/60 text-sky-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Hammer className="w-3.5 h-3.5 text-sky-400" />
+                  EDITOR DE FASES
                 </button>
                 <button
                   type="button"
@@ -1169,6 +1248,17 @@ export const GameCanvas: React.FC = () => {
             </button>
           )}
 
+          {/* Editor de Fases (Memória Temporária) */}
+          <button
+            type="button"
+            onClick={openLevelEditor}
+            title="Editor de Fases (Memória Temporária)"
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-sky-600/50 text-sky-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Hammer className="w-4 h-4 text-sky-400" />
+            <span className="hidden sm:inline text-[11px] font-bold">Editor</span>
+          </button>
+
           {/* Settings */}
           <button
             type="button"
@@ -1242,6 +1332,7 @@ export const GameCanvas: React.FC = () => {
         onToggleFullscreen={toggleFullscreen}
         touchOverlayOnCanvas={touchOverlayOnCanvas}
         onToggleTouchOverlay={toggleTouchOverlayMode}
+        onOpenLevelEditor={openLevelEditor}
       />
 
       {/* Leaderboard / Placar Modal */}
@@ -1292,12 +1383,31 @@ export const GameCanvas: React.FC = () => {
           engineRef.current?.addCheatScore(pts);
           setStats({ ...engineRef.current!.stats });
         }}
+        onTeleportToEnd={() => {
+          engineRef.current?.teleportToStageEnd();
+          if (engineRef.current) {
+            setStats({ ...engineRef.current.stats });
+          }
+        }}
       />
 
       {/* Multiplayer por IP Modal (WazzimaGiygg / Mario) */}
       <MultiplayerModal
         isOpen={isMultiplayerOpen}
         onClose={() => setIsMultiplayerOpen(false)}
+      />
+
+      {/* Editor de Fases Modal (Memória Temporária do Navegador) */}
+      <LevelEditorModal
+        isOpen={isLevelEditorOpen}
+        onClose={() => setIsLevelEditorOpen(false)}
+        customLevels={customLevels}
+        activeCustomLevelId={activeCustomLevelId}
+        onUpdateCustomLevels={(levels, activeId) => {
+          setCustomLevels(levels);
+          setActiveCustomLevelId(activeId);
+        }}
+        onPlayLevel={handlePlayCustomLevel}
       />
 
       {/* Multiplayer Logoff / Room Inactivity Toast Notification */}

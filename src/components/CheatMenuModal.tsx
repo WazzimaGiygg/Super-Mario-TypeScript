@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Flame, Shield, Sparkles, Heart, PlusCircle, X, Check } from 'lucide-react';
+import { Flame, Shield, Sparkles, Heart, PlusCircle, X, Check, Flag } from 'lucide-react';
 import { MarioPower } from '../game/types.ts';
 
 interface CheatMenuModalProps {
@@ -15,6 +15,7 @@ interface CheatMenuModalProps {
   onToggleInfiniteLives: () => void;
   onSetPowerUp: (power: MarioPower | 'star') => void;
   onAddScore: (points: number) => void;
+  onTeleportToEnd: () => void;
 }
 
 export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
@@ -25,6 +26,7 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
   onToggleInfiniteLives,
   onSetPowerUp,
   onAddScore,
+  onTeleportToEnd,
 }) => {
   const [customPoints, setCustomPoints] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -284,6 +286,33 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
                 {isFemboy ? '+ LOVE POINTS' : '+ PONTOS'}
               </button>
             </form>
+          </div>
+
+          {/* 4. Ir para o Final da Fase */}
+          <div className="bg-stone-800/80 p-3.5 rounded-lg border border-amber-600/40">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Flag className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <h3 className="font-['Press_Start_2P',monospace] text-[10px] text-amber-300">
+                    FINAL DA FASE
+                  </h3>
+                  <p className="text-[10px] text-stone-400">
+                    Teleporta direto para perto do mastro, cano ou machado do castelo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onTeleportToEnd();
+                  onClose();
+                }}
+                className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 font-['Press_Start_2P',monospace] text-[9px] font-bold shrink-0 shadow-lg shadow-amber-900/40 transition"
+              >
+                IR PARA O FIM
+              </button>
+            </div>
           </div>
         </div>
 

@@ -80,6 +80,7 @@ export type EnemyType =
   | 'koopa'
   | 'red_koopa'
   | 'paratroopa'
+  | 'hammer_bro'
   | 'piranha'
   | 'blooper'
   | 'cheep_cheep'
@@ -196,6 +197,7 @@ export interface LevelData {
   enemySpeedMultiplier?: number;
   biomeLabel?: string;
   checkpoints?: { x: number; respawnPos: Point }[];
+  isCustom?: boolean;
 }
 
 export type GameDifficulty = 'easy' | 'normal' | 'hard';

@@ -70,6 +70,8 @@ export class ParticleSystem {
       case 'koopa':
       case 'paratroopa':
         return { primary: '#00a800', secondary: '#78f858', accent: '#f8d878' };
+      case 'hammer_bro':
+        return { primary: '#00a800', secondary: '#fce078', accent: '#ffffff' };
       case 'red_koopa':
         return { primary: '#d82800', secondary: '#ff7850', accent: '#f8d878' };
       case 'piranha':

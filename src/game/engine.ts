@@ -29,7 +29,7 @@ import { SoundEngine } from './audio.ts';
 import { ParticleSystem } from './particles.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 import { CameraSystem } from './camera.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from './levels.ts';
+import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel, cloneLevelData } from './levels.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 
 export class GameEngine {
@@ -132,6 +132,7 @@ export class GameEngine {
   public items: Item[] = [];
   public fireballs: Fireball[] = [];
   public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
+  public hammerProjectiles: { id: number; x: number; y: number; vx: number; vy: number; animTimer: number }[] = [];
   public particleSystem: ParticleSystem = new ParticleSystem();
   public enemySpawnManager: EnemySpawnManager = new EnemySpawnManager();
   private skidDustTimer: number = 0;
@@ -140,9 +141,13 @@ export class GameEngine {
     return this.particleSystem.particles;
   }
 
-  // Castle Axe & Bridge Collapse State
+  // Castle Axe, Bridge Collapse & Toodle Cutscene State
   public bridgeCollapseQueue: { tx: number; ty: number }[] = [];
   public bridgeCollapseTimer: number = 0;
+  public castleToodleActive: boolean = false;
+  public castleToodleX: number = 0;
+  public castleToodleY: number = 0;
+  public castleToodleDialogueTimer: number = 0;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -172,6 +177,7 @@ export class GameEngine {
   // Cheat Mode State (Unlocked with "lula132026")
   public isCheatActive: boolean = false;
   public infiniteLives: boolean = false;
+  private customLevelTemplate: LevelData | null = null;
 
   private timeAccumulator: number = 0;
   private nextEntityId: number = 1;
@@ -198,7 +204,18 @@ export class GameEngine {
   }
 
   public loadLevel(newLevel: LevelData, showIntermission: boolean = false, isRespawn: boolean = false, notifyNetwork: boolean = true) {
-    this.level = newLevel;
+    let resolvedLevel = newLevel;
+    if (resolvedLevel.isCustom) {
+      if (!isRespawn) {
+        this.customLevelTemplate = cloneLevelData(resolvedLevel);
+        resolvedLevel = cloneLevelData(resolvedLevel);
+      } else if (this.customLevelTemplate) {
+        resolvedLevel = cloneLevelData(this.customLevelTemplate);
+      }
+    } else if (!isRespawn) {
+      this.customLevelTemplate = null;
+    }
+    this.level = resolvedLevel;
     this.isStageClear = false;
     this.isGameOver = false;
     this.localStageCleared = false;
@@ -220,14 +237,20 @@ export class GameEngine {
     this.pipeClipLipX = null;
     this.bridgeCollapseQueue = [];
     this.bridgeCollapseTimer = 0;
+    this.castleToodleActive = false;
+    this.castleToodleX = 0;
+    this.castleToodleY = 0;
+    this.castleToodleDialogueTimer = 0;
     this.bossFireballs = [];
-    if (newLevel.endlessStage !== undefined) {
-      this.endlessStage = newLevel.endlessStage;
+    this.hammerProjectiles = [];
+    if (resolvedLevel.endlessStage !== undefined) {
+      this.endlessStage = resolvedLevel.endlessStage;
     } else if (
-      newLevel.id === 'world-1-1' ||
-      newLevel.id === 'world-1-2' ||
-      newLevel.id === 'world-2-2' ||
-      newLevel.id === 'world-1-4'
+      resolvedLevel.id === 'world-1-1' ||
+      resolvedLevel.id === 'world-1-2' ||
+      resolvedLevel.id === 'world-2-2' ||
+      resolvedLevel.id === 'world-1-4' ||
+      resolvedLevel.isCustom
     ) {
       this.endlessStage = 0;
     }
@@ -296,12 +319,12 @@ export class GameEngine {
         x: e.x,
         y: e.y,
         vx: EnemySpawnManager.getInitialVelocity(e.type, speedMult, -1),
-        vy: 0,
+        vy: e.type === 'paratroopa' ? -2.8 : 0,
         width: e.type === 'bowser' ? 24 : 16,
         height:
           e.type === 'bowser'
             ? 24
-            : e.type === 'koopa' || e.type === 'red_koopa' || e.type === 'paratroopa'
+            : e.type === 'koopa' || e.type === 'red_koopa' || e.type === 'paratroopa' || e.type === 'hammer_bro'
             ? 24
             : 16,
         alive: true,
@@ -314,7 +337,7 @@ export class GameEngine {
         hp: e.type === 'bowser' ? bowserHp : undefined,
         hitFlashTimer: 0,
         originX: e.x,
-        fireTimer: e.type === 'bowser' ? 50 : undefined,
+        fireTimer: e.type === 'bowser' ? 50 : e.type === 'hammer_bro' ? 42 : undefined,
       }));
 
     // Place standalone coins as items
@@ -514,9 +537,10 @@ export class GameEngine {
     // Update Items
     this.updateItems();
 
-    // Update Fireballs
+    // Update Fireballs & Enemy Projectiles
     this.updateFireballs();
     this.updateBossFireballs();
+    this.updateHammerProjectiles();
 
     // Update Particles
     this.particleSystem.update();
@@ -659,8 +683,16 @@ export class GameEngine {
         this.marioAnimFrame = (this.marioAnimFrame + 1) % 3;
       }
 
-      // Enter castle door
-      if (this.marioX >= this.level.castleX) {
+      // Enter castle door (or stop face-to-face in front of Toodle on castle stages)
+      const targetStopX =
+        this.castleToodleActive && this.level.theme === 'castle'
+          ? this.castleToodleX - 24
+          : this.level.castleX;
+      if (this.marioX >= targetStopX) {
+        if (this.castleToodleActive && this.level.theme === 'castle') {
+          this.marioX = targetStopX;
+        }
+        this.marioVx = 0;
         this.finishStage();
       }
       return;
@@ -668,6 +700,10 @@ export class GameEngine {
 
     // 7. Castle entered & stage clear time tally countdown sequence
     if (this.marioState === 'castle_entered') {
+      if (this.castleToodleActive) {
+        this.castleToodleDialogueTimer++;
+      }
+
       if (this.localStageCleared) {
         this.handleStageClearReadyToAdvance();
         return;
@@ -693,18 +729,27 @@ export class GameEngine {
 
         // Establish post-countdown delay once time points reach 0
         if (this.stats.time === 0) {
-          this.stageClearDelayTimer = 90; // ~1.5 seconds post-tally delay to admire final score
+          this.stageClearDelayTimer = this.castleToodleActive ? 210 : 90; // ~3.5s on castle stages to read Toodle's dialogue
         }
         return;
       }
 
-      // If time was already 0 before entering castle, wait 60 frames once
+      // If time was already 0 before entering castle, wait once
       if (this.stageClearDelayTimer === 0) {
-        this.stageClearDelayTimer = 60;
+        this.stageClearDelayTimer = this.castleToodleActive ? 210 : 60;
         return;
       }
 
-      this.stageClearDelayTimer--;
+      const skipPressed =
+        this.castleToodleActive &&
+        this.castleToodleDialogueTimer > 75 &&
+        ((this.controls.jump && !this.prevControls.jump) || (this.controls.run && !this.prevControls.run));
+      if (skipPressed) {
+        this.stageClearDelayTimer = 0;
+      } else {
+        this.stageClearDelayTimer--;
+      }
+
       if (this.stageClearDelayTimer <= 0) {
         this.handleStageClearReadyToAdvance();
       }
@@ -1555,11 +1600,23 @@ export class GameEngine {
         return;
       }
 
-      // Walking & hopping enemy animation (Goomba, Koopa, Red Koopa, Paratroopa)
+      // Walking & hopping enemy animation (Goomba, Koopa, Red Koopa, Paratroopa, Hammer Bro)
       e.animTimer++;
-      const animRate = e.type === 'paratroopa' ? 6 : e.type === 'red_koopa' ? 7 : 10;
+      const animRate =
+        e.type === 'paratroopa' ? 6 : e.type === 'red_koopa' ? 7 : e.type === 'hammer_bro' ? 8 : 10;
       if (e.animTimer % animRate === 0) {
         e.animFrame = (e.animFrame + 1) % 2;
+      }
+
+      if (e.type === 'hammer_bro') {
+        e.stateTimer++;
+        e.facing = this.marioX + 7 >= e.x + 8 ? 'right' : 'left';
+        const patrolCenter = e.originX ?? e.x;
+        if (e.x <= patrolCenter - 22 && e.vx < 0) {
+          e.vx = Math.abs(e.vx);
+        } else if (e.x >= patrolCenter + 22 && e.vx > 0) {
+          e.vx = -Math.abs(e.vx);
+        }
       }
 
       // Apply horizontal speed
@@ -1588,13 +1645,15 @@ export class GameEngine {
             e.x = (t.tileX + 1) * GameEngine.TILE_SIZE;
           }
           e.vx = -e.vx;
-          e.facing = e.vx > 0 ? 'right' : 'left';
+          if (e.type !== 'hammer_bro') {
+            e.facing = e.vx > 0 ? 'right' : 'left';
+          }
           break;
         }
       }
 
-      // Apply Gravity (Paratroopas glide with slightly lighter gravity)
-      const enemyGravity = e.type === 'paratroopa' ? 0.24 : 0.35;
+      // Apply Gravity (Paratroopas glide in high bouncing arcs; Hammer Bros hop cleanly)
+      const enemyGravity = e.type === 'paratroopa' ? 0.21 : e.type === 'hammer_bro' ? 0.30 : 0.35;
       e.vy += enemyGravity;
       if (e.vy > 6.0) e.vy = 6.0;
       e.y += e.vy;
@@ -1608,8 +1667,8 @@ export class GameEngine {
           if (e.vy > 0) {
             e.y = t.tileY * GameEngine.TILE_SIZE - e.height;
             if (e.type === 'paratroopa') {
-              // Winged Paratroopa rebounds upward rhythmically
-              e.vy = -4.5;
+              // Winged Paratroopa rebounds upward rhythmically in a bouncing arc
+              e.vy = -4.6;
             } else {
               e.vy = 0;
               enemyGrounded = true;
@@ -1619,6 +1678,36 @@ export class GameEngine {
             e.y = (t.tileY + 1) * GameEngine.TILE_SIZE;
             e.vy = 0;
             break;
+          }
+        }
+      }
+
+      // Hammer Brother hops & throws spinning hammers in high arcs toward the player
+      if (e.type === 'hammer_bro' && e.state === 'walk') {
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        const hopInterval = Math.max(75, Math.round(135 / Math.sqrt(speedMult)));
+        if (enemyGrounded && e.stateTimer % hopInterval === 0) {
+          e.vy = -5.2;
+        }
+
+        if (e.fireTimer === undefined) {
+          e.fireTimer = 42;
+        }
+        e.fireTimer--;
+        if (e.fireTimer <= 0) {
+          e.fireTimer = Math.max(46, Math.round((76 + Math.random() * 28) / Math.sqrt(speedMult)));
+          if (Math.abs(this.marioX - e.x) < 220 && e.y < GameEngine.NES_HEIGHT - 16) {
+            const throwDir = this.marioX + 7 >= e.x + 8 ? 1 : -1;
+            const distFactor = Math.min(1.0, Math.abs(this.marioX - e.x) / 140);
+            this.sound.playKick();
+            this.hammerProjectiles.push({
+              id: this.nextEntityId++,
+              x: throwDir > 0 ? e.x + 10 : e.x - 6,
+              y: e.y - 4,
+              vx: throwDir * (1.15 + distFactor * 0.85 + Math.random() * 0.25),
+              vy: -4.8 - Math.random() * 0.8,
+              animTimer: 0,
+            });
           }
         }
       }
@@ -1665,7 +1754,7 @@ export class GameEngine {
             }
           }
         });
-      } else if (e.state === 'walk' && e.type !== 'paratroopa') {
+      } else if (e.state === 'walk' && e.type !== 'paratroopa' && e.type !== 'hammer_bro') {
         // Walking Goombas & Koopas bump and reverse direction on contact with each other or idle shells
         for (const other of this.enemies) {
           if (
@@ -1677,7 +1766,8 @@ export class GameEngine {
             other.type === 'cheep_cheep' ||
             other.type === 'fast_cheep' ||
             other.type === 'bullet_bill' ||
-            other.type === 'paratroopa'
+            other.type === 'paratroopa' ||
+            other.type === 'hammer_bro'
           ) {
             continue;
           }
@@ -1824,6 +1914,17 @@ export class GameEngine {
         this.marioVy = -6.0;
         this.spawnEnemyDefeatParticles(e.x, e.y, 'paratroopa');
         this.awardStompCombo(e.x, e.y);
+      } else if (e.type === 'hammer_bro') {
+        // Stomping a Hammer Brother defeats it for high points (1000+ pts)
+        e.alive = false;
+        e.state = 'flipped';
+        e.vy = -5.0;
+        e.vx = 0;
+        this.sound.playStomp();
+        this.marioVy = -6.0;
+        this.triggerLargeEnemyImpactShake(e);
+        this.spawnEnemyDefeatParticles(e.x, e.y, 'hammer_bro');
+        this.awardStompCombo(e.x, e.y, 5);
       } else if (e.type === 'koopa' || e.type === 'red_koopa') {
         if (e.state === 'walk') {
           // Retreat into shell (large 24px enemy stomp impact)
@@ -2285,6 +2386,45 @@ export class GameEngine {
     );
   }
 
+  private updateHammerProjectiles() {
+    if (this.hammerProjectiles.length === 0) return;
+    const canHitMario =
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting' &&
+      this.marioState !== 'pole_slide' &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered';
+    const marioBox = this.getMarioHitbox();
+
+    this.hammerProjectiles.forEach(h => {
+      h.x += h.vx;
+      h.vy += 0.21;
+      if (h.vy > 5.8) h.vy = 5.8;
+      h.y += h.vy;
+      h.animTimer++;
+
+      if (canHitMario) {
+        const hammerBox: Rect = { x: h.x + 2, y: h.y + 2, width: 8, height: 8 };
+        if (this.rectsIntersect(marioBox, hammerBox)) {
+          if (this.marioStarTimer <= 0) {
+            this.damageMario();
+          } else {
+            this.spawnEnemyDefeatParticles(h.x, h.y);
+            h.y = GameEngine.NES_HEIGHT + 64;
+          }
+        }
+      }
+    });
+
+    this.hammerProjectiles = this.hammerProjectiles.filter(
+      h =>
+        h.y <= GameEngine.NES_HEIGHT + 24 &&
+        h.x > this.cameraX - 64 &&
+        h.x < this.cameraX + GameEngine.NES_WIDTH + 64
+    );
+  }
+
   private triggerCastleAxeClear(axeTX: number, axeTY: number) {
     this.level.tiles[axeTY][axeTX] = null;
     this.bossFireballs = [];
@@ -2305,6 +2445,13 @@ export class GameEngine {
     }
     this.bridgeCollapseQueue = bridgeTiles;
     this.bridgeCollapseTimer = 0;
+
+    // Reveal Toodle waiting in the castle victory chamber
+    this.castleToodleActive = true;
+    this.castleToodleX = Math.max(axeTX * GameEngine.TILE_SIZE + 44, this.level.castleX - 20);
+    this.castleToodleY = 13 * GameEngine.TILE_SIZE - 24;
+    this.castleToodleDialogueTimer = 0;
+    this.particleSystem.emitPowerUpSparkles(this.castleToodleX, this.castleToodleY - 8);
 
     // Drop Bowser into the lava
     this.enemies.forEach(e => {
@@ -2444,6 +2591,107 @@ export class GameEngine {
       maxLife: 35,
       vy: -1.2,
     });
+  }
+
+  public teleportToStageEnd(): boolean {
+    if (
+      this.isStageClear ||
+      this.marioState === 'dead' ||
+      this.marioState === 'pole_slide' ||
+      this.marioState === 'castle_walk' ||
+      this.marioState === 'castle_entered'
+    ) {
+      return false;
+    }
+
+    const marioHeight = this.getMarioHeight();
+    const findSafeFloorY = (tx: number): number | null => {
+      if (tx < 0 || tx >= this.level.width) return null;
+      for (let ty = 2; ty < this.level.height; ty++) {
+        const tile = this.level.tiles[ty]?.[tx];
+        if (!tile || tile.type === 'lava' || tile.type === 'axe' || !this.isSolidTile(tile.type)) {
+          continue;
+        }
+        const above1 = this.level.tiles[ty - 1]?.[tx];
+        const above2 = this.level.tiles[ty - 2]?.[tx];
+        const clearAbove =
+          (!above1 || !this.isSolidTile(above1.type)) &&
+          (!above2 || !this.isSolidTile(above2.type));
+        if (clearAbove) {
+          return ty * GameEngine.TILE_SIZE - marioHeight;
+        }
+      }
+      return null;
+    };
+
+    let targetTX = Math.max(2, this.level.width - 20);
+    if (this.level.id === 'secret-vault') {
+      targetTX = 17;
+    } else if (this.level.theme === 'castle') {
+      let axeTX = this.level.width - 12;
+      for (let tx = 0; tx < this.level.width; tx++) {
+        for (let ty = 0; ty < this.level.height; ty++) {
+          if (this.level.tiles[ty]?.[tx]?.type === 'axe') {
+            axeTX = tx;
+            break;
+          }
+        }
+      }
+      targetTX = Math.max(2, axeTX - 2);
+    } else if (this.level.flagX > 0 && this.level.flagX < 99000) {
+      const flagTX = Math.floor(this.level.flagX / GameEngine.TILE_SIZE);
+      targetTX = Math.max(2, flagTX - 3);
+    } else if (this.level.pipeWarps && this.level.pipeWarps.length > 0) {
+      targetTX = Math.max(2, Math.floor(this.level.pipeWarps[0].from.x / GameEngine.TILE_SIZE) - 2);
+    }
+
+    let safeY = findSafeFloorY(targetTX);
+    if (safeY === null) {
+      for (let delta = 1; delta <= 8; delta++) {
+        const leftTry = findSafeFloorY(targetTX - delta);
+        if (leftTry !== null) {
+          targetTX -= delta;
+          safeY = leftTry;
+          break;
+        }
+        const rightTry = findSafeFloorY(targetTX + delta);
+        if (rightTry !== null) {
+          targetTX += delta;
+          safeY = rightTry;
+          break;
+        }
+      }
+    }
+
+    this.warpTimer = 0;
+    this.warpTarget = null;
+    this.pipeClipLipY = null;
+    this.pipeClipLipX = null;
+    this.isStatue = false;
+    this.tailWhipTimer = 0;
+    this.bossFireballs = [];
+    this.hammerProjectiles = [];
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.marioGrounded = true;
+    this.marioState = 'idle';
+    this.marioFacing = 'right';
+    this.marioInvulnerableTimer = Math.max(this.marioInvulnerableTimer, 60);
+    this.marioX = targetTX * GameEngine.TILE_SIZE;
+    this.marioY = safeY ?? (13 * GameEngine.TILE_SIZE - marioHeight);
+
+    const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
+    this.camera.centerOn(this.marioX, levelWidthPx);
+    this.cameraX = this.camera.x;
+
+    this.sound.playPowerUpEat();
+    this.spawnPowerUpSparkles(this.marioX, this.marioY);
+    this.particleSystem.emitScoreText('FINAL DA FASE!', this.marioX - 24, this.marioY - 18, {
+      maxLife: 50,
+      vy: -1.0,
+      color: '#fce078',
+    });
+    return true;
   }
 
   // --- BLOCK BUMP ANIMATION ---
@@ -2631,11 +2879,20 @@ export class GameEngine {
       height: 24,
     };
 
-    if (isCape && this.bossFireballs.length > 0) {
+    if (isCape && (this.bossFireballs.length > 0 || this.hammerProjectiles.length > 0)) {
       this.bossFireballs = this.bossFireballs.filter(bf => {
         const bfBox: Rect = { x: bf.x, y: bf.y, width: 12, height: 8 };
         if (this.rectsIntersect(whipBox, bfBox)) {
           this.spawnEnemyDefeatParticles(bf.x, bf.y);
+          this.sound.playKick();
+          return false;
+        }
+        return true;
+      });
+      this.hammerProjectiles = this.hammerProjectiles.filter(h => {
+        const hBox: Rect = { x: h.x, y: h.y, width: 12, height: 12 };
+        if (this.rectsIntersect(whipBox, hBox)) {
+          this.spawnEnemyDefeatParticles(h.x, h.y);
           this.sound.playKick();
           return false;
         }
@@ -2876,6 +3133,10 @@ export class GameEngine {
   }
 
   public advanceToNextLevel() {
+    if (this.level.isCustom && this.customLevelTemplate) {
+      this.loadLevel(cloneLevelData(this.customLevelTemplate), true, false);
+      return;
+    }
     if (this.level.id === 'world-1-1') {
       this.loadLevel(createWorld1_2(), true, false);
     } else if (this.level.id === 'world-1-2') {
@@ -2946,7 +3207,53 @@ export class GameEngine {
     this.onMultiplayerSyncNeeded?.();
   }
 
+  public playCustomLevel(customLevel: LevelData) {
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
+    this.activeCheckpoint = null;
+    this.activatedCheckpointIndices.clear();
+
+    const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+    const topScore = getTopScore();
+    this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.runInitialHighScore = topScore;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.lastSavedRank = null;
+
+    this.stats = {
+      score: 0,
+      coins: 0,
+      world: customLevel.name || 'CUSTOM',
+      time: customLevel.timeLimit || 400,
+      lives: this.infiniteLives ? 99 : initialLives,
+      highScore: topScore,
+      difficulty: this.difficulty,
+      isNewHighScore: false,
+    };
+
+    this.isPaused = false;
+    this.isGameStarted = true;
+    this.endlessStage = 0;
+    this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
+    this.marioStarTimer = 0;
+    const prepared: LevelData = { ...cloneLevelData(customLevel), isCustom: true };
+    this.loadLevel(prepared, true, false);
+  }
+
   public restartGame() {
+    if (this.level?.isCustom && this.customLevelTemplate) {
+      this.playCustomLevel(this.customLevelTemplate);
+      return;
+    }
+
     this.isMultiplayerMatchOver = false;
     this.multiplayerMatchResult = null;
     this.localStageCleared = false;
@@ -3160,15 +3467,19 @@ export class GameEngine {
     // 8. Remote Players (Multiplayer by IP)
     this.renderRemotePlayers(ctx);
 
-    // 9. Mario / WazzimaGiygg (Local Player)
+    // 9. Toodle (Castle Victory Chamber)
+    this.renderCastleToodle(ctx);
+
+    // 10. Mario / WazzimaGiygg (Local Player)
     this.renderMario(ctx);
 
-    // 10. Particles & Floating Scores
+    // 11. Particles & Floating Scores
     this.particleSystem.render(ctx, camX, GameEngine.NES_WIDTH, this.atlas);
 
     ctx.restore();
 
-    // 11. In-Canvas Pixel HUD (Stationary, rendered above screen shake)
+    // 12. Toodle Castle Dialogue Overlay + In-Canvas Pixel HUD
+    this.renderCastleToodleDialogue(ctx);
     this.renderInCanvasHUD(ctx);
   }
 
@@ -3537,6 +3848,20 @@ export class GameEngine {
         } else {
           ctx.drawImage(frame, ex, e.y);
         }
+      } else if (e.type === 'hammer_bro') {
+        const isWindingUp = e.fireTimer !== undefined && e.fireTimer <= 16;
+        const frame = isWindingUp
+          ? this.atlas.hammerBroThrow
+          : e.animFrame === 0
+          ? this.atlas.hammerBroWalk1
+          : this.atlas.hammerBroWalk2;
+        if (e.facing === 'right') {
+          ctx.translate(ex + 16, e.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(frame, 0, 0);
+        } else {
+          ctx.drawImage(frame, ex, e.y);
+        }
       } else if (e.type === 'piranha') {
         // Only render if protruding outside the pipe
         if (e.pipeOriginY === undefined || e.y < e.pipeOriginY - 2) {
@@ -3629,11 +3954,130 @@ export class GameEngine {
       }
       ctx.restore();
     });
+
+    this.hammerProjectiles.forEach(h => {
+      const hx = Math.round(h.x - camX);
+      const hy = Math.round(h.y);
+      if (hx < -16 || hx > GameEngine.NES_WIDTH + 16 || hy > GameEngine.NES_HEIGHT + 16) return;
+      const hFrame = Math.floor(h.animTimer / 3) % this.atlas.hammerFrames.length;
+      const sprite = this.atlas.hammerFrames[hFrame];
+      ctx.save();
+      if (h.vx > 0) {
+        ctx.translate(hx + 12, hy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(sprite, 0, 0);
+      } else {
+        ctx.drawImage(sprite, hx, hy);
+      }
+      ctx.restore();
+    });
+  }
+
+  private renderCastleToodle(ctx: CanvasRenderingContext2D) {
+    if (!this.castleToodleActive) return;
+
+    const tx = Math.round(this.castleToodleX - this.camera.renderX);
+    if (tx < -24 || tx > GameEngine.NES_WIDTH + 24) return;
+
+    const isTalking = this.marioState === 'castle_entered';
+    const cheerStep = isTalking ? Math.floor(this.castleToodleDialogueTimer / 14) % 2 : 0;
+    const bounceY = cheerStep === 1 ? -2 : 0;
+    const ty = Math.round(this.castleToodleY + bounceY);
+
+    const sprite = cheerStep === 1 ? this.atlas.toodleHappySprite : this.atlas.toodleSprite;
+    ctx.drawImage(sprite, tx, ty);
+  }
+
+  private renderCastleToodleDialogue(ctx: CanvasRenderingContext2D) {
+    if (!this.castleToodleActive || this.marioState !== 'castle_entered') return;
+
+    const boxX = 10;
+    const boxY = 64;
+    const boxW = GameEngine.NES_WIDTH - 20; // 236px
+    const boxH = 58;
+
+    const toodleScreenX = Math.round(this.castleToodleX - this.camera.renderX) + 8;
+    const pointerX = Math.max(boxX + 16, Math.min(boxX + boxW - 24, toodleScreenX));
+
+    ctx.save();
+
+    // Classic NES double-bordered dialogue panel
+    ctx.fillStyle = 'rgba(8, 8, 22, 0.94)';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+
+    // Outer white pixel frame
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
+
+    // Inner crimson NES accent frame
+    ctx.strokeStyle = '#d82800';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 3, boxY + 3, boxW - 6, boxH - 6);
+
+    // Speech tail pointing toward Toodle
+    ctx.fillStyle = 'rgba(8, 8, 22, 0.94)';
+    ctx.beginPath();
+    ctx.moveTo(pointerX - 6, boxY + boxH - 1);
+    ctx.lineTo(pointerX + 6, boxY + boxH - 1);
+    ctx.lineTo(pointerX, boxY + boxH + 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pointerX - 6, boxY + boxH);
+    ctx.lineTo(pointerX, boxY + boxH + 8);
+    ctx.lineTo(pointerX + 6, boxY + boxH);
+    ctx.stroke();
+
+    // Speaker badge: TOODLE
+    ctx.fillStyle = '#d82800';
+    ctx.fillRect(boxX + 10, boxY - 6, 54, 11);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 10, boxY - 6, 54, 11);
+    ctx.font = '7px "Press Start 2P", monospace';
+    ctx.fillStyle = '#fce078';
+    ctx.textAlign = 'left';
+    ctx.fillText('TOODLE', boxX + 16, boxY + 2);
+
+    // Typewriter dialogue lines
+    const heroName = this.playerCharacter === 'wazzima' ? 'WAZZIMAGIYGG' : 'MARIO';
+    const line1 = `OBRIGADO, ${heroName}!`;
+    const line2 = 'MAS A NOSSA PRINCESA';
+    const line3 = 'ESTÁ EM OUTRO CASTELO!';
+    const fullChars = line1.length + line2.length + line3.length;
+    const revealedChars = Math.min(fullChars, Math.floor(this.castleToodleDialogueTimer * 1.6));
+
+    const vis1 = line1.slice(0, revealedChars);
+    const rem1 = Math.max(0, revealedChars - line1.length);
+    const vis2 = line2.slice(0, rem1);
+    const rem2 = Math.max(0, rem1 - line2.length);
+    const vis3 = line3.slice(0, rem2);
+
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    const centerX = GameEngine.NES_WIDTH / 2;
+
+    const drawTextLine = (text: string, y: number, color: string) => {
+      if (!text) return;
+      ctx.fillStyle = '#000000';
+      ctx.fillText(text, centerX + 1, y + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(text, centerX, y);
+    };
+
+    drawTextLine(vis1, boxY + 21, '#fce078');
+    drawTextLine(vis2, boxY + 35, '#ffffff');
+    drawTextLine(vis3, boxY + 49, '#ffffff');
+
+    ctx.restore();
   }
 
   private renderMario(ctx: CanvasRenderingContext2D) {
-    // Mario has entered the castle door - hidden from view inside
-    if (this.marioState === 'castle_entered') {
+    // Mario has entered the castle door - hidden from view inside (unless standing with Toodle in castle end)
+    if (this.marioState === 'castle_entered' && !this.castleToodleActive) {
       return;
     }
 

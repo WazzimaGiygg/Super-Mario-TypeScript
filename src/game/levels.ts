@@ -129,10 +129,11 @@ export function createWorld1_1(): LevelData {
   grid[9][78] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
   grid[9][79] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
-  // High brick platform (Tile 80-87, y=5)
+  // High brick platform (Tile 80-87, y=5) guarded by a Hammer Brother
   for (let bx = 80; bx <= 87; bx++) {
     grid[5][bx] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
+  enemies.push({ type: 'hammer_bro', x: 83 * 16, y: 5 * 16 - 24 });
 
   // Goombas patrolling under platform
   enemies.push({ type: 'goomba', x: 82 * 16, y: 12 * 16 });
@@ -153,7 +154,8 @@ export function createWorld1_1(): LevelData {
   grid[9][101] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
   grid[9][102] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
-  // Koopa Troopa patrolling at tile 107
+  // Bouncing Paratroopa & Koopa Troopa patrolling
+  enemies.push({ type: 'paratroopa', x: 105 * 16, y: 10 * 16 });
   enemies.push({ type: 'koopa', x: 107 * 16, y: 11 * 16 });
 
   // Question blocks at tile 109 & 112
@@ -198,15 +200,17 @@ export function createWorld1_1(): LevelData {
   // 7. Pipe exit from underground (Tile 163)
   placePipe(grid, 163, 12, 2);
 
-  // Brick platforms with Goombas
+  // Brick platforms with Goombas & Hammer Brother
   grid[9][168] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][169] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][170] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
   grid[9][171] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'hammer_bro', x: 169 * 16 + 8, y: 9 * 16 - 24 });
   enemies.push({ type: 'goomba', x: 174 * 16, y: 12 * 16 });
   enemies.push({ type: 'goomba', x: 176 * 16, y: 12 * 16 });
 
-  // Koopa at 178
+  // Paratroopa & Koopa before final staircase
+  enemies.push({ type: 'paratroopa', x: 159 * 16, y: 10 * 16 });
   enemies.push({ type: 'koopa', x: 178 * 16, y: 11 * 16 });
 
   // Authentic NES Hidden Coin Block before the final staircase (Tile 179, y=9)
@@ -387,6 +391,10 @@ export function createWorld1_2(): LevelData {
 
   // Hidden Starman Block at tile 85, y=9
   grid[9][85] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0, invisible: true };
+
+  // Underground Paratroopa & Hammer Brother guarding the exit passage
+  enemies.push({ type: 'paratroopa', x: 96 * 16, y: 10 * 16 });
+  enemies.push({ type: 'hammer_bro', x: 118 * 16, y: 13 * 16 - 24 });
 
   // Underground exit pipe (Tile 145, 4 tiles high)
   placePipe(grid, 145, 12, 4, true);
@@ -758,10 +766,12 @@ export function createWorld1_4(): LevelData {
   grid[5][104] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
   grid[8][118] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'goomba', x: 95 * 16, y: 12 * 16 });
+  enemies.push({ type: 'paratroopa', x: 99 * 16, y: 10 * 16 });
   enemies.push({ type: 'koopa', x: 102 * 16, y: 11 * 16 + 8 });
   enemies.push({ type: 'goomba', x: 113 * 16, y: 12 * 16 });
   enemies.push({ type: 'goomba', x: 116 * 16, y: 12 * 16 });
-  enemies.push({ type: 'koopa', x: 122 * 16, y: 11 * 16 + 8 });
+  enemies.push({ type: 'hammer_bro', x: 120 * 16, y: 13 * 16 - 24 });
+  enemies.push({ type: 'koopa', x: 124 * 16, y: 11 * 16 + 8 });
 
   // Step up onto Bowser's bridge (129..131)
   grid[12][129] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
@@ -1409,4 +1419,120 @@ export function createEndlessLevel(
     ],
   };
 }
+
+export function cloneLevelData(level: LevelData): LevelData {
+  return {
+    ...level,
+    tiles: level.tiles.map(row => row.map(tile => (tile ? { ...tile } : null))),
+    enemies: level.enemies.map(e => ({ ...e })),
+    coins: level.coins.map(c => ({ ...c })),
+    marioStart: { ...level.marioStart },
+    checkpoints: level.checkpoints
+      ? level.checkpoints.map(cp => ({ x: cp.x, respawnPos: { ...cp.respawnPos } }))
+      : undefined,
+    pipeWarps: level.pipeWarps
+      ? level.pipeWarps.map(pw => ({
+          ...pw,
+          from: { ...pw.from },
+          toPos: { ...pw.toPos },
+        }))
+      : undefined,
+  };
+}
+
+export function createBlankCustomLevel(
+  name: string = 'MINHA FASE 1',
+  theme: LevelData['theme'] = 'overworld',
+  widthTiles: number = 100,
+  id?: string
+): LevelData {
+  const width = Math.max(40, Math.min(240, Math.floor(widthTiles)));
+  const height = 15;
+  const grid = createEmptyGrid(width, height);
+  const groundType: TileType =
+    theme === 'underground'
+      ? 'underground_ground'
+      : theme === 'underwater'
+      ? 'sea_ground'
+      : theme === 'castle'
+      ? 'castle_stone'
+      : 'ground';
+
+  const ceilingType: TileType =
+    theme === 'castle' ? 'castle_stone' : 'underground_brick';
+
+  for (let x = 0; x < width; x++) {
+    grid[13][x] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[14][x] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    if (theme === 'underground' || theme === 'castle') {
+      grid[0][x] = { type: ceilingType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[1][x] = { type: ceilingType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+
+  const bgColor =
+    theme === 'overworld'
+      ? '#5c94fc'
+      : theme === 'underground'
+      ? '#000000'
+      : theme === 'underwater'
+      ? '#1840b8'
+      : '#140406';
+
+  let flagX = (width - 12) * 16;
+  let castleX = (width - 7) * 16;
+
+  if (theme === 'castle') {
+    const axeTile = width - 12;
+    for (let bx = Math.max(10, axeTile - 10); bx < axeTile; bx++) {
+      grid[12][bx] = { type: 'bridge', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[13][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[12][axeTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[11][axeTile] = { type: 'axe', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    flagX = 999999;
+    castleX = (width - 4) * 16;
+  } else {
+    const flagTile = width - 12;
+    grid[12][flagTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let y = 3; y <= 11; y++) {
+      grid[y][flagTile] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[2][flagTile] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    const cStart = width - 9;
+    for (let cx = cStart; cx <= Math.min(width - 2, cStart + 4); cx++) {
+      for (let cy = 8; cy <= 12; cy++) {
+        grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (cx % 2 === 0) {
+        grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[11][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    flagX = flagTile * 16;
+    castleX = (cStart + 2) * 16;
+  }
+
+  return {
+    id: id || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: name.toUpperCase().slice(0, 16) || 'CUSTOM',
+    theme,
+    biomeLabel: 'FASE DO JOGADOR',
+    width,
+    height,
+    tiles: grid,
+    enemies: [],
+    coins: [],
+    marioStart: { x: 48, y: theme === 'underwater' ? 144 : 192 },
+    flagX,
+    castleX,
+    bgColor,
+    timeLimit: 400,
+    isCustom: true,
+  };
+}
+
 

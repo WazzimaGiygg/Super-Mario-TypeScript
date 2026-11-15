@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2 } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -29,6 +29,7 @@ interface SettingsModalProps {
   onToggleFullscreen?: () => void;
   touchOverlayOnCanvas?: boolean;
   onToggleTouchOverlay?: () => void;
+  onOpenLevelEditor?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -52,6 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleFullscreen,
   touchOverlayOnCanvas = true,
   onToggleTouchOverlay,
+  onOpenLevelEditor,
 }) => {
   if (!isOpen) return null;
 
@@ -158,6 +160,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="text-[10px] text-stone-400">1 Overworld → 2 Caverna → 3 Água → 4 Castelo</span>
               </button>
             </div>
+            {onOpenLevelEditor && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenLevelEditor();
+                }}
+                className="mt-2.5 w-full px-3 py-2.5 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-500/60 hover:border-sky-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Hammer className="w-4 h-4 text-sky-400 shrink-0" />
+                  <div>
+                    <span className="block font-bold text-sky-300">Editor de Fases</span>
+                    <span className="text-[10px] text-sky-200/75">Crie e edite suas próprias fases na memória temporária</span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-['Press_Start_2P',monospace] text-sky-300">ABRIR</span>
+              </button>
+            )}
           </div>
 
           {/* Audio Controls */}
