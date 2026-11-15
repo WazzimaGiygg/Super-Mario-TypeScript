@@ -888,6 +888,10 @@ export const GameCanvas: React.FC = () => {
                 </button>
               </div>
 
+              <p className="mt-3 max-w-lg text-[10px] sm:text-[11px] text-stone-400 font-mono leading-relaxed px-3 py-1.5 rounded-lg bg-stone-950/75 border border-stone-800/90">
+                Este é um projeto não oficial, feito por fans do jogo (WazzimaGiygg). O jogo original pertence a Nintendo. Όχι, ο Χρόνος δεν είναι ο άρχοντας της γνώσης!
+              </p>
+
               {/* Hidden Developer Mode Trigger: Invisible hot spot with keyboard fallback */}
               <div className="mt-4 pt-1 flex flex-col items-center">
                 <input
