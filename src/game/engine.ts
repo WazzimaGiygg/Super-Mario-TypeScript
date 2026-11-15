@@ -86,6 +86,9 @@ export class GameEngine {
   public marioGrowthTimer: number = 0;
   public marioShrinkTimer: number = 0;
   public marioDeathTimer: number = 0;
+  private stompComboCount: number = 0;
+  private static readonly STOMP_COMBO_SCORES = [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000, 8000] as const;
+  private static readonly SHELL_STREAK_SCORES = [500, 800, 1000, 2000, 4000, 5000, 8000] as const;
 
   // Tanooki Suit State
   public tailWhipTimer: number = 0;
@@ -258,6 +261,7 @@ export class GameEngine {
     this.marioVx = 0;
     this.marioVy = 0;
     this.marioGrounded = false;
+    this.stompComboCount = 0;
     this.marioState = 'idle';
     this.marioFacing = 'right';
     this.marioInvulnerableTimer = isRespawn ? 40 : 0;
@@ -1033,6 +1037,7 @@ export class GameEngine {
           this.marioY = t.tileY * GameEngine.TILE_SIZE - height;
           this.marioVy = 0;
           this.marioGrounded = true;
+          this.stompComboCount = 0;
 
           // Heavy Landing Screen-Shake: triggers when falling from high drops (impactVy >= 5.5) or slamming down as Tanooki Statue
           if (impactVy >= 5.5 || this.isStatue) {
@@ -1641,7 +1646,7 @@ export class GameEngine {
 
       // Ground enemy-to-enemy interactions
       if (e.state === 'shell_moving') {
-        // Moving shell kills other enemies with impact screen-shake
+        // Moving shell kills other enemies with impact screen-shake & classic escalating combo
         const shellBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
         this.enemies.forEach(other => {
           if (other.id !== e.id && other.alive && this.rectsIntersect(shellBox, { x: other.x, y: other.y, width: other.width, height: other.height })) {
@@ -1651,7 +1656,13 @@ export class GameEngine {
             this.sound.playKick();
             this.triggerScreenShake(3.0, 7);
             this.spawnEnemyDefeatParticles(other.x, other.y, other.type);
-            this.addScore(200, other.x, other.y);
+            const streak = e.shellKillStreak ?? 0;
+            e.shellKillStreak = streak + 1;
+            if (streak < GameEngine.SHELL_STREAK_SCORES.length) {
+              this.addScore(GameEngine.SHELL_STREAK_SCORES[streak], other.x, other.y);
+            } else {
+              this.awardExtraLife(other.x, other.y);
+            }
           }
         });
       } else if (e.state === 'walk' && e.type !== 'paratroopa') {
@@ -1724,7 +1735,10 @@ export class GameEngine {
         if (this.rectsIntersect(currentMarioBox, enemyHitbox)) {
           // Is Mario jumping/falling down on top of enemy?
           const prevMarioBottom = currentMarioBox.y + currentMarioBox.height - this.marioVy;
-          const isStomp = this.marioVy > 0 && prevMarioBottom <= e.y + 8;
+          const isShell =
+            (e.type === 'koopa' || e.type === 'red_koopa') &&
+            (e.state === 'shell_idle' || e.state === 'shell_moving');
+          const isStomp = this.marioVy > 0 && prevMarioBottom <= e.y + (isShell ? 12 : 9);
           this.marioHitEnemy(e, isStomp);
         }
       }
@@ -1734,6 +1748,31 @@ export class GameEngine {
     this.enemies = this.enemies.filter(
       e => (e.state !== 'squashed' || e.stateTimer < 30) && (e.state !== 'flipped' || e.y <= GameEngine.NES_HEIGHT + 48)
     );
+  }
+
+  private awardExtraLife(x: number, y: number) {
+    this.stats.lives++;
+    this.sound.play1Up();
+    const isFemboy = this.marioPower === 'femboy';
+    const message = isFemboy ? 'Cumming' : 'Life UP';
+    this.particleSystem.emitScoreText(message, x - 8, y - 10, {
+      maxLife: 45,
+      vy: -1.0,
+      color: isFemboy ? '#ff70c8' : '#78f858',
+    });
+    if (isFemboy) {
+      this.spawnFemboyHeartParticle(x + 8, y - 4);
+    }
+  }
+
+  private awardStompCombo(x: number, y: number, minStep: number = 0) {
+    const step = Math.max(this.stompComboCount, minStep);
+    this.stompComboCount = step + 1;
+    if (step < GameEngine.STOMP_COMBO_SCORES.length) {
+      this.addScore(GameEngine.STOMP_COMBO_SCORES[step], x, y);
+    } else {
+      this.awardExtraLife(x, y);
+    }
   }
 
   private marioHitEnemy(e: Enemy, isStomp: boolean) {
@@ -1762,7 +1801,7 @@ export class GameEngine {
         this.marioVy = -6.0; // Stomp bounce
         this.triggerScreenShake(1.5, 4);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-        this.addScore(100, e.x, e.y);
+        this.awardStompCombo(e.x, e.y);
       } else if (e.type === 'bullet_bill') {
         e.alive = false;
         e.state = 'flipped';
@@ -1772,7 +1811,7 @@ export class GameEngine {
         this.marioVy = -6.2;
         this.triggerScreenShake(2.5, 7);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-        this.addScore(200, e.x, e.y);
+        this.awardStompCombo(e.x, e.y, 1);
       } else if (e.type === 'paratroopa') {
         // Stomping a Paratroopa knocks off its wings and turns it into a fast Red Koopa
         const speedMult = this.level.enemySpeedMultiplier ?? 1;
@@ -1784,7 +1823,7 @@ export class GameEngine {
         this.sound.playStomp();
         this.marioVy = -6.0;
         this.spawnEnemyDefeatParticles(e.x, e.y, 'paratroopa');
-        this.addScore(100, e.x, e.y);
+        this.awardStompCombo(e.x, e.y);
       } else if (e.type === 'koopa' || e.type === 'red_koopa') {
         if (e.state === 'walk') {
           // Retreat into shell (large 24px enemy stomp impact)
@@ -1792,35 +1831,43 @@ export class GameEngine {
           e.state = 'shell_idle';
           e.vx = 0;
           e.height = 16;
+          e.shellKillStreak = 0;
           this.sound.playStomp();
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
           this.marioVy = -6.0;
           this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-          this.addScore(100, e.x, e.y);
+          this.awardStompCombo(e.x, e.y);
         } else if (e.state === 'shell_moving') {
-          // Stop moving shell
+          // Stop moving shell & continue airborne bounce combo
           e.state = 'shell_idle';
           e.vx = 0;
+          e.shellKillStreak = 0;
           this.sound.playStomp();
-          this.marioVy = -6.0;
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
+          this.marioVy = -5.5;
           this.triggerScreenShake(2.8, 7);
           this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+          this.awardStompCombo(e.x, e.y);
         } else if (e.state === 'shell_idle') {
-          // Kick stationary shell
+          // Kick stationary shell from above & continue airborne bounce combo
           e.state = 'shell_moving';
-          e.vx = this.marioX < e.x ? 5.5 : -5.5;
+          e.shellKillStreak = 0;
+          e.vx = this.marioX + 7 < e.x + 8 ? 3.5 : -3.5;
           this.sound.playKick();
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
           this.marioVy = -5.0;
           this.triggerScreenShake(3.0, 7);
           this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-          this.addScore(400, e.x, e.y);
+          this.awardStompCombo(e.x, e.y);
         }
       }
     } else {
       // Hit from side
       if ((e.type === 'koopa' || e.type === 'red_koopa') && e.state === 'shell_idle') {
-        // Kick shell
+        // Kick shell horizontally
         e.state = 'shell_moving';
-        e.vx = this.marioX < e.x ? 5.5 : -5.5;
+        e.shellKillStreak = 0;
+        e.vx = this.marioX < e.x ? 4.8 : -4.8;
         this.sound.playKick();
         this.triggerScreenShake(3.0, 7);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
@@ -2489,6 +2536,7 @@ export class GameEngine {
 
         this.marioState = 'pipe_entering';
         this.isStatue = false;
+        this.stompComboCount = 0;
         this.marioVx = 0;
         this.marioVy = 0;
         this.warpTimer = 0;

@@ -348,6 +348,32 @@ export class SoundEngine {
     });
   }
 
+  public play1Up() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const notes = [N.E5, N.G5, N.E6, N.C6, N.D6, N.G6];
+    const duration = 0.065;
+    const now = this.ctx.currentTime;
+
+    notes.forEach((freq, idx) => {
+      const start = now + idx * duration;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, start);
+
+      gain.gain.setValueAtTime(0.32, start);
+      gain.gain.linearRampToValueAtTime(0.01, start + duration);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+
+      osc.start(start);
+      osc.stop(start + duration);
+    });
+  }
+
   public playPipe() {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;

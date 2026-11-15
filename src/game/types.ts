@@ -108,6 +108,7 @@ export interface Enemy {
   hitFlashTimer?: number;
   originX?: number;
   fireTimer?: number;
+  shellKillStreak?: number;
 }
 
 export interface Item {
