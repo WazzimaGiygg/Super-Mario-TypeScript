@@ -174,9 +174,10 @@ export class GameEngine {
   private hasTriggeredNewRecordBanner: boolean = false;
   public lastSavedRank: number | null = null;
 
-  // Cheat Mode State (Unlocked with "lula132026")
+  // Cheat Mode & Editor Immortality State
   public isCheatActive: boolean = false;
   public infiniteLives: boolean = false;
+  public isEditorImmortality: boolean = false;
   private customLevelTemplate: LevelData | null = null;
 
   private timeAccumulator: number = 0;
@@ -214,6 +215,8 @@ export class GameEngine {
       }
     } else if (!isRespawn) {
       this.customLevelTemplate = null;
+      this.isEditorImmortality = false;
+      this.infiniteLives = this.isCheatActive;
     }
     this.level = resolvedLevel;
     this.isStageClear = false;
@@ -469,7 +472,11 @@ export class GameEngine {
         if (this.stats.time > 0) {
           this.stats.time--;
           if (this.stats.time === 0) {
-            this.killMario();
+            if (this.isEditorImmortality) {
+              this.stats.time = this.level.timeLimit || 400;
+            } else {
+              this.killMario();
+            }
           }
         }
       }
@@ -964,6 +971,12 @@ export class GameEngine {
         return;
       }
       if (t.tile.type === 'lava') {
+        if (this.isEditorImmortality) {
+          this.marioVy = -6.5;
+          this.marioInvulnerableTimer = Math.max(this.marioInvulnerableTimer, 45);
+          this.sound.playPipe();
+          return;
+        }
         this.killMario(true);
         return;
       }
@@ -986,7 +999,18 @@ export class GameEngine {
 
     // Check Pit Fall Death (Abyss)
     if (this.marioY > GameEngine.NES_HEIGHT + 16) {
-      this.killMario(true);
+      if (this.isEditorImmortality) {
+        this.marioY = GameEngine.NES_HEIGHT - 18;
+        this.marioVy = -9.5;
+        this.marioInvulnerableTimer = Math.max(this.marioInvulnerableTimer, 60);
+        if (this.marioPower === 'small') {
+          this.sound.playJumpSmall();
+        } else {
+          this.sound.playJumpSuper();
+        }
+      } else {
+        this.killMario(true);
+      }
     }
   }
 
@@ -1998,6 +2022,17 @@ export class GameEngine {
     // Tanooki statue is completely immune to normal enemy damage
     if (this.isStatue) return;
 
+    // Editor immortality absorbs all enemy hits without shrinking or losing life
+    if (this.isEditorImmortality) {
+      this.marioInvulnerableTimer = 90;
+      this.sound.playPipe();
+      this.particleSystem.emitScoreText('IMORTAL', this.marioX, this.marioY - 12, {
+        maxLife: 30,
+        vy: -0.9,
+      });
+      return;
+    }
+
     if (this.marioPower === 'tanooki' || this.marioPower === 'femboy' || this.marioPower === 'cape') {
       // Tanooki, Femboy, and Cape power-ups downgrade to Super Mario on damage
       this.marioPower = 'super';
@@ -2488,7 +2523,7 @@ export class GameEngine {
   }
 
   private syncHighScore(persist: boolean = true) {
-    if (this.isCheatActive) return;
+    if (this.isCheatActive || this.level?.isCustom || this.customLevelTemplate) return;
     if (this.stats.score > this.stats.highScore) {
       this.stats.highScore = this.stats.score;
     }
@@ -2510,7 +2545,7 @@ export class GameEngine {
   }
 
   public persistRunScoreToRanking(customName?: string): number | null {
-    if (this.isCheatActive || this.stats.score <= 0) return null;
+    if (this.isCheatActive || this.level?.isCustom || this.customLevelTemplate || this.stats.score <= 0) return null;
     this.syncHighScore(true);
     const defaultName =
       customName?.trim() ||
@@ -3207,7 +3242,18 @@ export class GameEngine {
     this.onMultiplayerSyncNeeded?.();
   }
 
-  public playCustomLevel(customLevel: LevelData) {
+  public setEditorImmortality(enabled: boolean) {
+    this.isEditorImmortality = enabled;
+    this.infiniteLives = this.isCheatActive || enabled;
+    if (enabled) {
+      this.stats.lives = 99;
+    } else if (!this.isCheatActive) {
+      const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+      this.stats.lives = initialLives;
+    }
+  }
+
+  public playCustomLevel(customLevel: LevelData, immortality: boolean = false) {
     this.isMultiplayerMatchOver = false;
     this.multiplayerMatchResult = null;
     this.localStageCleared = false;
@@ -3219,6 +3265,9 @@ export class GameEngine {
     this.notifiedArrivedPlayerIds.clear();
     this.activeCheckpoint = null;
     this.activatedCheckpointIndices.clear();
+
+    this.isEditorImmortality = immortality;
+    this.infiniteLives = this.isCheatActive || immortality;
 
     const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
     const topScore = getTopScore();
@@ -3250,9 +3299,12 @@ export class GameEngine {
 
   public restartGame() {
     if (this.level?.isCustom && this.customLevelTemplate) {
-      this.playCustomLevel(this.customLevelTemplate);
+      this.playCustomLevel(this.customLevelTemplate, this.isEditorImmortality);
       return;
     }
+
+    this.isEditorImmortality = false;
+    this.infiniteLives = this.isCheatActive;
 
     this.isMultiplayerMatchOver = false;
     this.multiplayerMatchResult = null;
@@ -3297,6 +3349,8 @@ export class GameEngine {
 
   public exitToMainMenu() {
     this.customLevelTemplate = null;
+    this.isEditorImmortality = false;
+    this.infiniteLives = this.isCheatActive;
     this.isPaused = false;
     this.isGameStarted = false;
     this.isGameOver = false;
@@ -3568,7 +3622,7 @@ export class GameEngine {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.fillRect(133, 11, 10, 10);
     ctx.drawImage(this.atlas.marioSmallIdle, 132, 10, 10, 10);
-    const livesLabel = this.infiniteLives || this.stats.lives >= 99 ? 'x∞' : `x${this.stats.lives}`;
+    const livesLabel = this.infiniteLives || this.isEditorImmortality || this.stats.lives >= 99 ? 'x∞' : `x${this.stats.lives}`;
     const livesColor = this.stats.lives === 1 ? '#ff4444' : '#ffffff';
     drawShadowText(livesLabel, 144, 19, livesColor);
 

@@ -11,6 +11,7 @@ interface RetroHUDProps {
   stats: GameStats;
   onOpenLeaderboard?: () => void;
   isCheatActive?: boolean;
+  isCustomLevel?: boolean;
   isFemboy?: boolean;
   onOpenCheatMenu?: () => void;
   isFullscreen?: boolean;
@@ -21,6 +22,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   stats,
   onOpenLeaderboard,
   isCheatActive = false,
+  isCustomLevel = false,
   isFemboy = false,
   onOpenCheatMenu,
   isFullscreen = false,
@@ -100,12 +102,17 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
                 CHEAT USE
               </span>
             )}
+            {!isCheatActive && isCustomLevel && (
+              <span className="text-[8px] sm:text-[9px] text-sky-400 font-bold tracking-widest mt-0.5">
+                EDITOR
+              </span>
+            )}
           </div>
 
           {/* 2. Recorde / Top Score */}
           <div
             className={`hidden sm:flex flex-col items-center bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border transition-colors ${
-              stats.isNewHighScore && !isCheatActive
+              stats.isNewHighScore && !isCheatActive && !isCustomLevel
                 ? 'border-amber-400/80 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
                 : 'border-stone-800/80'
             }`}
@@ -113,7 +120,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             <div className="flex items-center gap-1 text-[9px] sm:text-[11px] text-amber-300 font-bold tracking-wider mb-0.5">
               <Trophy className="w-3 h-3 text-amber-400" />
               <span>RECORDE</span>
-              {stats.isNewHighScore && !isCheatActive && (
+              {stats.isNewHighScore && !isCheatActive && !isCustomLevel && (
                 <span className="text-[8px] text-emerald-400 animate-pulse">NOVO!</span>
               )}
             </div>
@@ -169,7 +176,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
             <span>REC:</span>
             <span className="font-mono text-amber-200 tracking-wider">{formattedHighScore}</span>
-            {stats.isNewHighScore && !isCheatActive && (
+            {stats.isNewHighScore && !isCheatActive && !isCustomLevel && (
               <span className="text-[8px] text-emerald-400 animate-pulse">NOVO!</span>
             )}
           </div>

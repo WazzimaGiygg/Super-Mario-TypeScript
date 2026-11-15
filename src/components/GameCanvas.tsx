@@ -16,7 +16,7 @@ import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
 import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -81,6 +81,8 @@ export const GameCanvas: React.FC = () => {
   const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
   const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
   const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
+  const [editorImmortality, setEditorImmortality] = useState(false);
+  const [isCustomLevelActive, setIsCustomLevelActive] = useState(false);
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
   const [multiplayerNotice, setMultiplayerNotice] = useState<MultiplayerLogoffEvent | null>(null);
 
@@ -465,6 +467,7 @@ export const GameCanvas: React.FC = () => {
           setLocalStageCleared(engine.localStageCleared);
           setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
           setMultiplayerMatchResult(engine.multiplayerMatchResult);
+          setIsCustomLevelActive(Boolean(engine.level?.isCustom));
         }
       }
 
@@ -529,26 +532,29 @@ export const GameCanvas: React.FC = () => {
   }, [hasStarted]);
 
   const handlePlayCustomLevel = useCallback(
-    (level: LevelData) => {
+    (level: LevelData, options?: { immortality?: boolean }) => {
       if (multiplayerStatus.connected) {
         setCheatToast('Saia da sala multiplayer para testar fases personalizadas!');
         setTimeout(() => setCheatToast(''), 3500);
         return;
       }
+      const immortal = options?.immortality ?? editorImmortality;
+      setEditorImmortality(immortal);
       SoundEngine.get().resume();
       setIsLevelEditorOpen(false);
       setIsSettingsOpen(false);
       setHasStarted(true);
+      setIsCustomLevelActive(true);
       if (engineRef.current) {
-        engineRef.current.playCustomLevel(level);
+        engineRef.current.playCustomLevel(level, immortal);
         setIsPaused(false);
         setIsGameOver(false);
         setIsStageClear(false);
-        setStats({ ...engineRef.current.stats, isNewHighScore: engineRef.current.isNewHighScore });
+        setStats({ ...engineRef.current.stats, isNewHighScore: false });
         setMarioPower(engineRef.current.marioPower);
       }
     },
-    [multiplayerStatus.connected]
+    [multiplayerStatus.connected, editorImmortality]
   );
 
   const handleReturnToMainMenu = useCallback(() => {
@@ -559,6 +565,7 @@ export const GameCanvas: React.FC = () => {
     setIsGameOver(false);
     setIsStageClear(false);
     setHasStarted(false);
+    setIsCustomLevelActive(false);
     if (engineRef.current) {
       engineRef.current.exitToMainMenu();
       setStats({ ...engineRef.current.stats, isNewHighScore: false });
@@ -693,6 +700,7 @@ export const GameCanvas: React.FC = () => {
         stats={stats}
         onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
         isCheatActive={isCheatActive}
+        isCustomLevel={isCustomLevelActive}
         isFemboy={marioPower === 'femboy'}
         onOpenCheatMenu={() => setIsCheatMenuOpen(true)}
         isFullscreen={isFullscreen}
@@ -950,6 +958,27 @@ export const GameCanvas: React.FC = () => {
                   <Hammer className="w-3.5 h-3.5 text-sky-400" />
                   EDITOR DE FASES
                 </button>
+                {isCustomLevelActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !editorImmortality;
+                      setEditorImmortality(next);
+                      engineRef.current?.setEditorImmortality(next);
+                      if (engineRef.current) {
+                        setStats({ ...engineRef.current.stats, isNewHighScore: false });
+                      }
+                    }}
+                    className={`px-4 py-2.5 rounded-lg border font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer ${
+                      editorImmortality
+                        ? 'bg-purple-900 hover:bg-purple-800 border-purple-400 text-purple-100'
+                        : 'bg-stone-800 hover:bg-stone-700 border-stone-600 text-stone-300'
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-purple-300" />
+                    IMORTAL: {editorImmortality ? 'ON' : 'OFF'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1101,7 +1130,7 @@ export const GameCanvas: React.FC = () => {
               <h2 className="font-['Press_Start_2P',monospace] text-3xl sm:text-5xl text-red-600 mb-3 tracking-widest drop-shadow-lg">
                 GAME OVER
               </h2>
-              {stats.isNewHighScore && !isCheatActive && (
+              {stats.isNewHighScore && !isCheatActive && !isCustomLevelActive && (
                 <div className="mb-3 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs animate-bounce flex items-center gap-1.5">
                   <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
                   <span>NOVO RECORDE LOCAL!</span>
@@ -1115,7 +1144,7 @@ export const GameCanvas: React.FC = () => {
               </p>
               <p className="text-stone-400 font-mono text-xs mb-5">
                 RECORDE MÁXIMO: <span className="text-amber-300 font-bold">{stats.highScore.toLocaleString()}</span>
-                {lastSavedRank !== null && !isCheatActive && (
+                {lastSavedRank !== null && !isCheatActive && !isCustomLevelActive && (
                   <span className="ml-2 px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold">
                     #{lastSavedRank} NO RANKING
                   </span>
@@ -1136,7 +1165,7 @@ export const GameCanvas: React.FC = () => {
                   className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/50 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Trophy className="w-4 h-4 text-amber-400" />
-                  {!isCheatActive && stats.score > 0 ? 'RANKING / NOME' : 'VER RANKING'}
+                  {!isCheatActive && !isCustomLevelActive && stats.score > 0 ? 'RANKING / NOME' : 'VER RANKING'}
                 </button>
               </div>
             </div>
@@ -1363,6 +1392,7 @@ export const GameCanvas: React.FC = () => {
         currentCharacter={engineRef.current?.playerCharacter || 'mario'}
         currentDifficulty={difficulty}
         isCheatActive={isCheatActive}
+        isCustomLevel={isCustomLevelActive}
         onScoresCleared={() => {
           engineRef.current?.resetLocalHighScore();
           setLastSavedRank(null);
@@ -1426,6 +1456,13 @@ export const GameCanvas: React.FC = () => {
         }}
         onPlayLevel={handlePlayCustomLevel}
         onBackToMainMenu={handleReturnToMainMenu}
+        editorImmortality={editorImmortality}
+        onToggleEditorImmortality={enabled => {
+          setEditorImmortality(enabled);
+          if (engineRef.current?.level?.isCustom) {
+            engineRef.current.setEditorImmortality(enabled);
+          }
+        }}
       />
 
       {/* Multiplayer Logoff / Room Inactivity Toast Notification */}

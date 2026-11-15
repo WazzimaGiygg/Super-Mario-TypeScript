@@ -25,6 +25,7 @@ interface LeaderboardModalProps {
   currentCharacter?: PlayerCharacter;
   currentDifficulty?: GameDifficulty;
   isCheatActive?: boolean;
+  isCustomLevel?: boolean;
   onScoresCleared?: () => void;
   onScoreSaved?: (rank: number | null) => void;
 }
@@ -39,6 +40,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   currentCharacter = 'mario',
   currentDifficulty = 'normal',
   isCheatActive = false,
+  isCustomLevel = false,
   onScoresCleared,
   onScoreSaved,
 }) => {
@@ -68,7 +70,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   const handleSaveCurrent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim() || isCheatActive || currentScore <= 0) return;
+    if (!playerName.trim() || isCheatActive || isCustomLevel || currentScore <= 0) return;
     const result = saveNewScore(currentScore, currentCoins, currentWorld, playerName.trim(), {
       id: currentRunId,
       character: currentCharacter,
@@ -141,7 +143,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           </div>
         </div>
 
-        {/* Cheat Use Warning: Cannot save record! */}
+        {/* Cheat / Custom Level Warning: Cannot save record! */}
         {isCheatActive ? (
           <div className="my-4 p-3.5 bg-red-950/80 border-2 border-red-600 rounded-lg text-center space-y-1.5 animate-in zoom-in-95">
             <span className="block font-['Press_Start_2P',monospace] text-xs text-red-400 animate-pulse tracking-wider">
@@ -152,6 +154,18 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             </p>
             <p className="text-[10px] text-amber-300 font-bold">
               Salvamento de novos recordes bloqueado!
+            </p>
+          </div>
+        ) : isCustomLevel ? (
+          <div className="my-4 p-3.5 bg-sky-950/80 border-2 border-sky-500 rounded-lg text-center space-y-1.5 animate-in zoom-in-95">
+            <span className="block font-['Press_Start_2P',monospace] text-xs text-sky-300 tracking-wider">
+              EDITOR DE FASES
+            </span>
+            <p className="text-[11px] text-sky-100">
+              Você está jogando uma fase criada no Editor de Fases.
+            </p>
+            <p className="text-[10px] text-amber-300 font-bold">
+              Fases do editor não registram recordes no ranking!
             </p>
           </div>
         ) : (

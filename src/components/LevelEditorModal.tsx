@@ -23,6 +23,8 @@ import {
   Sparkles,
   Download,
   Home,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react';
 import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
@@ -42,8 +44,10 @@ interface LevelEditorModalProps {
   customLevels: LevelData[];
   activeCustomLevelId: string | null;
   onUpdateCustomLevels: (levels: LevelData[], activeId: string | null) => void;
-  onPlayLevel: (level: LevelData) => void;
+  onPlayLevel: (level: LevelData, options?: { immortality?: boolean }) => void;
   onBackToMainMenu?: () => void;
+  editorImmortality?: boolean;
+  onToggleEditorImmortality?: (enabled: boolean) => void;
 }
 
 type EditorBrushKind =
@@ -116,6 +120,22 @@ const ITEM_CONTENT_OPTIONS: { value: ItemContent; label: string }[] = [
   { value: '1up', label: 'Cogumelo 1-UP' },
 ];
 
+const hasValidStageGoal = (level: LevelData): boolean => {
+  const hasAxe = level.tiles.some(row => row.some(t => t?.type === 'axe'));
+  if (hasAxe) return true;
+  if (level.flagX > 0 && level.flagX < level.width * 16) {
+    const flagTx = Math.floor(level.flagX / 16);
+    if (flagTx >= 0 && flagTx < level.width) {
+      const hasPole = level.tiles.some(row => {
+        const t = row[flagTx];
+        return t?.type === 'pole' || t?.type === 'pole_top';
+      });
+      if (hasPole) return true;
+    }
+  }
+  return false;
+};
+
 export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   isOpen,
   onClose,
@@ -124,6 +144,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   onUpdateCustomLevels,
   onPlayLevel,
   onBackToMainMenu,
+  editorImmortality = false,
+  onToggleEditorImmortality,
 }) => {
   const atlas = useMemo(() => SpriteAtlas.get(), []);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +162,12 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const [showGrid, setShowGrid] = useState(true);
   const [hoverCell, setHoverCell] = useState<{ tx: number; ty: number } | null>(null);
   const [statusNotice, setStatusNotice] = useState<string>('');
+  const [localImmortality, setLocalImmortality] = useState(editorImmortality);
+  const [showMissingGoalAlert, setShowMissingGoalAlert] = useState(false);
+
+  useEffect(() => {
+    setLocalImmortality(editorImmortality);
+  }, [editorImmortality]);
 
   // Ensure at least one temporary in-memory level exists when opening the editor
   useEffect(() => {
@@ -444,8 +472,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         };
 
         if (brush.kind === 'erase') {
+          const prevTile = draft.tiles[ty][tx];
           draft.tiles[ty][tx] = null;
           clearCoinsAndEnemiesAtCell();
+          if (prevTile && (prevTile.type === 'pole' || prevTile.type === 'pole_top')) {
+            const flagTx = Math.floor(draft.flagX / 16);
+            if (flagTx === tx) {
+              const hasRemainingPole = draft.tiles.some(
+                row => row[tx]?.type === 'pole' || row[tx]?.type === 'pole_top'
+              );
+              if (!hasRemainingPole) {
+                draft.flagX = 999999;
+              }
+            }
+          }
           return draft;
         }
 
@@ -982,6 +1022,28 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   if (!isOpen || !currentLevel) return null;
 
   const visiblePalette = paletteOptions.filter(opt => opt.tab === activeTab);
+  const levelHasGoal = hasValidStageGoal(currentLevel);
+
+  const handleToggleImmortality = () => {
+    const next = !localImmortality;
+    setLocalImmortality(next);
+    onToggleEditorImmortality?.(next);
+    notify(next ? 'Imortalidade ativada para testes!' : 'Imortalidade desativada.');
+  };
+
+  const launchPlayCurrentLevel = () => {
+    setShowMissingGoalAlert(false);
+    onPlayLevel(cloneLevelData(currentLevel), { immortality: localImmortality });
+    onClose();
+  };
+
+  const handleRequestPlayLevel = () => {
+    if (!levelHasGoal) {
+      setShowMissingGoalAlert(true);
+      return;
+    }
+    launchPlayCurrentLevel();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/88 backdrop-blur-xs animate-in fade-in duration-150 select-none">
@@ -995,7 +1057,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 EDITOR DE FASES
               </h2>
               <p className="text-[10px] sm:text-xs text-stone-400 font-mono">
-                Armazenado na memória temporária do navegador (sessão atual)
+                Memória temporária (sessão atual) • Fases do editor não registram recordes
               </p>
             </div>
           </div>
@@ -1006,6 +1068,19 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 {statusNotice}
               </span>
             )}
+            <button
+              type="button"
+              onClick={handleToggleImmortality}
+              title="Permite jogar esta fase sem morrer para inimigos, lava, buracos ou tempo"
+              className={`px-3 py-2 rounded-lg border font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition ${
+                localImmortality
+                  ? 'bg-purple-950/90 border-purple-400 text-purple-200 shadow-lg shadow-purple-950/50'
+                  : 'bg-stone-800 hover:bg-stone-700 border-stone-600 text-stone-300'
+              }`}
+            >
+              <Shield className={`w-3.5 h-3.5 ${localImmortality ? 'text-purple-300 fill-purple-400/30' : 'text-stone-400'}`} />
+              <span>IMORTAL: {localImmortality ? 'ON' : 'OFF'}</span>
+            </button>
             {onBackToMainMenu && (
               <button
                 type="button"
@@ -1019,10 +1094,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             )}
             <button
               type="button"
-              onClick={() => {
-                onPlayLevel(cloneLevelData(currentLevel));
-                onClose();
-              }}
+              onClick={handleRequestPlayLevel}
               className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400 text-stone-950 font-['Press_Start_2P',monospace] text-[10px] font-bold shadow-lg flex items-center gap-1.5 cursor-pointer"
             >
               <Play className="w-3.5 h-3.5 fill-stone-950" />
@@ -1308,12 +1380,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
           {/* Navigation Footer */}
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-stone-400 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <Pencil className="w-3.5 h-3.5 text-amber-400" />
-              <span>
-                Ferramenta: <strong className="text-amber-300">{activeOption.label}</strong>
-                {hoverCell ? ` • Célula (${hoverCell.tx}, ${hoverCell.ty})` : ' • Clique/arraste para editar • Botão direito apaga'}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  Ferramenta: <strong className="text-amber-300">{activeOption.label}</strong>
+                  {hoverCell ? ` • Célula (${hoverCell.tx}, ${hoverCell.ty})` : ' • Clique/arraste para editar • Botão direito apaga'}
+                </span>
+              </div>
+              {!levelHasGoal && (
+                <span className="px-2 py-0.5 rounded bg-amber-950/90 border border-amber-500/60 text-amber-300 flex items-center gap-1 text-[10px]">
+                  <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                  Sem final (Poste ou Machado)
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               <span>Ir para:</span>
@@ -1341,6 +1421,53 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Missing Stage Goal Warning Modal */}
+        {showMissingGoalAlert && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Fase sem final específico"
+            className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+          >
+            <div className="w-full max-w-md bg-stone-900 border-2 border-amber-500 rounded-xl shadow-2xl p-5 text-center space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-['Press_Start_2P',monospace] text-xs sm:text-sm text-amber-400 leading-relaxed">
+                  FASE SEM FINAL DEFINIDO!
+                </h3>
+                <p className="text-xs sm:text-sm text-stone-200 font-sans leading-relaxed">
+                  Esta fase ainda não possui um <strong>Poste de Bandeira (Mastro + Castelo)</strong> nem um <strong>Machado de Castelo</strong>.
+                </p>
+                <p className="text-[11px] text-amber-200/85 font-mono">
+                  Sem um objetivo final colocado, não será possível encerrar ou vencer a fase durante o jogo.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMissingGoalAlert(false);
+                    setActiveTab('special');
+                    setSelectedBrushId('flagpole_goal');
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-['Press_Start_2P',monospace] text-[10px] font-bold shadow cursor-pointer transition"
+                >
+                  COLOCAR FINAL
+                </button>
+                <button
+                  type="button"
+                  onClick={launchPlayCurrentLevel}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-200 font-['Press_Start_2P',monospace] text-[10px] cursor-pointer transition"
+                >
+                  JOGAR MESMO ASSIM
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
