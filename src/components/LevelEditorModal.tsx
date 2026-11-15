@@ -22,6 +22,7 @@ import {
   EyeOff,
   Sparkles,
   Download,
+  Home,
 } from 'lucide-react';
 import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
@@ -42,6 +43,7 @@ interface LevelEditorModalProps {
   activeCustomLevelId: string | null;
   onUpdateCustomLevels: (levels: LevelData[], activeId: string | null) => void;
   onPlayLevel: (level: LevelData) => void;
+  onBackToMainMenu?: () => void;
 }
 
 type EditorBrushKind =
@@ -121,6 +123,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   activeCustomLevelId,
   onUpdateCustomLevels,
   onPlayLevel,
+  onBackToMainMenu,
 }) => {
   const atlas = useMemo(() => SpriteAtlas.get(), []);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -997,11 +1000,22 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {statusNotice && (
               <span className="px-2.5 py-1 rounded bg-emerald-950/90 border border-emerald-500/60 text-emerald-300 text-[11px] font-mono">
                 {statusNotice}
               </span>
+            )}
+            {onBackToMainMenu && (
+              <button
+                type="button"
+                onClick={onBackToMainMenu}
+                title="Voltar para o menu inicial"
+                className="px-3 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-200 font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Home className="w-3.5 h-3.5 text-amber-400" />
+                <span>MENU INICIAL</span>
+              </button>
             )}
             <button
               type="button"
@@ -1017,6 +1031,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             <button
               type="button"
               onClick={onClose}
+              title="Fechar editor"
               className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-white transition cursor-pointer"
             >
               <X className="w-5 h-5" />

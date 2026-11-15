@@ -3295,6 +3295,29 @@ export class GameEngine {
     this.loadLevel(createWorld1_1(), true, false);
   }
 
+  public exitToMainMenu() {
+    this.customLevelTemplate = null;
+    this.isPaused = false;
+    this.isGameStarted = false;
+    this.isGameOver = false;
+    this.isStageClear = false;
+    this.endlessStage = 0;
+    this.marioPower = 'small';
+    this.marioStarTimer = 0;
+    this.marioState = 'idle';
+    this.controls = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    };
+    this.loadLevel(createWorld1_1(), false, false, false);
+    this.sound.stopMusic();
+  }
+
   public togglePause() {
     this.isPaused = !this.isPaused;
     this.sound.playPause();

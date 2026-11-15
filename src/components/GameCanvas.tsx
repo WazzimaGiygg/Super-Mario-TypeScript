@@ -551,6 +551,23 @@ export const GameCanvas: React.FC = () => {
     [multiplayerStatus.connected]
   );
 
+  const handleReturnToMainMenu = useCallback(() => {
+    setIsLevelEditorOpen(false);
+    setIsSettingsOpen(false);
+    setIsCheatMenuOpen(false);
+    setIsPaused(false);
+    setIsGameOver(false);
+    setIsStageClear(false);
+    setHasStarted(false);
+    if (engineRef.current) {
+      engineRef.current.exitToMainMenu();
+      setStats({ ...engineRef.current.stats, isNewHighScore: false });
+      setMarioPower(engineRef.current.marioPower);
+    } else {
+      SoundEngine.get().stopMusic();
+    }
+  }, []);
+
   const handleRestart = () => {
     if (multiplayerStatus.connected) {
       if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
@@ -1408,6 +1425,7 @@ export const GameCanvas: React.FC = () => {
           setActiveCustomLevelId(activeId);
         }}
         onPlayLevel={handlePlayCustomLevel}
+        onBackToMainMenu={handleReturnToMainMenu}
       />
 
       {/* Multiplayer Logoff / Room Inactivity Toast Notification */}
