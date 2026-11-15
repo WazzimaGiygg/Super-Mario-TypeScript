@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LevelData, BlockTile, TileType, Point, EnemyType } from './types.ts';
+import { LevelData, BlockTile, TileType, Point, EnemyType, ItemContent } from './types.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 
 // Helper to create empty grid
@@ -1534,5 +1534,252 @@ export function createBlankCustomLevel(
     isCustom: true,
   };
 }
+
+const VALID_THEMES = new Set<LevelData['theme']>(['overworld', 'underground', 'castle', 'underwater']);
+
+const THEME_DEFAULT_BG: Record<LevelData['theme'], string> = {
+  overworld: '#5c94fc',
+  underground: '#000000',
+  underwater: '#1840b8',
+  castle: '#140406',
+};
+
+const VALID_TILE_TYPES = new Set<TileType>([
+  'empty',
+  'ground',
+  'brick',
+  'question',
+  'question_empty',
+  'hard_block',
+  'pipe_top_left',
+  'pipe_top_right',
+  'pipe_body_left',
+  'pipe_body_right',
+  'pipe_warp_top_left',
+  'pipe_warp_top_right',
+  'pipe_horiz_top',
+  'pipe_horiz_bottom',
+  'pole',
+  'pole_top',
+  'castle_brick',
+  'castle_stone',
+  'castle_crenel',
+  'castle_door',
+  'castle_window',
+  'underground_ground',
+  'underground_brick',
+  'coral',
+  'sea_ground',
+  'lava',
+  'bridge',
+  'axe',
+]);
+
+const VALID_ITEM_CONTENTS = new Set<ItemContent>([
+  'coin',
+  'mushroom',
+  'fireflower',
+  'leaf',
+  'feather',
+  'femboy',
+  'star',
+  '1up',
+  'none',
+]);
+
+const VALID_ENEMY_TYPES = new Set<EnemyType>([
+  'goomba',
+  'koopa',
+  'red_koopa',
+  'paratroopa',
+  'hammer_bro',
+  'piranha',
+  'blooper',
+  'cheep_cheep',
+  'fast_cheep',
+  'bullet_bill',
+  'bowser',
+  'lava_bubble',
+]);
+
+export interface ExportedLevelFile {
+  format: 'smb-custom-level';
+  version: 1;
+  exportedAt: string;
+  level: LevelData;
+}
+
+export function serializeLevelToFileJson(level: LevelData): string {
+  const payload: ExportedLevelFile = {
+    format: 'smb-custom-level',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    level: {
+      ...cloneLevelData(level),
+      isCustom: true,
+    },
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+export function getExportLevelFilename(levelName: string): string {
+  const slug = levelName
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${slug || 'fase-mario'}.smb.json`;
+}
+
+export function parseImportedLevelFile(rawJson: string): LevelData {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    throw new Error('Arquivo JSON inválido ou corrompido.');
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Estrutura do arquivo de fase inválida.');
+  }
+
+  const candidateObj =
+    'level' in parsed && parsed.level && typeof parsed.level === 'object'
+      ? (parsed.level as Record<string, unknown>)
+      : (parsed as Record<string, unknown>);
+
+  if (!Array.isArray(candidateObj.tiles) || candidateObj.tiles.length === 0) {
+    throw new Error('Arquivo não contém grade de blocos ("tiles") válida.');
+  }
+
+  const rawTheme = String(candidateObj.theme || 'overworld') as LevelData['theme'];
+  const theme: LevelData['theme'] = VALID_THEMES.has(rawTheme) ? rawTheme : 'overworld';
+
+  const height = 15;
+  const rawWidth =
+    typeof candidateObj.width === 'number' && Number.isFinite(candidateObj.width)
+      ? candidateObj.width
+      : Array.isArray(candidateObj.tiles[0])
+      ? candidateObj.tiles[0].length
+      : 100;
+  const width = Math.max(20, Math.min(240, Math.floor(rawWidth)));
+
+  const tiles: (BlockTile | null)[][] = [];
+  for (let y = 0; y < height; y++) {
+    const rawRow = Array.isArray(candidateObj.tiles[y]) ? (candidateObj.tiles[y] as unknown[]) : [];
+    const row: (BlockTile | null)[] = [];
+    for (let x = 0; x < width; x++) {
+      const cell = rawRow[x];
+      if (!cell || typeof cell !== 'object') {
+        row.push(null);
+        continue;
+      }
+      const c = cell as Record<string, unknown>;
+      const type = String(c.type || '') as TileType;
+      if (!VALID_TILE_TYPES.has(type) || type === 'empty') {
+        row.push(null);
+        continue;
+      }
+      const rawContent = String(c.content || 'none') as ItemContent;
+      const content: ItemContent = VALID_ITEM_CONTENTS.has(rawContent) ? rawContent : 'none';
+      const tile: BlockTile = {
+        type,
+        content,
+        bumpOffset: 0,
+        bumpVel: 0,
+      };
+      if (typeof c.coinsLeft === 'number' && Number.isFinite(c.coinsLeft) && c.coinsLeft > 0) {
+        tile.coinsLeft = Math.floor(c.coinsLeft);
+      }
+      if (c.invisible === true) {
+        tile.invisible = true;
+      }
+      row.push(tile);
+    }
+    tiles.push(row);
+  }
+
+  const enemies: LevelData['enemies'] = [];
+  if (Array.isArray(candidateObj.enemies)) {
+    for (const item of candidateObj.enemies) {
+      if (!item || typeof item !== 'object') continue;
+      const e = item as Record<string, unknown>;
+      const enemyType = String(e.type || '') as EnemyType;
+      if (!VALID_ENEMY_TYPES.has(enemyType)) continue;
+      if (typeof e.x !== 'number' || typeof e.y !== 'number') continue;
+      if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) continue;
+      enemies.push({
+        type: enemyType,
+        x: Math.max(0, Math.min(width * 16 - 8, e.x)),
+        y: Math.max(0, Math.min(height * 16 - 8, e.y)),
+      });
+    }
+  }
+
+  const coins: LevelData['coins'] = [];
+  if (Array.isArray(candidateObj.coins)) {
+    for (const item of candidateObj.coins) {
+      if (!item || typeof item !== 'object') continue;
+      const c = item as Record<string, unknown>;
+      if (typeof c.x !== 'number' || typeof c.y !== 'number') continue;
+      if (!Number.isFinite(c.x) || !Number.isFinite(c.y)) continue;
+      coins.push({
+        x: Math.max(0, Math.min(width * 16 - 8, c.x)),
+        y: Math.max(0, Math.min(height * 16 - 8, c.y)),
+      });
+    }
+  }
+
+  const rawStart =
+    candidateObj.marioStart && typeof candidateObj.marioStart === 'object'
+      ? (candidateObj.marioStart as Record<string, unknown>)
+      : {};
+  const marioStartX =
+    typeof rawStart.x === 'number' && Number.isFinite(rawStart.x)
+      ? Math.max(0, Math.min((width - 2) * 16, rawStart.x))
+      : 48;
+  const marioStartY =
+    typeof rawStart.y === 'number' && Number.isFinite(rawStart.y)
+      ? Math.max(0, Math.min((height - 2) * 16, rawStart.y))
+      : 192;
+
+  const flagX =
+    typeof candidateObj.flagX === 'number' && Number.isFinite(candidateObj.flagX)
+      ? candidateObj.flagX
+      : 999999;
+
+  const castleX =
+    typeof candidateObj.castleX === 'number' && Number.isFinite(candidateObj.castleX)
+      ? candidateObj.castleX
+      : Math.max(64, (width - 6) * 16);
+
+  const rawName = typeof candidateObj.name === 'string' ? candidateObj.name.trim() : '';
+  const name = (rawName || 'FASE IMPORTADA').toUpperCase().slice(0, 16);
+
+  const rawBg = typeof candidateObj.bgColor === 'string' && candidateObj.bgColor.trim() ? candidateObj.bgColor.trim() : THEME_DEFAULT_BG[theme];
+  const rawTime =
+    typeof candidateObj.timeLimit === 'number' && Number.isFinite(candidateObj.timeLimit)
+      ? Math.max(60, Math.min(999, Math.floor(candidateObj.timeLimit)))
+      : 400;
+
+  return {
+    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    theme,
+    biomeLabel: 'FASE IMPORTADA',
+    width,
+    height,
+    tiles,
+    enemies,
+    coins,
+    marioStart: { x: marioStartX, y: marioStartY },
+    flagX,
+    castleX,
+    bgColor: rawBg,
+    timeLimit: rawTime,
+    isCustom: true,
+  };
+}
+
 
 

@@ -25,6 +25,8 @@ import {
   Home,
   Shield,
   AlertTriangle,
+  Upload,
+  FileDown,
 } from 'lucide-react';
 import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
@@ -35,6 +37,9 @@ import {
   createWorld1_2,
   createWorld1_4,
   createWorld2_2,
+  getExportLevelFilename,
+  parseImportedLevelFile,
+  serializeLevelToFileJson,
 } from '../game/levels.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 
@@ -150,6 +155,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const atlas = useMemo(() => SpriteAtlas.get(), []);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPaintedCellRef = useRef<string | null>(null);
   const dragEraseModeRef = useRef(false);
@@ -162,6 +168,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const [showGrid, setShowGrid] = useState(true);
   const [hoverCell, setHoverCell] = useState<{ tx: number; ty: number } | null>(null);
   const [statusNotice, setStatusNotice] = useState<string>('');
+  const [statusError, setStatusError] = useState<string>('');
   const [localImmortality, setLocalImmortality] = useState(editorImmortality);
   const [showMissingGoalAlert, setShowMissingGoalAlert] = useState(false);
 
@@ -185,10 +192,19 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   }, [customLevels, activeCustomLevelId]);
 
   const notify = useCallback((msg: string) => {
+    setStatusError('');
     setStatusNotice(msg);
     setTimeout(() => {
       setStatusNotice(prev => (prev === msg ? '' : prev));
-    }, 2200);
+    }, 2600);
+  }, []);
+
+  const notifyError = useCallback((msg: string) => {
+    setStatusNotice('');
+    setStatusError(msg);
+    setTimeout(() => {
+      setStatusError(prev => (prev === msg ? '' : prev));
+    }, 4000);
   }, []);
 
   const updateCurrentLevel = useCallback(
@@ -1031,6 +1047,42 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     notify(next ? 'Imortalidade ativada para testes!' : 'Imortalidade desativada.');
   };
 
+  const handleExportLevelFile = () => {
+    const json = serializeLevelToFileJson(currentLevel);
+    const filename = getExportLevelFilename(currentLevel.name);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    notify(`Fase exportada: ${filename}`);
+  };
+
+  const handleUploadLevelFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error('Arquivo muito grande (máximo 2 MB).');
+      }
+      const text = await file.text();
+      const imported = parseImportedLevelFile(text);
+      onUpdateCustomLevels([...customLevels, imported], imported.id);
+      notify(`Fase "${imported.name}" carregada via arquivo!`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao importar arquivo de fase.';
+      notifyError(msg);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const launchPlayCurrentLevel = () => {
     setShowMissingGoalAlert(false);
     onPlayLevel(cloneLevelData(currentLevel), { immortality: localImmortality });
@@ -1066,6 +1118,11 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             {statusNotice && (
               <span className="px-2.5 py-1 rounded bg-emerald-950/90 border border-emerald-500/60 text-emerald-300 text-[11px] font-mono">
                 {statusNotice}
+              </span>
+            )}
+            {statusError && (
+              <span className="px-2.5 py-1 rounded bg-red-950/90 border border-red-500/70 text-red-200 text-[11px] font-mono">
+                {statusError}
               </span>
             )}
             <button
@@ -1192,7 +1249,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               <option value={220}>Máx (220)</option>
             </select>
 
-            <div className="flex items-center gap-1 ml-auto">
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               <Download className="w-3.5 h-3.5 text-stone-400" />
               <select
                 value=""
@@ -1208,6 +1265,33 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 <option value="world-1-4">Mundo 1-4 (Castelo)</option>
                 <option value="secret-vault">Cofre Secreto</option>
               </select>
+
+              <button
+                type="button"
+                onClick={handleExportLevelFile}
+                title="Baixar arquivo JSON desta fase"
+                className="px-2.5 py-1.5 rounded bg-sky-950/90 hover:bg-sky-900 border border-sky-500/60 text-sky-200 font-mono text-xs flex items-center gap-1 cursor-pointer transition"
+              >
+                <FileDown className="w-3.5 h-3.5 text-sky-400" />
+                <span>Exportar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Carregar fase de um arquivo JSON (.smb.json / .json)"
+                className="px-2.5 py-1.5 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-200 font-mono text-xs flex items-center gap-1 cursor-pointer transition"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Upload</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleUploadLevelFile}
+                className="hidden"
+              />
             </div>
           </div>
         </div>
