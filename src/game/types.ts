@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type MarioPower = 'small' | 'super' | 'fire' | 'tanooki' | 'femboy';
+export type MarioPower = 'small' | 'super' | 'fire' | 'tanooki' | 'femboy' | 'cape';
 
 export type MarioState = 
   | 'idle' 
@@ -64,7 +64,7 @@ export type TileType =
   | 'bridge'
   | 'axe';
 
-export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'star' | '1up' | 'none';
+export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'none';
 
 export interface BlockTile {
   type: TileType;
@@ -75,7 +75,18 @@ export interface BlockTile {
   invisible?: boolean;
 }
 
-export type EnemyType = 'goomba' | 'koopa' | 'piranha' | 'blooper' | 'cheep_cheep' | 'bowser' | 'lava_bubble';
+export type EnemyType =
+  | 'goomba'
+  | 'koopa'
+  | 'red_koopa'
+  | 'paratroopa'
+  | 'piranha'
+  | 'blooper'
+  | 'cheep_cheep'
+  | 'fast_cheep'
+  | 'bullet_bill'
+  | 'bowser'
+  | 'lava_bubble';
 
 export interface Enemy {
   id: number;
@@ -101,7 +112,7 @@ export interface Enemy {
 
 export interface Item {
   id: number;
-  type: 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'star' | '1up' | 'coin';
+  type: 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'coin';
   x: number;
   y: number;
   vx: number;
@@ -132,11 +143,25 @@ export interface Particle {
   y: number;
   vx: number;
   vy: number;
-  type: 'brick_piece' | 'score_text' | 'smoke' | 'dust' | 'sparkle' | 'coin_glint' | 'enemy_poof' | 'star_burst' | 'bubble' | 'heart';
+  type:
+    | 'brick_piece'
+    | 'debris'
+    | 'impact_ring'
+    | 'score_text'
+    | 'smoke'
+    | 'dust'
+    | 'sparkle'
+    | 'coin_glint'
+    | 'enemy_poof'
+    | 'star_burst'
+    | 'bubble'
+    | 'heart';
   text?: string;
   life: number;
   maxLife: number;
   color?: string;
+  secondaryColor?: string;
+  shape?: 'chunk' | 'splinter' | 'shell';
   size?: number;
   gravity?: number;
   rotation?: number;
@@ -165,6 +190,7 @@ export interface LevelData {
   bgColor: string;
   timeLimit: number;
   endlessStage?: number;
+  cycleNumber?: number;
   seed?: number;
   enemySpeedMultiplier?: number;
   biomeLabel?: string;
@@ -182,6 +208,7 @@ export interface GameStats {
   lives: number;
   highScore: number;
   difficulty?: GameDifficulty;
+  isNewHighScore?: boolean;
 }
 
 export interface GamepadControls {

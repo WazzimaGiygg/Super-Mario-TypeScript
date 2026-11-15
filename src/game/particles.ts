@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Particle } from './types.ts';
+import { EnemyType, Particle } from './types.ts';
 import { SpriteAtlas } from './sprites.ts';
 
 export class ParticleSystem {
@@ -34,7 +34,10 @@ export class ParticleSystem {
         p.rotation += p.rotSpeed;
       }
 
-      if (p.gravity !== undefined) {
+      if (p.type === 'debris') {
+        p.vx *= 0.99;
+        p.vy += p.gravity ?? 0.34;
+      } else if (p.gravity !== undefined) {
         p.vy += p.gravity;
       } else if (p.type === 'brick_piece') {
         p.vy += 0.38;
@@ -60,15 +63,50 @@ export class ParticleSystem {
     this.particles = this.particles.filter(p => p.life < p.maxLife);
   }
 
+  private getEnemyDebrisPalette(enemyType?: EnemyType): { primary: string; secondary: string; accent: string } {
+    switch (enemyType) {
+      case 'goomba':
+        return { primary: '#c84c0c', secondary: '#f0a870', accent: '#602000' };
+      case 'koopa':
+      case 'paratroopa':
+        return { primary: '#00a800', secondary: '#78f858', accent: '#f8d878' };
+      case 'red_koopa':
+        return { primary: '#d82800', secondary: '#ff7850', accent: '#f8d878' };
+      case 'piranha':
+        return { primary: '#d82800', secondary: '#ffffff', accent: '#00a800' };
+      case 'blooper':
+        return { primary: '#ffffff', secondary: '#b8e0ff', accent: '#284898' };
+      case 'cheep_cheep':
+      case 'fast_cheep':
+        return { primary: '#d82800', secondary: '#fc9838', accent: '#fce078' };
+      case 'bullet_bill':
+        return { primary: '#383838', secondary: '#9090a0', accent: '#fc9838' };
+      case 'bowser':
+        return { primary: '#008800', secondary: '#f8d838', accent: '#d82800' };
+      default:
+        return { primary: '#fc9838', secondary: '#fffa50', accent: '#ffffff' };
+    }
+  }
+
   // --- EFFECT EMITTERS ---
 
-  /** Classic 4-shard tumbling brick break + expanding dust puffs */
+  /** Classic tumbling brick shards + theme-colored flying splinters + impact ring & dust puffs */
   public emitBrickBreak(x: number, y: number, theme: 'overworld' | 'underground' | 'castle' | 'underwater' = 'overworld') {
+    const themeColors =
+      theme === 'underground'
+        ? { primary: '#187888', secondary: '#70d8e8', dust: '#70b8c8' }
+        : theme === 'castle'
+        ? { primary: '#787878', secondary: '#d0d0d0', dust: '#b8b8b8' }
+        : theme === 'underwater'
+        ? { primary: '#e05848', secondary: '#ffb090', dust: '#98e0ff' }
+        : { primary: undefined, secondary: '#f8b880', dust: '#e09060' };
+
+    // 4 main tumbling corner brick chunks
     const velocities = [
-      { vx: -2.3, vy: -5.3, rot: -0.18 },
-      { vx: 2.3, vy: -5.3, rot: 0.18 },
-      { vx: -1.45, vy: -3.2, rot: -0.12 },
-      { vx: 1.45, vy: -3.2, rot: 0.12 },
+      { vx: -2.45, vy: -5.6, rot: -0.22 },
+      { vx: 2.45, vy: -5.6, rot: 0.22 },
+      { vx: -1.55, vy: -3.4, rot: -0.15 },
+      { vx: 1.55, vy: -3.4, rot: 0.15 },
     ];
 
     velocities.forEach(v => {
@@ -79,17 +117,61 @@ export class ParticleSystem {
         vx: v.vx,
         vy: v.vy,
         life: 0,
-        maxLife: 44,
+        maxLife: 48,
         rotation: 0,
         rotSpeed: v.rot,
         gravity: 0.38,
+        color: themeColors.primary,
+        secondaryColor: themeColors.secondary,
       });
     });
 
-    const dustColor = theme === 'underground' ? '#70b8c8' : '#e09060';
+    // 10 smaller brick splinters & chips bursting outward across the screen
+    const chipPalette =
+      theme === 'underground'
+        ? ['#187888', '#70d8e8', '#0c4858']
+        : theme === 'castle'
+        ? ['#787878', '#c8c8c8', '#484848']
+        : ['#c84c0c', '#f8b880', '#882800'];
+
+    for (let i = 0; i < 10; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const spreadX = (1.3 + Math.random() * 2.5) * side;
+      const launchY = -1.6 - Math.random() * 4.8;
+      this.add({
+        type: 'debris',
+        x: x + 4 + (Math.random() * 8 - 4),
+        y: y + 4 + (Math.random() * 8 - 4),
+        vx: spreadX,
+        vy: launchY,
+        life: 0,
+        maxLife: 42 + Math.floor(Math.random() * 18),
+        size: i % 3 === 0 ? 4 : 3,
+        color: chipPalette[i % chipPalette.length],
+        secondaryColor: '#ffffff',
+        shape: i % 2 === 0 ? 'splinter' : 'chunk',
+        gravity: 0.35,
+        rotation: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 0.45,
+      });
+    }
+
+    // Crisp impact shockwave ring at the shattered block center
+    this.add({
+      type: 'impact_ring',
+      x: x + 8,
+      y: y + 8,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: 10,
+      size: 18,
+      color: '#fff4c0',
+    });
+
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI * 2 * i) / 6 + Math.PI / 6;
-      const speed = 1.1 + (i % 2) * 0.55;
+      const speed = 1.2 + (i % 2) * 0.6;
       this.add({
         type: 'dust',
         x: x + 6,
@@ -99,7 +181,7 @@ export class ParticleSystem {
         life: 0,
         maxLife: 18 + (i % 3) * 3,
         size: 3 + (i % 2),
-        color: i % 2 === 0 ? '#f8f8f8' : dustColor,
+        color: i % 2 === 0 ? '#f8f8f8' : themeColors.dust,
       });
     }
   }
@@ -220,26 +302,71 @@ export class ParticleSystem {
     }
   }
 
-  /** Impact stars and smoke poofs on defeating an enemy */
-  public emitEnemyDefeat(x: number, y: number) {
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI * 2 * i) / 6;
-      const speed = 1.8 + Math.random() * 1.6;
+  /** Flying enemy debris shards, impact shockwave, star bursts, and smoke poofs on defeating an enemy */
+  public emitEnemyDefeat(x: number, y: number, enemyType?: EnemyType) {
+    const isBoss = enemyType === 'bowser';
+    const centerOffset = isBoss ? 14 : 8;
+    const palette = this.getEnemyDebrisPalette(enemyType);
+    const debrisColors = [palette.primary, palette.secondary, palette.accent];
+    const debrisCount = isBoss ? 16 : 10;
+
+    // Expanding flying debris fragments that arc and scatter across the screen
+    for (let i = 0; i < debrisCount; i++) {
+      const dir = i % 2 === 0 ? -1 : 1;
+      const speedX = (isBoss ? 1.6 + Math.random() * 3.2 : 1.1 + Math.random() * 2.5) * dir;
+      const speedY = isBoss ? -2.2 - Math.random() * 4.8 : -1.5 - Math.random() * 4.1;
+      this.add({
+        type: 'debris',
+        x: x + centerOffset + (Math.random() * 8 - 4),
+        y: y + centerOffset + (Math.random() * 6 - 3),
+        vx: speedX,
+        vy: speedY,
+        life: 0,
+        maxLife: (isBoss ? 52 : 40) + Math.floor(Math.random() * 16),
+        size: isBoss ? 3 + (i % 3) : 2 + (i % 3),
+        color: debrisColors[i % debrisColors.length],
+        secondaryColor: '#ffffff',
+        shape: i % 3 === 0 ? 'shell' : i % 2 === 0 ? 'splinter' : 'chunk',
+        gravity: 0.34,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.42,
+      });
+    }
+
+    // Crisp impact shockwave ring
+    this.add({
+      type: 'impact_ring',
+      x: x + centerOffset,
+      y: y + centerOffset,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: isBoss ? 14 : 10,
+      size: isBoss ? 28 : 16,
+      color: palette.secondary,
+    });
+
+    // Impact star bursts
+    const starCount = isBoss ? 10 : 6;
+    for (let i = 0; i < starCount; i++) {
+      const angle = (Math.PI * 2 * i) / starCount;
+      const speed = (isBoss ? 2.4 : 1.8) + Math.random() * 1.6;
       this.add({
         type: 'star_burst',
-        x: x + 8,
-        y: y + 8,
+        x: x + centerOffset,
+        y: y + centerOffset,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 0.8,
         life: 0,
         maxLife: 18 + Math.floor(Math.random() * 8),
         color: i % 2 === 0 ? '#fffa50' : '#ffffff',
-        size: 3,
+        size: isBoss ? 4 : 3,
         rotation: 0,
         rotSpeed: 0.2,
       });
     }
 
+    // Smoke poofs
     for (let i = 0; i < 4; i++) {
       this.add({
         type: 'smoke',
@@ -249,7 +376,7 @@ export class ParticleSystem {
         vy: -0.6 - Math.random() * 0.8,
         life: 0,
         maxLife: 20,
-        size: 4 + Math.floor(Math.random() * 3),
+        size: (isBoss ? 6 : 4) + Math.floor(Math.random() * 3),
       });
     }
   }
@@ -308,15 +435,58 @@ export class ParticleSystem {
       if (px < -30 || px > nesWidth + 30) continue;
 
       if (p.type === 'brick_piece') {
+        ctx.save();
+        ctx.translate(px + 4, p.y + 4);
         if (p.rotation !== undefined) {
-          ctx.save();
-          ctx.translate(px + 4, p.y + 4);
           ctx.rotate(p.rotation);
-          ctx.drawImage(atlas.brickDebris, -4, -4);
-          ctx.restore();
-        } else {
-          ctx.drawImage(atlas.brickDebris, px, p.y);
         }
+        if (p.color) {
+          // Theme-tinted pixel brick shard (underground / castle / underwater)
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-4, -4, 8, 8);
+          ctx.fillStyle = p.secondaryColor || '#ffffff';
+          ctx.fillRect(-4, -4, 8, 2);
+          ctx.fillRect(-4, -4, 2, 8);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(-4, 2, 8, 2);
+        } else {
+          ctx.drawImage(atlas.brickDebris, -4, -4);
+        }
+        ctx.restore();
+      } else if (p.type === 'debris') {
+        const progress = p.life / p.maxLife;
+        const alpha = progress > 0.72 ? Math.max(0, 1 - (progress - 0.72) / 0.28) : 1;
+        const sz = p.size || 3;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(Math.round(px), Math.round(p.y));
+        if (p.rotation !== undefined) {
+          ctx.rotate(p.rotation);
+        }
+        const w = p.shape === 'splinter' ? sz + 2 : sz;
+        const h = p.shape === 'splinter' ? Math.max(2, sz - 1) : sz;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-Math.floor(w / 2) - 1, -Math.floor(h / 2) - 1, w + 2, h + 2);
+        ctx.fillStyle = p.color || '#c84c0c';
+        ctx.fillRect(-Math.floor(w / 2), -Math.floor(h / 2), w, h);
+        ctx.fillStyle = p.secondaryColor || '#ffffff';
+        ctx.fillRect(-Math.floor(w / 2), -Math.floor(h / 2), Math.max(1, Math.floor(w / 2)), 1);
+        ctx.restore();
+      } else if (p.type === 'impact_ring') {
+        const progress = p.life / p.maxLife;
+        const alpha = Math.max(0, 1 - progress);
+        const radius = 3 + progress * (p.size || 16);
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.strokeStyle = p.color || '#ffffff';
+        ctx.lineWidth = progress < 0.4 ? 2 : 1;
+        ctx.strokeRect(
+          Math.round(px - radius / 2),
+          Math.round(p.y - radius / 2),
+          Math.round(radius),
+          Math.round(radius)
+        );
+        ctx.restore();
       } else if (p.type === 'coin_glint') {
         const alpha = Math.max(0, 1 - p.life / p.maxLife);
         ctx.save();

@@ -10,6 +10,7 @@ import {
   Point,
   BlockTile,
   Enemy,
+  EnemyType,
   Item,
   Fireball,
   Particle,
@@ -26,7 +27,10 @@ import {
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
 import { ParticleSystem } from './particles.ts';
+import { EnemySpawnManager } from './enemySpawnManager.ts';
+import { CameraSystem } from './camera.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from './levels.ts';
+import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 
 export class GameEngine {
   // Screen Dimensions (NES native 256x240)
@@ -36,6 +40,10 @@ export class GameEngine {
 
   // Level State
   public level!: LevelData;
+  public camera: CameraSystem = new CameraSystem({
+    viewportWidth: GameEngine.NES_WIDTH,
+    characterWidth: 16,
+  });
   public cameraX: number = 0;
   public isPaused: boolean = false;
   public isGameOver: boolean = false;
@@ -84,9 +92,10 @@ export class GameEngine {
   public isFluttering: boolean = false;
   public isStatue: boolean = false;
 
-  // Screen-Shake Effect (Heavy Landings, Explosions, Boss/Ground Pounds)
+  // Screen-Shake Effect (Heavy Landings, Large Enemy Stomps, Pipe Entry, Boss Impacts)
   public screenShakeTimer: number = 0;
   public screenShakeIntensity: number = 0;
+  private screenShakeMaxDuration: number = 12;
   public screenShakeOffsetX: number = 0;
   public screenShakeOffsetY: number = 0;
 
@@ -121,6 +130,7 @@ export class GameEngine {
   public fireballs: Fireball[] = [];
   public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
   public particleSystem: ParticleSystem = new ParticleSystem();
+  public enemySpawnManager: EnemySpawnManager = new EnemySpawnManager();
   private skidDustTimer: number = 0;
 
   public get particles(): Particle[] {
@@ -144,9 +154,17 @@ export class GameEngine {
     world: '1-1',
     time: 400,
     lives: 3,
-    highScore: 10000,
+    highScore: getTopScore(),
     difficulty: 'normal',
+    isNewHighScore: false,
   };
+
+  // Local High Score & Ranking Run Tracking
+  public currentRunId: string = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  private runInitialHighScore: number = getTopScore();
+  public isNewHighScore: boolean = false;
+  private hasTriggeredNewRecordBanner: boolean = false;
+  public lastSavedRank: number | null = null;
 
   // Cheat Mode State (Unlocked with "lula132026")
   public isCheatActive: boolean = false;
@@ -211,13 +229,15 @@ export class GameEngine {
       this.endlessStage = 0;
     }
 
+    const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
+
     if (!isRespawn) {
       // Fresh stage entry: clear checkpoints and start at initial position
       this.activeCheckpoint = null;
       this.activatedCheckpointIndices.clear();
-      this.cameraX = 0;
       this.marioX = newLevel.marioStart.x;
       this.marioY = newLevel.marioStart.y - (this.getMarioHeight() - 16);
+      this.camera.snapTo(0, levelWidthPx);
     } else {
       // Respawn after death: strip power-ups (always return as Small Mario)
       this.marioPower = 'small';
@@ -225,19 +245,15 @@ export class GameEngine {
       if (this.activeCheckpoint) {
         this.marioX = this.activeCheckpoint.x;
         this.marioY = this.activeCheckpoint.y;
-        this.cameraX = Math.max(0, this.activeCheckpoint.x - 80);
+        this.camera.centerOn(this.activeCheckpoint.x, levelWidthPx);
       } else {
         this.marioX = newLevel.marioStart.x;
         this.marioY = newLevel.marioStart.y;
-        this.cameraX = 0;
+        this.camera.snapTo(0, levelWidthPx);
       }
     }
 
-    // Ensure camera stays within stage boundaries
-    const maxCamX = this.level.width * GameEngine.TILE_SIZE - GameEngine.NES_WIDTH;
-    if (this.cameraX > maxCamX) {
-      this.cameraX = Math.max(0, maxCamX);
-    }
+    this.cameraX = this.camera.x;
 
     this.marioVx = 0;
     this.marioVy = 0;
@@ -262,6 +278,7 @@ export class GameEngine {
 
     const speedMult = newLevel.enemySpeedMultiplier ?? 1;
     const bowserHp = 5 + Math.floor(((newLevel.endlessStage || 1) - 1) / 4) * 2;
+    this.enemySpawnManager.reset(newLevel.endlessStage ?? 0, newLevel.theme);
 
     // Load enemies (avoid spawning enemies directly on top of Mario's respawn position)
     this.enemies = newLevel.enemies
@@ -274,10 +291,15 @@ export class GameEngine {
         type: e.type,
         x: e.x,
         y: e.y,
-        vx: e.type === 'bowser' ? -0.45 * speedMult : -0.7 * speedMult,
+        vx: EnemySpawnManager.getInitialVelocity(e.type, speedMult, -1),
         vy: 0,
         width: e.type === 'bowser' ? 24 : 16,
-        height: e.type === 'bowser' ? 24 : e.type === 'koopa' ? 24 : 16,
+        height:
+          e.type === 'bowser'
+            ? 24
+            : e.type === 'koopa' || e.type === 'red_koopa' || e.type === 'paratroopa'
+            ? 24
+            : 16,
         alive: true,
         state: 'walk' as const,
         stateTimer: 0,
@@ -458,6 +480,30 @@ export class GameEngine {
     // Update Mario
     this.updateMario(deltaMs);
 
+    // Dynamic progressive enemy wave spawning (increases spawn frequency & adds faster enemies per cycle)
+    if (
+      this.isGameStarted &&
+      !this.isStageClear &&
+      this.marioState !== 'dead' &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered'
+    ) {
+      const dynamicSpawns = this.enemySpawnManager.update({
+        level: this.level,
+        cameraX: this.cameraX,
+        nesWidth: GameEngine.NES_WIDTH,
+        tileSize: GameEngine.TILE_SIZE,
+        marioX: this.marioX,
+        marioY: this.marioY,
+        enemies: this.enemies,
+        isSolidTile: type => this.isSolidTile(type),
+        nextId: () => this.nextEntityId++,
+      });
+      if (dynamicSpawns.length > 0) {
+        this.enemies.push(...dynamicSpawns);
+      }
+    }
+
     // Update Enemies
     this.updateEnemies();
 
@@ -634,9 +680,7 @@ export class GameEngine {
         const dec = Math.min(this.stats.time, step);
         this.stats.time -= dec;
         this.stats.score += dec * 50;
-        if (!this.isCheatActive && this.stats.score > this.stats.highScore) {
-          this.stats.highScore = this.stats.score;
-        }
+        this.syncHighScore(this.stats.time === 0 || this.stats.time % 10 === 0);
 
         this.timeCountTickCounter++;
         if (this.timeCountTickCounter % 2 === 0 || dec > 1) {
@@ -769,8 +813,13 @@ export class GameEngine {
       if (this.marioVy > maxUnderwaterFall) this.marioVy = maxUnderwaterFall;
     } else {
       if (jumpPressed && this.marioGrounded && !this.isStatue) {
-        const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult;
+        const capeLaunchMult =
+          this.marioPower === 'cape' && Math.abs(this.marioVx) >= 2.5 ? 1.12 : 1;
+        const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult * capeLaunchMult;
         this.particleSystem.emitJumpDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
+        if (capeLaunchMult > 1) {
+          this.spawnPowerUpSparkles(this.marioX, this.marioY + this.getMarioHeight() - 8);
+        }
         this.marioVy = jumpImpulse;
         this.marioGrounded = false;
         this.marioState = 'jumping';
@@ -782,11 +831,17 @@ export class GameEngine {
         }
       }
 
-      // Tanooki Flutter / Slow Fall: holding or tapping jump while descending flutters tail and limits fall speed
+      // Tanooki Flutter & Cape Glide: holding jump while descending slows fall speed cleanly
       this.isFluttering = false;
-      if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
+      if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.25) {
+        this.isFluttering = true;
+        this.marioVy = Math.min(this.marioVy, 0.85); // wide buoyant cape glide
+      } else if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
         this.isFluttering = true;
         this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
+      } else if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.down) {
+        // Cape Dive: pressing Down in midair accelerates descent
+        this.marioVy = Math.min(7.0, this.marioVy + 0.22);
       }
 
       // Variable jump height: cut ascent when releasing jump button
@@ -795,7 +850,8 @@ export class GameEngine {
       }
 
       // Gravity
-      const gravity = this.isFluttering ? 0.08 : (this.marioVy < 0 ? 0.38 : 0.62);
+      const glideGravity = this.marioPower === 'cape' ? 0.05 : 0.08;
+      const gravity = this.isFluttering ? glideGravity : (this.marioVy < 0 ? 0.38 : 0.62);
       this.marioVy += gravity;
       if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
     }
@@ -815,8 +871,8 @@ export class GameEngine {
     if (runPressed) {
       if (this.marioPower === 'fire' && this.fireballs.length < 2) {
         this.shootFireball();
-      } else if (this.marioPower === 'tanooki' && this.tailWhipTimer <= 0) {
-        // Tanooki Tail Whip 360 Spin!
+      } else if ((this.marioPower === 'tanooki' || this.marioPower === 'cape') && this.tailWhipTimer <= 0) {
+        // Tanooki Tail Whip / Cape Spin 360 Sweep!
         this.tailWhipTimer = 18;
         this.sound.playKick();
       }
@@ -893,9 +949,14 @@ export class GameEngine {
     // Horizontal Movement
     this.marioX += this.marioVx;
 
-    // Prevent moving backwards past the camera left edge
-    if (this.marioX < this.cameraX) {
-      this.marioX = this.cameraX;
+    // Clamp within level horizontal bounds (bidirectional camera follows Mario inside viewport bounds)
+    if (this.marioX < 0) {
+      this.marioX = 0;
+      this.marioVx = 0;
+    }
+    const maxMarioX = this.level.width * GameEngine.TILE_SIZE - 16;
+    if (this.marioX > maxMarioX) {
+      this.marioX = maxMarioX;
       this.marioVx = 0;
     }
 
@@ -1034,7 +1095,7 @@ export class GameEngine {
         e.state = 'flipped';
         e.vy = -5;
         this.sound.playKick();
-        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(100, e.x, e.y);
       }
     });
@@ -1092,6 +1153,22 @@ export class GameEngine {
       this.items.push({
         id: this.nextEntityId++,
         type: 'leaf',
+        x,
+        y: y - 8,
+        vx: 0,
+        vy: -2.0,
+        width: 16,
+        height: 16,
+        grounded: false,
+        collected: false,
+        emerging: true,
+        emergeY: y - 24,
+      });
+    } else if (content === 'feather') {
+      this.sound.playPowerUpAppear();
+      this.items.push({
+        id: this.nextEntityId++,
+        type: 'feather',
         x,
         y: y - 8,
         vx: 0,
@@ -1271,18 +1348,45 @@ export class GameEngine {
 
       // Only activate enemy when camera is near (within 300px)
       if (e.x > this.cameraX + GameEngine.NES_WIDTH + 40 || e.x < this.cameraX - 40) {
+        if (e.type === 'bullet_bill' && e.x < this.cameraX - 40) {
+          e.alive = false;
+        }
         return;
       }
 
-      // Cheep-Cheep (Swimming fish AI)
-      if (e.type === 'cheep_cheep') {
+      // Bullet Bill (High-speed straight horizontal projectile enemy, ignores gravity/walls)
+      if (e.type === 'bullet_bill') {
+        e.x += e.vx;
+        const canCollide =
+          this.marioState !== 'dead' &&
+          this.marioState !== 'pipe_entering' &&
+          this.marioState !== 'pipe_exiting' &&
+          this.marioState !== 'pole_slide' &&
+          this.marioState !== 'castle_walk' &&
+          this.marioState !== 'castle_entered';
+        if (canCollide) {
+          const bulletBox: Rect = { x: e.x + 1, y: e.y + 2, width: e.width - 2, height: e.height - 4 };
+          if (this.rectsIntersect(marioBox, bulletBox)) {
+            const prevMarioBottom = marioBox.y + marioBox.height - this.marioVy;
+            const isStomp = this.marioVy > 0 && prevMarioBottom <= e.y + 8;
+            this.marioHitEnemy(e, isStomp);
+          }
+        }
+        return;
+      }
+
+      // Cheep-Cheep & Fast Turbo Cheep-Cheep (Swimming fish AI)
+      if (e.type === 'cheep_cheep' || e.type === 'fast_cheep') {
         e.stateTimer++;
         e.animTimer++;
-        if (e.animTimer % 10 === 0) {
+        const animStep = e.type === 'fast_cheep' ? 6 : 10;
+        if (e.animTimer % animStep === 0) {
           e.animFrame = (e.animFrame + 1) % 2;
         }
         e.x += e.vx;
-        e.y += Math.sin(e.stateTimer * 0.06) * 0.35;
+        const waveFreq = e.type === 'fast_cheep' ? 0.12 : 0.06;
+        const waveAmp = e.type === 'fast_cheep' ? 0.65 : 0.35;
+        e.y += Math.sin(e.stateTimer * waveFreq) * waveAmp;
         if (this.level.dryFinishStartX !== undefined && e.x > this.level.dryFinishStartX - 24) {
           e.vx = -Math.abs(e.vx);
           e.facing = 'left';
@@ -1446,9 +1550,10 @@ export class GameEngine {
         return;
       }
 
-      // Walking enemy animation (Goomba & Koopa)
+      // Walking & hopping enemy animation (Goomba, Koopa, Red Koopa, Paratroopa)
       e.animTimer++;
-      if (e.animTimer % 10 === 0) {
+      const animRate = e.type === 'paratroopa' ? 6 : e.type === 'red_koopa' ? 7 : 10;
+      if (e.animTimer % animRate === 0) {
         e.animFrame = (e.animFrame + 1) % 2;
       }
 
@@ -1483,24 +1588,46 @@ export class GameEngine {
         }
       }
 
-      // Apply Gravity
-      e.vy += 0.35;
+      // Apply Gravity (Paratroopas glide with slightly lighter gravity)
+      const enemyGravity = e.type === 'paratroopa' ? 0.24 : 0.35;
+      e.vy += enemyGravity;
       if (e.vy > 6.0) e.vy = 6.0;
       e.y += e.vy;
 
       // Vertical floor/pipe-top/ceiling collision check
       const enemyBoxV: Rect = { x: e.x + 1, y: e.y, width: e.width - 2, height: e.height };
       const tilesV = this.getTilesIntersecting(enemyBoxV);
+      let enemyGrounded = false;
       for (const t of tilesV) {
         if (this.isSolidTile(t.tile.type)) {
           if (e.vy > 0) {
             e.y = t.tileY * GameEngine.TILE_SIZE - e.height;
-            e.vy = 0;
+            if (e.type === 'paratroopa') {
+              // Winged Paratroopa rebounds upward rhythmically
+              e.vy = -4.5;
+            } else {
+              e.vy = 0;
+              enemyGrounded = true;
+            }
             break;
           } else if (e.vy < 0) {
             e.y = (t.tileY + 1) * GameEngine.TILE_SIZE;
             e.vy = 0;
             break;
+          }
+        }
+      }
+
+      // Red Koopa smart ledge-turn AI: stays on platforms instead of walking blindly into pits
+      if (e.type === 'red_koopa' && e.state === 'walk' && enemyGrounded) {
+        const probeX = e.vx > 0 ? e.x + e.width + 2 : e.x - 2;
+        const probeTX = Math.floor(probeX / GameEngine.TILE_SIZE);
+        const footTY = Math.floor((e.y + e.height + 2) / GameEngine.TILE_SIZE);
+        if (probeTX >= 0 && probeTX < this.level.width && footTY >= 0 && footTY < this.level.height) {
+          const groundAhead = this.level.tiles[footTY]?.[probeTX];
+          if (!groundAhead || !this.isSolidTile(groundAhead.type)) {
+            e.vx = -e.vx;
+            e.facing = e.vx > 0 ? 'right' : 'left';
           }
         }
       }
@@ -1523,11 +1650,11 @@ export class GameEngine {
             other.vy = -5;
             this.sound.playKick();
             this.triggerScreenShake(3.0, 7);
-            this.spawnEnemyDefeatParticles(other.x, other.y);
+            this.spawnEnemyDefeatParticles(other.x, other.y, other.type);
             this.addScore(200, other.x, other.y);
           }
         });
-      } else if (e.state === 'walk') {
+      } else if (e.state === 'walk' && e.type !== 'paratroopa') {
         // Walking Goombas & Koopas bump and reverse direction on contact with each other or idle shells
         for (const other of this.enemies) {
           if (
@@ -1536,7 +1663,10 @@ export class GameEngine {
             (other.state !== 'walk' && other.state !== 'shell_idle') ||
             other.type === 'piranha' ||
             other.type === 'blooper' ||
-            other.type === 'cheep_cheep'
+            other.type === 'cheep_cheep' ||
+            other.type === 'fast_cheep' ||
+            other.type === 'bullet_bill' ||
+            other.type === 'paratroopa'
           ) {
             continue;
           }
@@ -1614,8 +1744,8 @@ export class GameEngine {
       e.state = 'flipped';
       e.vy = -5;
       this.sound.playKick();
-      this.triggerScreenShake(3.5, 8);
-      this.spawnEnemyDefeatParticles(e.x, e.y);
+      this.triggerLargeEnemyImpactShake(e);
+      this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
       if (e.type === 'bowser') {
         this.addScore(5000, e.x, e.y, 'BOWSER!');
       } else {
@@ -1631,18 +1761,40 @@ export class GameEngine {
         this.sound.playStomp();
         this.marioVy = -6.0; // Stomp bounce
         this.triggerScreenShake(1.5, 4);
-        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(100, e.x, e.y);
-      } else if (e.type === 'koopa') {
+      } else if (e.type === 'bullet_bill') {
+        e.alive = false;
+        e.state = 'flipped';
+        e.vx = 0;
+        e.vy = 2.5;
+        this.sound.playStomp();
+        this.marioVy = -6.2;
+        this.triggerScreenShake(2.5, 7);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+        this.addScore(200, e.x, e.y);
+      } else if (e.type === 'paratroopa') {
+        // Stomping a Paratroopa knocks off its wings and turns it into a fast Red Koopa
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        this.triggerLargeEnemyImpactShake(e);
+        e.type = 'red_koopa';
+        e.state = 'walk';
+        e.vy = 0;
+        e.vx = EnemySpawnManager.getInitialVelocity('red_koopa', speedMult, e.vx >= 0 ? 1 : -1);
+        this.sound.playStomp();
+        this.marioVy = -6.0;
+        this.spawnEnemyDefeatParticles(e.x, e.y, 'paratroopa');
+        this.addScore(100, e.x, e.y);
+      } else if (e.type === 'koopa' || e.type === 'red_koopa') {
         if (e.state === 'walk') {
-          // Retreat into shell
+          // Retreat into shell (large 24px enemy stomp impact)
+          this.triggerLargeEnemyImpactShake(e);
           e.state = 'shell_idle';
           e.vx = 0;
           e.height = 16;
           this.sound.playStomp();
           this.marioVy = -6.0;
-          this.triggerScreenShake(1.8, 5);
-          this.spawnEnemyDefeatParticles(e.x, e.y);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
           this.addScore(100, e.x, e.y);
         } else if (e.state === 'shell_moving') {
           // Stop moving shell
@@ -1650,8 +1802,8 @@ export class GameEngine {
           e.vx = 0;
           this.sound.playStomp();
           this.marioVy = -6.0;
-          this.triggerScreenShake(2.5, 6);
-          this.spawnEnemyDefeatParticles(e.x, e.y);
+          this.triggerScreenShake(2.8, 7);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         } else if (e.state === 'shell_idle') {
           // Kick stationary shell
           e.state = 'shell_moving';
@@ -1659,19 +1811,19 @@ export class GameEngine {
           this.sound.playKick();
           this.marioVy = -5.0;
           this.triggerScreenShake(3.0, 7);
-          this.spawnEnemyDefeatParticles(e.x, e.y);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
           this.addScore(400, e.x, e.y);
         }
       }
     } else {
       // Hit from side
-      if (e.type === 'koopa' && e.state === 'shell_idle') {
+      if ((e.type === 'koopa' || e.type === 'red_koopa') && e.state === 'shell_idle') {
         // Kick shell
         e.state = 'shell_moving';
         e.vx = this.marioX < e.x ? 5.5 : -5.5;
         this.sound.playKick();
         this.triggerScreenShake(3.0, 7);
-        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(400, e.x, e.y);
         return;
       }
@@ -1698,8 +1850,8 @@ export class GameEngine {
     // Tanooki statue is completely immune to normal enemy damage
     if (this.isStatue) return;
 
-    if (this.marioPower === 'tanooki' || this.marioPower === 'femboy') {
-      // Tanooki and Femboy power-ups downgrade to Super Mario on damage
+    if (this.marioPower === 'tanooki' || this.marioPower === 'femboy' || this.marioPower === 'cape') {
+      // Tanooki, Femboy, and Cape power-ups downgrade to Super Mario on damage
       this.marioPower = 'super';
       this.marioInvulnerableTimer = 120;
       this.marioShrinkTimer = 25;
@@ -1755,9 +1907,11 @@ export class GameEngine {
 
     this.stats.lives = Math.max(0, this.stats.lives - 1);
     if (this.stats.lives <= 0) {
+      this.syncHighScore(true);
       this.onMultiplayerSyncNeeded?.();
       this.evaluateMultiplayerMatchEnd();
       if (!this.isMultiplayerMatchOver) {
+        this.persistRunScoreToRanking();
         this.isGameOver = true;
         this.sound.playGameOver();
       }
@@ -1800,10 +1954,13 @@ export class GameEngine {
         return;
       }
 
-      // Super Leaf floating physics: gentle side-to-side oscillation and slow fall
-      if (item.type === 'leaf') {
-        item.x += Math.sin(Date.now() / 200) * 1.2;
-        item.y += 0.75; // gentle descent
+      // Super Leaf & Cape Feather floating physics: gentle side-to-side oscillation and slow fall
+      if (item.type === 'leaf' || item.type === 'feather') {
+        const swayFreq = item.type === 'feather' ? 175 : 200;
+        const swayAmp = item.type === 'feather' ? 1.35 : 1.2;
+        const fallSpeed = item.type === 'feather' ? 0.65 : 0.75;
+        item.x += Math.sin(Date.now() / swayFreq) * swayAmp;
+        item.y += fallSpeed;
       } else {
         // Moving items (Mushroom, Star, 1UP)
         item.x += item.vx;
@@ -1862,6 +2019,16 @@ export class GameEngine {
       }
       this.marioGrowthTimer = 36;
       this.addScore(1000, item.x, item.y, 'TANOOKI!');
+      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+    } else if (item.type === 'feather') {
+      this.sound.playPowerUpEat();
+      const prevPower = this.marioPower;
+      this.marioPower = 'cape';
+      if (prevPower === 'small') {
+        this.marioY -= 16;
+      }
+      this.marioGrowthTimer = 36;
+      this.addScore(1000, item.x, item.y, 'PENA!');
       this.spawnPowerUpSparkles(this.marioX, this.marioY);
     } else if (item.type === 'femboy') {
       this.sound.playPowerUpEat();
@@ -2006,7 +2173,7 @@ export class GameEngine {
             e.hp = (e.hp ?? 5) - 1;
             e.hitFlashTimer = 10;
             this.sound.playKick();
-            this.spawnEnemyDefeatParticles(fb.x, fb.y);
+            this.spawnEnemyDefeatParticles(fb.x, fb.y, 'bowser');
             if (e.hp <= 0) {
               e.alive = false;
               e.state = 'flipped';
@@ -2025,7 +2192,7 @@ export class GameEngine {
           e.state = 'flipped';
           e.vy = -5;
           this.sound.playKick();
-          this.spawnEnemyDefeatParticles(e.x, e.y);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
           if (fb.color === 'white') {
             this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y);
           }
@@ -2099,7 +2266,7 @@ export class GameEngine {
         e.state = 'flipped';
         e.vy = -1.5;
         e.vx = 0;
-        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(5000, e.x, e.y, 'BOWSER!');
       }
     });
@@ -2121,17 +2288,63 @@ export class GameEngine {
     this.particleSystem.emitCoinSparkles(x, y);
   }
 
-  // Helper to spawn impact stars and poof clouds when defeating an enemy
-  public spawnEnemyDefeatParticles(x: number, y: number) {
-    this.particleSystem.emitEnemyDefeat(x, y);
+  // Helper to spawn impact stars, debris fragments, and poof clouds when defeating an enemy
+  public spawnEnemyDefeatParticles(x: number, y: number, enemyType?: EnemyType) {
+    this.particleSystem.emitEnemyDefeat(x, y, enemyType);
+  }
+
+  private syncHighScore(persist: boolean = true) {
+    if (this.isCheatActive) return;
+    if (this.stats.score > this.stats.highScore) {
+      this.stats.highScore = this.stats.score;
+    }
+    if (this.stats.score > 0 && this.stats.score > this.runInitialHighScore) {
+      this.isNewHighScore = true;
+      this.stats.isNewHighScore = true;
+      if (!this.hasTriggeredNewRecordBanner && this.runInitialHighScore > 0) {
+        this.hasTriggeredNewRecordBanner = true;
+        this.particleSystem.emitScoreText('NOVO RECORDE!', this.marioX, this.marioY - 22, {
+          maxLife: 55,
+          vy: -0.9,
+        });
+        this.particleSystem.emitCoinSparkles(this.marioX + 8, this.marioY);
+      }
+    }
+    if (persist && this.stats.score > 0) {
+      updateTopScore(this.stats.score);
+    }
+  }
+
+  public persistRunScoreToRanking(customName?: string): number | null {
+    if (this.isCheatActive || this.stats.score <= 0) return null;
+    this.syncHighScore(true);
+    const defaultName =
+      customName?.trim() ||
+      getLastPlayerName() ||
+      (this.localPlayerName && this.localPlayerName !== 'Jogador' ? this.localPlayerName : '') ||
+      (this.playerCharacter === 'wazzima' ? 'WAZZIMA' : 'MARIO');
+    const result = saveNewScore(this.stats.score, this.stats.coins, this.stats.world, defaultName, {
+      id: this.currentRunId,
+      character: this.playerCharacter,
+      difficulty: this.difficulty,
+    });
+    this.lastSavedRank = result.rank;
+    return result.rank;
+  }
+
+  public resetLocalHighScore() {
+    this.stats.highScore = 0;
+    this.runInitialHighScore = 0;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.stats.isNewHighScore = false;
+    this.lastSavedRank = null;
   }
 
   private addScore(points: number, x: number, y: number, customText?: string) {
     this.stats.score += points;
     // Cheaters cannot update high score!
-    if (!this.isCheatActive && this.stats.score > this.stats.highScore) {
-      this.stats.highScore = this.stats.score;
-    }
+    this.syncHighScore(true);
 
     this.particleSystem.emitScoreText(customText || `${points}`, x, y - 8);
   }
@@ -2206,25 +2419,36 @@ export class GameEngine {
   // --- SCREEN-SHAKE SYSTEM ---
   public triggerScreenShake(intensity: number = 4.0, durationFrames: number = 12) {
     this.screenShakeIntensity = Math.max(this.screenShakeIntensity, intensity);
-    this.screenShakeTimer = Math.max(this.screenShakeTimer, durationFrames);
+    if (durationFrames >= this.screenShakeTimer) {
+      this.screenShakeMaxDuration = Math.max(1, durationFrames);
+      this.screenShakeTimer = durationFrames;
+    }
+  }
+
+  private triggerLargeEnemyImpactShake(e: Enemy) {
+    const isWazzima = this.playerCharacter === 'wazzima';
+    if (e.type === 'bowser') {
+      this.triggerScreenShake(isWazzima ? 6.5 : 5.5, 20);
+    } else if (e.height >= 24 || e.width >= 24) {
+      this.triggerScreenShake(isWazzima ? 5.2 : 4.2, isWazzima ? 16 : 13);
+    } else {
+      this.triggerScreenShake(isWazzima ? 3.5 : 2.8, 9);
+    }
   }
 
   // --- CAMERA & SCREEN SHAKE UPDATE ---
   private updateCamera() {
-    const targetX = this.marioX - GameEngine.NES_WIDTH * 0.35;
-    if (targetX > this.cameraX) {
-      this.cameraX = targetX;
-    }
-    // Max level boundary
-    const maxCamX = this.level.width * GameEngine.TILE_SIZE - GameEngine.NES_WIDTH;
-    if (this.cameraX > maxCamX) {
-      this.cameraX = maxCamX;
+    if (this.marioState !== 'dead') {
+      const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
+      this.camera.follow(this.marioX, this.marioVx, levelWidthPx);
+      this.cameraX = this.camera.x;
     }
 
     // Process screen-shake decay and pseudo-random displacement
     if (this.screenShakeTimer > 0) {
       this.screenShakeTimer--;
-      const currentIntensity = this.screenShakeIntensity * (this.screenShakeTimer / 12);
+      const progress = this.screenShakeTimer / Math.max(1, this.screenShakeMaxDuration);
+      const currentIntensity = this.screenShakeIntensity * progress;
       this.screenShakeOffsetX = (Math.random() * 2 - 1) * currentIntensity;
       this.screenShakeOffsetY = (Math.random() * 2 - 1) * currentIntensity;
       if (this.screenShakeTimer <= 0) {
@@ -2286,6 +2510,8 @@ export class GameEngine {
           this.pipeClipLipY = null;
         }
 
+        const isWazzima = this.playerCharacter === 'wazzima';
+        this.triggerScreenShake(isWazzima ? 4.4 : 3.5, isWazzima ? 16 : 12);
         this.sound.playPipe();
         return true;
       }
@@ -2307,11 +2533,13 @@ export class GameEngine {
       this.marioVx = 0;
       this.marioVy = 0;
       this.marioGrounded = false;
-      this.cameraX = 0;
+      this.camera.snapTo(0, this.level.width * GameEngine.TILE_SIZE);
+      this.cameraX = this.camera.x;
       this.marioState = 'falling';
       this.pipeClipLipY = null;
       this.pipeClipLipX = null;
     } else if (
+      targetLevelId === this.level.id ||
       targetLevelId === 'world-1-1' ||
       targetLevelId === 'world-1-2' ||
       targetLevelId === 'world-2-2'
@@ -2330,10 +2558,8 @@ export class GameEngine {
       this.marioVx = 0;
       this.marioVy = 0;
       this.marioGrounded = false;
-      this.cameraX = Math.max(
-        0,
-        Math.min(this.level.width * GameEngine.TILE_SIZE - GameEngine.NES_WIDTH, this.marioX - 80)
-      );
+      this.camera.centerOn(this.marioX, this.level.width * GameEngine.TILE_SIZE);
+      this.cameraX = this.camera.x;
       this.marioState = 'pipe_exiting';
       this.pipeExitDir = 'up';
       this.warpTimer = 0;
@@ -2341,18 +2567,33 @@ export class GameEngine {
       this.pipeClipLipX = null;
     }
 
+    const isWazzima = this.playerCharacter === 'wazzima';
+    this.triggerScreenShake(isWazzima ? 3.2 : 2.4, 11);
     this.sound.playPipe();
     this.warpTarget = null;
   }
 
-  // Tanooki 360-degree Tail Whip: hits enemies in a 36-pixel circle and bumps adjacent blocks
+  // Tanooki 360-degree Tail Whip & Cape Spin: hits enemies, deflects boss fireballs (Cape), and bumps blocks
   private checkTailWhipCollisions() {
+    const isCape = this.marioPower === 'cape';
     const whipBox: Rect = {
-      x: this.marioX - 10,
+      x: this.marioX - (isCape ? 12 : 10),
       y: this.marioY + 4,
-      width: 36,
+      width: isCape ? 40 : 36,
       height: 24,
     };
+
+    if (isCape && this.bossFireballs.length > 0) {
+      this.bossFireballs = this.bossFireballs.filter(bf => {
+        const bfBox: Rect = { x: bf.x, y: bf.y, width: 12, height: 8 };
+        if (this.rectsIntersect(whipBox, bfBox)) {
+          this.spawnEnemyDefeatParticles(bf.x, bf.y);
+          this.sound.playKick();
+          return false;
+        }
+        return true;
+      });
+    }
 
     // Defeat enemies struck by tail whip
     this.enemies.forEach(e => {
@@ -2365,7 +2606,7 @@ export class GameEngine {
           e.hitFlashTimer = 14;
           this.sound.playKick();
           this.triggerScreenShake(2.5, 6);
-          this.spawnEnemyDefeatParticles(e.x, e.y);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
           if (e.hp <= 0) {
             e.alive = false;
             e.state = 'flipped';
@@ -2382,7 +2623,7 @@ export class GameEngine {
         e.vx = this.marioFacing === 'right' ? 2.5 : -2.5;
         this.sound.playKick();
         this.triggerScreenShake(2.5, 6);
-        this.spawnEnemyDefeatParticles(e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(200, e.x, e.y);
       }
     });
@@ -2425,6 +2666,7 @@ export class GameEngine {
     this.stageClearTallyDelay = 40;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    this.syncHighScore(true);
     this.onMultiplayerSyncNeeded?.();
   }
 
@@ -2573,6 +2815,8 @@ export class GameEngine {
       winner,
       standings,
     };
+    this.syncHighScore(true);
+    this.persistRunScoreToRanking();
     this.isMultiplayerMatchOver = true;
     this.waitingForPlayersFinish = false;
     this.sound.stopMusic();
@@ -2628,6 +2872,12 @@ export class GameEngine {
 
     const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
     const initialTime = this.difficulty === 'easy' ? 500 : this.difficulty === 'hard' ? 300 : 400;
+    const topScore = getTopScore();
+    this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.runInitialHighScore = topScore;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.lastSavedRank = null;
 
     this.stats = {
       score: 0,
@@ -2635,8 +2885,9 @@ export class GameEngine {
       world: '1-1',
       time: initialTime,
       lives: this.infiniteLives ? 99 : initialLives,
-      highScore: Math.max(this.stats.score, this.stats.highScore),
+      highScore: topScore,
       difficulty: this.difficulty,
+      isNewHighScore: false,
     };
 
     this.isGameStarted = true;
@@ -2663,6 +2914,12 @@ export class GameEngine {
 
     const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
     const initialTime = this.difficulty === 'easy' ? 500 : this.difficulty === 'hard' ? 300 : 400;
+    const topScore = getTopScore();
+    this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.runInitialHighScore = topScore;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.lastSavedRank = null;
 
     this.stats = {
       score: 0,
@@ -2670,8 +2927,9 @@ export class GameEngine {
       world: '1-1',
       time: initialTime,
       lives: this.infiniteLives ? 99 : initialLives,
-      highScore: Math.max(this.stats.score, this.stats.highScore),
+      highScore: topScore,
       difficulty: this.difficulty,
+      isNewHighScore: false,
     };
 
     this.isPaused = false;
@@ -2805,9 +3063,11 @@ export class GameEngine {
       return;
     }
 
+    const camX = this.camera.renderX;
+
     // 1. Background Fill (Split ocean/sky smoothly at dryFinishStartX on underwater levels)
     if (this.level.theme === 'underwater' && this.level.dryFinishStartX !== undefined) {
-      const splitScreenX = Math.round(this.level.dryFinishStartX - this.cameraX);
+      const splitScreenX = Math.round(this.level.dryFinishStartX - camX);
       if (splitScreenX <= 0) {
         ctx.fillStyle = '#5c94fc';
         ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
@@ -2856,7 +3116,7 @@ export class GameEngine {
     this.renderMario(ctx);
 
     // 10. Particles & Floating Scores
-    this.particleSystem.render(ctx, this.cameraX, GameEngine.NES_WIDTH, this.atlas);
+    this.particleSystem.render(ctx, camX, GameEngine.NES_WIDTH, this.atlas);
 
     ctx.restore();
 
@@ -2944,10 +3204,11 @@ export class GameEngine {
   }
 
   private renderScenery(ctx: CanvasRenderingContext2D) {
+    const camX = this.camera.renderX;
     if (this.level.theme === 'underwater') {
       const waterEndScreenX =
         this.level.dryFinishStartX !== undefined
-          ? Math.min(GameEngine.NES_WIDTH, Math.round(this.level.dryFinishStartX - this.cameraX))
+          ? Math.min(GameEngine.NES_WIDTH, Math.round(this.level.dryFinishStartX - camX))
           : GameEngine.NES_WIDTH;
 
       if (waterEndScreenX > 0) {
@@ -2965,7 +3226,7 @@ export class GameEngine {
       }
 
       this.sceneries.forEach(s => {
-        const sx = s.x - this.cameraX;
+        const sx = Math.round(s.x - camX);
         if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
 
         if (s.type === 'seaweed_tall') {
@@ -2984,7 +3245,7 @@ export class GameEngine {
     if (this.level.theme !== 'overworld') return;
 
     this.sceneries.forEach(s => {
-      const sx = s.x - this.cameraX;
+      const sx = Math.round(s.x - camX);
       if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
 
       if (s.type === 'cloud_med') {
@@ -3050,8 +3311,9 @@ export class GameEngine {
   }
 
   private renderTiles(ctx: CanvasRenderingContext2D) {
-    const startTX = Math.max(0, Math.floor(this.cameraX / GameEngine.TILE_SIZE));
-    const endTX = Math.min(this.level.width - 1, Math.ceil((this.cameraX + GameEngine.NES_WIDTH) / GameEngine.TILE_SIZE));
+    const camX = this.camera.renderX;
+    const startTX = Math.max(0, Math.floor(camX / GameEngine.TILE_SIZE));
+    const endTX = Math.min(this.level.width - 1, Math.ceil((camX + GameEngine.NES_WIDTH) / GameEngine.TILE_SIZE));
 
     const qFrame = Math.floor((Date.now() / 150) % 4);
 
@@ -3060,8 +3322,8 @@ export class GameEngine {
         const block = this.level.tiles[ty][tx];
         if (!block || (block.invisible && block.bumpOffset === 0)) continue;
 
-        const screenX = tx * GameEngine.TILE_SIZE - this.cameraX;
-        const screenY = ty * GameEngine.TILE_SIZE + block.bumpOffset;
+        const screenX = tx * GameEngine.TILE_SIZE - camX;
+        const screenY = Math.round(ty * GameEngine.TILE_SIZE + block.bumpOffset);
 
         switch (block.type) {
           case 'ground':
@@ -3140,42 +3402,47 @@ export class GameEngine {
   }
 
   private renderFlagpole(ctx: CanvasRenderingContext2D) {
-    const poleScreenX = this.level.flagX - this.cameraX;
+    const poleScreenX = Math.round(this.level.flagX - this.camera.renderX);
     if (poleScreenX < -32 || poleScreenX > GameEngine.NES_WIDTH + 32) return;
 
     // Draw Flag attached to pole
-    ctx.drawImage(this.atlas.flagTriangle, poleScreenX - 14, this.flagY);
+    ctx.drawImage(this.atlas.flagTriangle, poleScreenX - 14, Math.round(this.flagY));
   }
 
   private renderItems(ctx: CanvasRenderingContext2D) {
+    const camX = this.camera.renderX;
     const coinFrame = Math.floor((Date.now() / 120) % 4);
     const flowerFrame = Math.floor((Date.now() / 100) % 4);
 
     this.items.forEach(item => {
-      const ix = item.x - this.cameraX;
+      const ix = Math.round(item.x - camX);
+      const iy = Math.round(item.y);
       if (ix < -16 || ix > GameEngine.NES_WIDTH + 16) return;
 
       if (item.type === 'leaf') {
-        ctx.drawImage(this.atlas.itemSuperLeaf, ix, item.y);
+        ctx.drawImage(this.atlas.itemSuperLeaf, ix, iy);
+      } else if (item.type === 'feather') {
+        ctx.drawImage(this.atlas.itemFeather, ix, iy);
       } else if (item.type === 'mushroom') {
-        ctx.drawImage(this.atlas.itemMushroomSuper, ix, item.y);
+        ctx.drawImage(this.atlas.itemMushroomSuper, ix, iy);
       } else if (item.type === '1up') {
-        ctx.drawImage(this.atlas.itemMushroom1Up, ix, item.y);
+        ctx.drawImage(this.atlas.itemMushroom1Up, ix, iy);
       } else if (item.type === 'fireflower') {
-        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, item.y);
+        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, iy);
       } else if (item.type === 'coin') {
-        ctx.drawImage(this.atlas.itemCoinFrames[coinFrame], ix, item.y);
+        ctx.drawImage(this.atlas.itemCoinFrames[coinFrame], ix, iy);
       } else if (item.type === 'star') {
-        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, item.y);
+        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, iy);
       } else if (item.type === 'femboy') {
-        ctx.drawImage(this.atlas.itemFemboy, ix, item.y);
+        ctx.drawImage(this.atlas.itemFemboy, ix, iy);
       }
     });
   }
 
   private renderEnemies(ctx: CanvasRenderingContext2D) {
+    const camX = this.camera.renderX;
     this.enemies.forEach(e => {
-      const ex = e.x - this.cameraX;
+      const ex = Math.round(e.x - camX);
       if (ex < -32 || ex > GameEngine.NES_WIDTH + 32) return;
 
       ctx.save();
@@ -3193,11 +3460,33 @@ export class GameEngine {
           const frame = e.animFrame === 0 ? this.atlas.goombaWalk1 : this.atlas.goombaWalk2;
           ctx.drawImage(frame, ex, e.y);
         }
-      } else if (e.type === 'koopa') {
+      } else if (e.type === 'koopa' || e.type === 'red_koopa') {
+        const isRed = e.type === 'red_koopa';
         if (e.state === 'shell_idle' || e.state === 'shell_moving') {
-          ctx.drawImage(this.atlas.koopaShell, ex, e.y + 8);
+          ctx.drawImage(isRed ? this.atlas.redKoopaShell : this.atlas.koopaShell, ex, e.y + 8);
         } else {
-          const frame = e.animFrame === 0 ? this.atlas.koopaWalk1 : this.atlas.koopaWalk2;
+          const frame = isRed
+            ? e.animFrame === 0
+              ? this.atlas.redKoopaWalk1
+              : this.atlas.redKoopaWalk2
+            : e.animFrame === 0
+            ? this.atlas.koopaWalk1
+            : this.atlas.koopaWalk2;
+          if (e.facing === 'right') {
+            ctx.translate(ex + 16, e.y);
+            ctx.scale(-1, 1);
+            ctx.drawImage(frame, 0, 0);
+          } else {
+            ctx.drawImage(frame, ex, e.y);
+          }
+        }
+      } else if (e.type === 'paratroopa') {
+        const frame = e.animFrame === 0 ? this.atlas.paratroopa1 : this.atlas.paratroopa2;
+        if (e.facing === 'right') {
+          ctx.translate(ex + 16, e.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(frame, 0, 0);
+        } else {
           ctx.drawImage(frame, ex, e.y);
         }
       } else if (e.type === 'piranha') {
@@ -3216,14 +3505,29 @@ export class GameEngine {
       } else if (e.type === 'blooper') {
         const frame = e.animFrame === 0 ? this.atlas.blooper1 : this.atlas.blooper2;
         ctx.drawImage(frame, ex, e.y);
-      } else if (e.type === 'cheep_cheep') {
-        const frame = e.animFrame === 0 ? this.atlas.cheepCheep1 : this.atlas.cheepCheep2;
+      } else if (e.type === 'cheep_cheep' || e.type === 'fast_cheep') {
+        const frame =
+          e.type === 'fast_cheep'
+            ? e.animFrame === 0
+              ? this.atlas.fastCheep1
+              : this.atlas.fastCheep2
+            : e.animFrame === 0
+            ? this.atlas.cheepCheep1
+            : this.atlas.cheepCheep2;
         if (e.facing === 'right') {
           ctx.translate(ex + 16, e.y);
           ctx.scale(-1, 1);
           ctx.drawImage(frame, 0, 0);
         } else {
           ctx.drawImage(frame, ex, e.y);
+        }
+      } else if (e.type === 'bullet_bill') {
+        if (e.facing === 'right') {
+          ctx.translate(ex + 16, e.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(this.atlas.bulletBill, 0, 0);
+        } else {
+          ctx.drawImage(this.atlas.bulletBill, ex, e.y);
         }
       } else if (e.type === 'lava_bubble') {
         const frame = e.animFrame === 0 ? this.atlas.lavaBubble1 : this.atlas.lavaBubble2;
@@ -3246,32 +3550,34 @@ export class GameEngine {
   }
 
   private renderFireballs(ctx: CanvasRenderingContext2D) {
+    const camX = this.camera.renderX;
     const frame = Math.floor((Date.now() / 60) % 4);
     this.fireballs.forEach(fb => {
-      const fx = fb.x - this.cameraX;
+      const fx = Math.round(fb.x - camX);
       if (fx < -8 || fx > GameEngine.NES_WIDTH + 8) return;
       const frames = fb.color === 'white' ? this.atlas.whiteFireballFrames : this.atlas.fireballFrames;
       if (fb.exploding) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - fb.explodeTimer / 10);
-        ctx.drawImage(frames[frame], fx, fb.y);
+        ctx.drawImage(frames[frame], fx, Math.round(fb.y));
         ctx.restore();
       } else {
-        ctx.drawImage(frames[frame], fx, fb.y);
+        ctx.drawImage(frames[frame], fx, Math.round(fb.y));
       }
     });
 
     this.bossFireballs.forEach(bf => {
-      const bx = bf.x - this.cameraX;
+      const bx = Math.round(bf.x - camX);
+      const by = Math.round(bf.y);
       if (bx < -20 || bx > GameEngine.NES_WIDTH + 20) return;
       const bFrame = Math.floor(bf.animTimer / 4) % 2;
       ctx.save();
       if (bf.vx > 0) {
-        ctx.translate(bx + 16, bf.y);
+        ctx.translate(bx + 16, by);
         ctx.scale(-1, 1);
         ctx.drawImage(this.atlas.bowserFireFrames[bFrame], 0, 0);
       } else {
-        ctx.drawImage(this.atlas.bowserFireFrames[bFrame], bx, bf.y);
+        ctx.drawImage(this.atlas.bowserFireFrames[bFrame], bx, by);
       }
       ctx.restore();
     });
@@ -3288,8 +3594,9 @@ export class GameEngine {
       return;
     }
 
-    const mx = this.marioX - this.cameraX;
-    const my = this.marioY;
+    // Subtract smooth float camera before rounding so Mario stays rock-steady during high-speed tracking
+    const mx = Math.round(this.marioX - this.camera.x);
+    const my = Math.round(this.marioY);
 
     ctx.save();
 
@@ -3307,7 +3614,7 @@ export class GameEngine {
         }
         ctx.clip();
       } else if (this.pipeClipLipX !== null) {
-        const lipScreenX = this.pipeClipLipX - this.cameraX;
+        const lipScreenX = Math.round(this.pipeClipLipX - this.camera.renderX);
         ctx.beginPath();
         if (this.marioState === 'pipe_entering' && this.warpDir === 'right') {
           // Entering horizontally to the right: hide everything past the pipe opening
@@ -3334,6 +3641,8 @@ export class GameEngine {
         ? (isW ? this.atlas.wazzimaSmallIdle : this.atlas.marioSmallIdle)
         : (this.marioPower === 'tanooki'
             ? (isW ? this.atlas.wazzimaTanookiIdle : this.atlas.marioTanookiIdle)
+            : this.marioPower === 'cape'
+            ? (isW ? this.atlas.wazzimaCapeIdle : this.atlas.marioCapeIdle)
             : this.marioPower === 'femboy'
             ? (isW ? this.atlas.wazzimaFemboyIdle : this.atlas.marioFemboyIdle)
             : (isW ? this.atlas.wazzimaSuperIdle : this.atlas.marioSuperIdle));
@@ -3422,8 +3731,8 @@ export class GameEngine {
         rp.renderY += (rp.y - rp.renderY) * 0.35;
       }
 
-      const px = rp.renderX - this.cameraX;
-      const py = rp.renderY;
+      const px = Math.round(rp.renderX - this.camera.renderX);
+      const py = Math.round(rp.renderY);
       if (px < -32 || px > GameEngine.NES_WIDTH + 32) return;
 
       ctx.save();

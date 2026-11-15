@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { GameStats } from '../game/types.ts';
-import { Trophy, Heart, Flame } from 'lucide-react';
+import { Trophy, Heart, Flame, Maximize2, Minimize2 } from 'lucide-react';
 
 interface RetroHUDProps {
   stats: GameStats;
@@ -13,6 +13,8 @@ interface RetroHUDProps {
   isCheatActive?: boolean;
   isFemboy?: boolean;
   onOpenCheatMenu?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const RetroHUD: React.FC<RetroHUDProps> = ({
@@ -21,6 +23,8 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   isCheatActive = false,
   isFemboy = false,
   onOpenCheatMenu,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   // Format numbers with leading zeroes
   const formattedScore = String(stats.score).padStart(6, '0');
@@ -58,8 +62,12 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   };
 
   return (
-    <div className="w-full bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b border-stone-800/80 shadow-lg px-2 sm:px-6 py-1.5 sm:py-2.5">
-      <div className="max-w-5xl mx-auto flex flex-col gap-1.5 sm:gap-2">
+    <div
+      className={`w-full bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b border-stone-800/80 shadow-lg px-2 sm:px-6 ${
+        isFullscreen ? 'py-1 sm:py-1.5' : 'py-1.5 sm:py-2.5'
+      }`}
+    >
+      <div className="max-w-5xl mx-auto flex flex-col gap-1 sm:gap-1.5">
         {/* Main Scoreboard Row */}
         <div className="grid grid-cols-3 sm:grid-cols-5 items-center text-center gap-2 sm:gap-4">
           {/* 1. Mario Score (Pontuação / Love Points) */}
@@ -95,10 +103,19 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
           </div>
 
           {/* 2. Recorde / Top Score */}
-          <div className="hidden sm:flex flex-col items-center bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border border-stone-800/80">
+          <div
+            className={`hidden sm:flex flex-col items-center bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border transition-colors ${
+              stats.isNewHighScore && !isCheatActive
+                ? 'border-amber-400/80 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'border-stone-800/80'
+            }`}
+          >
             <div className="flex items-center gap-1 text-[9px] sm:text-[11px] text-amber-300 font-bold tracking-wider mb-0.5">
               <Trophy className="w-3 h-3 text-amber-400" />
               <span>RECORDE</span>
+              {stats.isNewHighScore && !isCheatActive && (
+                <span className="text-[8px] text-emerald-400 animate-pulse">NOVO!</span>
+              )}
             </div>
             <span className="tabular-nums font-mono text-xs sm:text-sm text-amber-200 tracking-widest">
               {formattedHighScore}
@@ -143,6 +160,45 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             >
               {formattedTime}
             </span>
+          </div>
+        </div>
+
+        {/* Compact Mobile Recorde, World & Fullscreen Strip */}
+        <div className="flex sm:hidden items-center justify-between bg-stone-900/85 px-2.5 py-1 rounded-lg border border-stone-800 text-[9px]">
+          <div className="flex items-center gap-1.5 text-amber-300">
+            <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
+            <span>REC:</span>
+            <span className="font-mono text-amber-200 tracking-wider">{formattedHighScore}</span>
+            {stats.isNewHighScore && !isCheatActive && (
+              <span className="text-[8px] text-emerald-400 animate-pulse">NOVO!</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-stone-400">{stats.world}</span>
+            {onOpenLeaderboard && (
+              <button
+                type="button"
+                onClick={onOpenLeaderboard}
+                className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold cursor-pointer"
+              >
+                RANKING
+              </button>
+            )}
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+                className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 cursor-pointer ${
+                  isFullscreen
+                    ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/60'
+                    : 'bg-stone-800 text-stone-200 border-stone-700'
+                }`}
+              >
+                {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                <span>{isFullscreen ? 'SAIR' : 'TELA CHEIA'}</span>
+              </button>
+            )}
           </div>
         </div>
 

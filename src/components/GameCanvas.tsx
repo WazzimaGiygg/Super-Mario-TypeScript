@@ -13,7 +13,7 @@ import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
-import { GamepadControls, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
+import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
 import { getTopScore } from '../game/scoreboard.ts';
 import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff } from 'lucide-react';
 
@@ -26,17 +26,19 @@ export const GameCanvas: React.FC = () => {
   const cheatBufferRef = useRef<string>('');
 
   // UI state for reactive updates
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<GameStats>({
     score: 0,
     coins: 0,
     world: '1-1',
     time: 400,
     lives: 3,
     highScore: getTopScore(),
+    isNewHighScore: false,
   });
 
   const [isPaused, setIsPaused] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [lastSavedRank, setLastSavedRank] = useState<number | null>(null);
   const [marioPower, setMarioPower] = useState<MarioPower>('small');
   const [isStageClear, setIsStageClear] = useState(false);
   const [waitingForPlayersFinish, setWaitingForPlayersFinish] = useState(false);
@@ -55,6 +57,23 @@ export const GameCanvas: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [crtFilter, setCrtFilter] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const wasNativeFullscreenRef = useRef(false);
+  const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(pointer: coarse)').matches ||
+      navigator.maxTouchPoints > 0 ||
+      window.innerWidth < 768
+    );
+  });
+  const [touchOverlayOnCanvas, setTouchOverlayOnCanvas] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('smb_touch_overlay_mode');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const [difficulty, setDifficulty] = useState<GameDifficulty>('normal');
   const [resolutionScale, setResolutionScale] = useState<ResolutionScale>('fit');
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
@@ -105,6 +124,35 @@ export const GameCanvas: React.FC = () => {
       unsubLogoff();
       if (noticeTimer) clearTimeout(noticeTimer);
     };
+  }, []);
+
+  // Keep mobile/touch device detection reactive across resize & orientation changes
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileDevice(
+        window.matchMedia('(pointer: coarse)').matches ||
+          navigator.maxTouchPoints > 0 ||
+          window.innerWidth < 768
+      );
+    };
+    window.addEventListener('resize', checkMobile);
+    window.addEventListener('orientationchange', checkMobile);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
+  }, []);
+
+  const toggleTouchOverlayMode = useCallback(() => {
+    setTouchOverlayOnCanvas(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smb_touch_overlay_mode', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   }, []);
 
   // Initialize engine once
@@ -400,7 +448,8 @@ export const GameCanvas: React.FC = () => {
         uiTimer += deltaMs;
         if (uiTimer >= 100) {
           uiTimer = 0;
-          setStats({ ...engine.stats });
+          setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
+          setLastSavedRank(engine.lastSavedRank);
           setMarioPower(engine.marioPower);
           setIsPaused(engine.isPaused);
           setIsGameOver(engine.isGameOver);
@@ -478,16 +527,72 @@ export const GameCanvas: React.FC = () => {
     }
   };
 
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
+  useEffect(() => {
+    const getFullscreenElement = () =>
+      document.fullscreenElement ||
+      (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ||
+      null;
+
+    const handleFullscreenChange = () => {
+      const activeNative = Boolean(getFullscreenElement());
+      if (activeNative) {
+        wasNativeFullscreenRef.current = true;
+        setIsFullscreen(true);
+      } else if (wasNativeFullscreenRef.current) {
+        wasNativeFullscreenRef.current = false;
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const el = containerRef.current as (HTMLDivElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    }) | null;
+
+    const nativeFsEl = document.fullscreenElement || doc.webkitFullscreenElement;
+
+    if (isFullscreen || nativeFsEl) {
       setIsFullscreen(false);
+      wasNativeFullscreenRef.current = false;
+      if (nativeFsEl) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (doc.webkitExitFullscreen) {
+          Promise.resolve(doc.webkitExitFullscreen()).catch(() => {});
+        }
+      }
+      return;
     }
-  };
+
+    // Always activate immersive 100dvh fullscreen immediately (ensures full support on iOS Safari & mobile iframes)
+    setIsFullscreen(true);
+
+    if (el) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: 'hide' } as FullscreenOptions).catch(() => {
+          // Fallback to CSS immersive mobile fullscreen already enabled above
+        });
+      } else if (el.webkitRequestFullscreen) {
+        try {
+          Promise.resolve(el.webkitRequestFullscreen()).catch(() => {});
+        } catch {
+          // Immersive CSS fullscreen remains active
+        }
+      }
+    }
+  }, [isFullscreen]);
 
   const handleStartGame = () => {
     SoundEngine.get().resume();
@@ -504,7 +609,21 @@ export const GameCanvas: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center w-full min-h-screen bg-stone-950 select-none overflow-hidden"
+      style={
+        isFullscreen
+          ? {
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)',
+              paddingRight: 'env(safe-area-inset-right)',
+            }
+          : undefined
+      }
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-40 flex flex-col items-center justify-between w-screen h-[100dvh] bg-black select-none overflow-hidden'
+          : 'relative flex flex-col items-center justify-center w-full min-h-screen bg-stone-950 select-none overflow-hidden'
+      }
     >
       {/* Top HUD (Placar & Vidas) */}
       <RetroHUD
@@ -513,13 +632,29 @@ export const GameCanvas: React.FC = () => {
         isCheatActive={isCheatActive}
         isFemboy={marioPower === 'femboy'}
         onOpenCheatMenu={() => setIsCheatMenuOpen(true)}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
       />
 
       {/* Main Arcade Frame / TV Screen Bezel */}
-      <div className="relative flex-1 w-full flex items-center justify-center p-2 sm:p-4 overflow-auto">
+      <div
+        className={`relative flex-1 min-h-0 w-full flex items-center justify-center ${
+          isFullscreen ? 'p-0 overflow-hidden' : 'p-2 sm:p-4 overflow-auto'
+        }`}
+      >
         <div
-          className={`relative bg-black rounded-lg sm:rounded-2xl border-2 sm:border-8 border-stone-800 shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-200 ${
-            resolutionScale === 'fit' ? 'w-full max-w-4xl aspect-[4/3] max-h-[46vh] sm:max-h-[68vh] md:max-h-[75vh]' : ''
+          className={`relative bg-black overflow-hidden flex items-center justify-center transition-all duration-200 ${
+            isFullscreen
+              ? 'border-0 rounded-none shadow-none'
+              : 'rounded-lg sm:rounded-2xl border-2 sm:border-8 border-stone-800 shadow-2xl'
+          } ${
+            resolutionScale === 'fit'
+              ? isFullscreen
+                ? 'w-full h-full max-w-none max-h-full'
+                : isMobileDevice && touchOverlayOnCanvas
+                ? 'w-full max-w-4xl aspect-[4/3] max-h-[76vh] sm:max-h-[75vh]'
+                : 'w-full max-w-4xl aspect-[4/3] max-h-[46vh] sm:max-h-[68vh] md:max-h-[75vh]'
+              : ''
           }`}
           style={
             resolutionScale !== 'fit'
@@ -574,6 +709,25 @@ export const GameCanvas: React.FC = () => {
             />
           )}
 
+          {/* Translucent On-Screen D-Pad & Action Buttons (A, B) Overlay on Canvas for Mobile Devices */}
+          {isMobileDevice && touchOverlayOnCanvas && hasStarted && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
+            <TouchControls
+              variant="canvas-overlay"
+              controls={controls}
+              onControlChange={handleControlChange}
+              isPaused={isPaused}
+              onTogglePause={togglePauseGame}
+              isMuted={soundStatus.muted}
+              onToggleMute={toggleMute}
+              onRestart={handleRestart}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+              onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              multiplayerConnected={multiplayerStatus.connected}
+            />
+          )}
+
           {/* Start Screen Splash (Initial User Interaction) */}
           {!hasStarted && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/85 p-6 text-center animate-in fade-in overflow-y-auto">
@@ -596,7 +750,7 @@ export const GameCanvas: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-center">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-center justify-center">
                 <button
                   type="button"
                   onClick={handleStartGame}
@@ -613,6 +767,28 @@ export const GameCanvas: React.FC = () => {
                 >
                   <Users className="w-4 h-4 text-emerald-400" />
                   MULTIPLAYER (GOOGLE)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardOpen(true)}
+                  className="px-5 py-3 rounded-xl bg-stone-900/90 hover:bg-stone-800 border-2 border-amber-500/60 text-amber-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Trophy className="w-4 h-4 text-amber-400" />
+                  RANKING {stats.highScore > 0 ? `(${stats.highScore.toLocaleString()})` : ''}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className={`px-5 py-3 rounded-xl border-2 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer ${
+                    isFullscreen
+                      ? 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-500 text-emerald-300'
+                      : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600 text-stone-200'
+                  }`}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  {isFullscreen ? 'SAIR TELA CHEIA' : 'TELA CHEIA'}
                 </button>
               </div>
 
@@ -660,7 +836,7 @@ export const GameCanvas: React.FC = () => {
                 Pressione <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">ESC</kbd> ou{' '}
                 <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">P</kbd> para continuar
               </p>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap justify-center gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -669,6 +845,14 @@ export const GameCanvas: React.FC = () => {
                   className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-['Press_Start_2P',monospace] text-xs shadow cursor-pointer"
                 >
                   CONTINUAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardOpen(true)}
+                  className="px-5 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-amber-500/50 text-amber-300 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  RANKING
                 </button>
                 <button
                   type="button"
@@ -818,20 +1002,34 @@ export const GameCanvas: React.FC = () => {
           {/* Solo Game Over Overlay */}
           {isGameOver && !isMultiplayerMatchOver && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in zoom-in-95">
-              <h2 className="font-['Press_Start_2P',monospace] text-3xl sm:text-5xl text-red-600 mb-4 tracking-widest drop-shadow-lg">
+              <h2 className="font-['Press_Start_2P',monospace] text-3xl sm:text-5xl text-red-600 mb-3 tracking-widest drop-shadow-lg">
                 GAME OVER
               </h2>
-              <p className="text-stone-300 font-mono text-sm mb-6">
+              {stats.isNewHighScore && !isCheatActive && (
+                <div className="mb-3 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs animate-bounce flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <span>NOVO RECORDE LOCAL!</span>
+                </div>
+              )}
+              <p className="text-stone-300 font-mono text-sm mb-2">
                 {marioPower === 'femboy' ? 'LOVE POINTS FINAIS: ' : 'PONTUAÇÃO FINAL: '}
                 <span className={`font-bold text-base ${marioPower === 'femboy' ? 'text-pink-400' : 'text-amber-400'}`}>
-                  {stats.score}
+                  {stats.score.toLocaleString()}
                 </span>
+              </p>
+              <p className="text-stone-400 font-mono text-xs mb-5">
+                RECORDE MÁXIMO: <span className="text-amber-300 font-bold">{stats.highScore.toLocaleString()}</span>
+                {lastSavedRank !== null && !isCheatActive && (
+                  <span className="ml-2 px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold">
+                    #{lastSavedRank} NO RANKING
+                  </span>
+                )}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
                   onClick={handleRestart}
-                  className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg transform hover:scale-105 active:scale-95 transition flex items-center justify-center gap-2"
+                  className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg transform hover:scale-105 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   JOGAR NOVAMENTE
@@ -839,10 +1037,10 @@ export const GameCanvas: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsLeaderboardOpen(true)}
-                  className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/50 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg flex items-center justify-center gap-2"
+                  className="px-6 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/50 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Trophy className="w-4 h-4 text-amber-400" />
-                  SALVAR NO PLACAR
+                  {!isCheatActive && stats.score > 0 ? 'RANKING / NOME' : 'VER RANKING'}
                 </button>
               </div>
             </div>
@@ -878,8 +1076,9 @@ export const GameCanvas: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Bottom Toolbar (Audio, Settings, Fullscreen - for desktop/tablet) */}
-      <div className="hidden sm:flex w-full max-w-4xl px-4 py-2 items-center justify-between text-stone-400 text-xs">
+      {/* Floating Bottom Toolbar (Audio, Settings, Fullscreen - for desktop/tablet, hidden during fullscreen) */}
+      {!isFullscreen && (
+        <div className="hidden sm:flex w-full max-w-4xl px-4 py-2 items-center justify-between text-stone-400 text-xs">
         <div className="flex items-center gap-2">
           {/* Mute SFX button */}
           <button
@@ -991,22 +1190,27 @@ export const GameCanvas: React.FC = () => {
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* On-Screen Touch Controls (For mobile / touch devices) */}
-      <TouchControls
-        controls={controls}
-        onControlChange={handleControlChange}
-        isPaused={isPaused}
-        onTogglePause={togglePauseGame}
-        isMuted={soundStatus.muted}
-        onToggleMute={toggleMute}
-        onRestart={handleRestart}
-        onToggleFullscreen={toggleFullscreen}
-        onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        multiplayerConnected={multiplayerStatus.connected}
-      />
+      {/* Docked Touch Controls (Shown when mobile overlay is disabled or on desktop touch mode) */}
+      {(!isMobileDevice || !touchOverlayOnCanvas) && (
+        <TouchControls
+          variant="docked"
+          controls={controls}
+          onControlChange={handleControlChange}
+          isPaused={isPaused}
+          onTogglePause={togglePauseGame}
+          isMuted={soundStatus.muted}
+          onToggleMute={toggleMute}
+          onRestart={handleRestart}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+          onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          multiplayerConnected={multiplayerStatus.connected}
+        />
+      )}
 
       {/* Settings Modal */}
       <SettingsModal
@@ -1034,6 +1238,10 @@ export const GameCanvas: React.FC = () => {
         onSelectResolution={(scale: ResolutionScale) => {
           setResolutionScale(scale);
         }}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        touchOverlayOnCanvas={touchOverlayOnCanvas}
+        onToggleTouchOverlay={toggleTouchOverlayMode}
       />
 
       {/* Leaderboard / Placar Modal */}
@@ -1043,7 +1251,25 @@ export const GameCanvas: React.FC = () => {
         currentScore={stats.score}
         currentCoins={stats.coins}
         currentWorld={stats.world}
+        currentRunId={engineRef.current?.currentRunId}
+        currentCharacter={engineRef.current?.playerCharacter || 'mario'}
+        currentDifficulty={difficulty}
         isCheatActive={isCheatActive}
+        onScoresCleared={() => {
+          engineRef.current?.resetLocalHighScore();
+          setLastSavedRank(null);
+          setStats(prev => ({ ...prev, highScore: 0, isNewHighScore: false }));
+        }}
+        onScoreSaved={(rank) => {
+          if (engineRef.current) {
+            engineRef.current.lastSavedRank = rank;
+          }
+          setLastSavedRank(rank);
+          setStats(prev => ({
+            ...prev,
+            highScore: getTopScore(),
+          }));
+        }}
       />
 
       {/* Cheat Menu Modal ("lula132026") */}

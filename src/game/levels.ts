@@ -4,6 +4,7 @@
  */
 
 import { LevelData, BlockTile, TileType, Point, EnemyType } from './types.ts';
+import { EnemySpawnManager } from './enemySpawnManager.ts';
 
 // Helper to create empty grid
 function createEmptyGrid(width: number, height: number): (BlockTile | null)[][] {
@@ -100,6 +101,9 @@ export function createWorld1_1(): LevelData {
   // 3. Pipes
   // Tile 28: 2-tile high pipe
   placePipe(grid, 28, 12, 2);
+
+  // Cape Feather ? block at tile 33 (between early pipes)
+  grid[9][33] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
 
   // Tile 38: 3-tile high pipe
   placePipe(grid, 38, 12, 3);
@@ -379,6 +383,7 @@ export function createWorld1_2(): LevelData {
   }
   grid[8][23] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
   grid[5][25] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
+  grid[5][27] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
 
   // Hidden Starman Block at tile 85, y=9
   grid[9][85] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0, invisible: true };
@@ -540,6 +545,7 @@ export function createWorld2_2(): LevelData {
   }
   grid[7][112] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
   grid[7][113] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
+  grid[7][114] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
 
   for (let x = 118; x <= 126; x++) {
     grid[5][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
@@ -711,6 +717,7 @@ export function createWorld1_4(): LevelData {
     };
   }
   grid[5][61] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
+  grid[5][63] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
   coins.push(
     { x: 52 * 16 + 8, y: 7 * 16 },
     { x: 54 * 16 + 8, y: 7 * 16 },
@@ -919,36 +926,31 @@ export function createEndlessLevel(
     }
   };
 
-  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'femboy' | 'coin' => {
+  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'coin' => {
     const r = rand();
     // Power-ups become slightly scarcer on higher cycles
     const powerChance = 0.56 - diffRatio * 0.25;
     if (r > powerChance) return 'coin';
     const typeRoll = rand();
-    if (typeRoll < 0.34) return 'mushroom';
-    if (typeRoll < 0.60) return 'fireflower';
-    if (typeRoll < 0.80) return 'leaf';
+    if (typeRoll < 0.28) return 'mushroom';
+    if (typeRoll < 0.50) return 'fireflower';
+    if (typeRoll < 0.68) return 'leaf';
+    if (typeRoll < 0.85) return 'feather';
     return 'femboy';
   };
 
+  const spawnProfile = EnemySpawnManager.getProfile(stage, theme);
+
   const spawnEnemy = (tx: number, tyTile: number, forceType?: EnemyType) => {
-    if (theme === 'underwater') {
-      const seaType: EnemyType = rand() < 0.35 + diffRatio * 0.2 ? 'blooper' : 'cheep_cheep';
-      const swimY = (5 + Math.floor(rand() * 6)) * 16;
-      enemies.push({
-        type: seaType,
-        x: tx * 16,
-        y: Math.min(swimY, (tyTile - 1) * 16),
-      });
-      return;
-    }
-    const koopaChance = 0.25 + diffRatio * 0.4;
-    const type: EnemyType = forceType ?? (rand() < koopaChance ? 'koopa' : 'goomba');
-    enemies.push({
-      type,
-      x: tx * 16,
-      y: type === 'koopa' ? (tyTile - 1) * 16 + 8 : tyTile * 16,
-    });
+    const type =
+      forceType ??
+      EnemySpawnManager.pickEnemyType(stage, theme, rand, { allowAerial: true });
+    enemies.push(EnemySpawnManager.createSpawnSpec(type, tx, tyTile, rand));
+  };
+
+  const spawnEnemyPack = (txSlots: number[], tyTile: number) => {
+    const specs = EnemySpawnManager.generateChunkSpawns(stage, theme, rand, txSlots, tyTile);
+    enemies.push(...specs);
   };
 
   let x = 0;
@@ -956,7 +958,8 @@ export function createEndlessLevel(
   placeGroundSpan(0, 16);
   x = 16;
 
-  const finishZoneStart = theme === 'castle' ? width - 30 : width - 26;
+  const finishZoneStart =
+    theme === 'castle' ? width - 30 : theme === 'underwater' ? width - 42 : width - 26;
 
   // Weighted chunk selection that scales hazard complexity with stage & cycle
   while (x < finishZoneStart) {
@@ -993,15 +996,14 @@ export function createEndlessLevel(
         grid[5][x + 2] = { type: 'question', content: hContent, bumpOffset: 0, bumpVel: 0, invisible: true };
       }
 
-      const enemyChance = 0.58 + diffRatio * 0.35;
-      if (rand() < enemyChance) {
-        spawnEnemy(x + 2, 12);
-        if (len >= 9 && rand() < 0.32 + diffRatio * 0.5) {
-          spawnEnemy(x + len - 3, 12);
-        }
-        if (len >= 11 && diffRatio > 0.4 && rand() < diffRatio * 0.65) {
+      const slots = len >= 9 ? [x + 2, x + len - 3, mid] : [x + 2, x + len - 2];
+      if (len >= 11 && diffRatio > 0.3 && rand() < spawnProfile.clusterChance) {
+        spawnEnemyPack([x + 2, x + len - 3], 12);
+        if (rand() < spawnProfile.baseSpawnChance * 0.7) {
           spawnEnemy(mid, 8);
         }
+      } else {
+        spawnEnemyPack(slots, 12);
       }
       x += len;
     } else if (chunkType === 1) {
@@ -1020,14 +1022,14 @@ export function createEndlessLevel(
       } else {
         const pipeH1 = 2 + Math.floor(rand() * 3);
         placePipe(grid, x + 2, 12, pipeH1);
-        const piranhaChance = 0.35 + diffRatio * 0.55;
+        const piranhaChance = spawnProfile.piranhaChance;
         if (theme !== 'underwater' && pipeH1 >= 2 && rand() < piranhaChance) {
           enemies.push({
             type: 'piranha',
             x: (x + 2) * 16 + 8,
             y: (13 - pipeH1) * 16,
           });
-        } else if (theme === 'underwater' && rand() < 0.55 + diffRatio * 0.3) {
+        } else if (theme === 'underwater' && rand() < spawnProfile.baseSpawnChance) {
           spawnEnemy(x + 3, 9);
         }
 
@@ -1041,7 +1043,7 @@ export function createEndlessLevel(
               y: (13 - pipeH2) * 16,
             });
           }
-          if (rand() < 0.35 + diffRatio * 0.5) {
+          if (rand() < spawnProfile.clusterChance) {
             spawnEnemy(x + 5, 12);
           }
         }
@@ -1063,7 +1065,7 @@ export function createEndlessLevel(
         x += gap;
         const landLen = Math.min(remaining - gap, 3);
         placeGroundSpan(x, landLen);
-        if (diffRatio > 0.3 && rand() < diffRatio * 0.7) {
+        if (rand() < spawnProfile.baseSpawnChance * 0.78) {
           spawnEnemy(x + 1, 12);
         }
         x += landLen;
@@ -1150,10 +1152,10 @@ export function createEndlessLevel(
         coins.push({ x: (x + i) * 16 + 8, y: 6 * 16 });
       }
       spawnEnemy(x + 2, 12);
-      if (diffRatio > 0.2) {
+      if (cycleNumber >= 2 || rand() < spawnProfile.clusterChance) {
         spawnEnemy(x + Math.floor(bLen / 2), 7);
       }
-      if (diffRatio > 0.5 && bLen >= 10) {
+      if (bLen >= 10 && rand() < spawnProfile.clusterChance) {
         spawnEnemy(x + bLen - 3, 12);
       }
       x += bLen;
@@ -1176,7 +1178,7 @@ export function createEndlessLevel(
               bumpVel: 0,
             };
           }
-          if (diffRatio > 0.3 && rand() < 0.38 + diffRatio * 0.45) {
+          if (rand() < spawnProfile.clusterChance * 0.75) {
             spawnEnemy(x + 2, pY - 1);
           }
           x += pW;
@@ -1196,6 +1198,10 @@ export function createEndlessLevel(
   // Build Finish Area: Castle stages end with Bowser Bridge + Axe; others end with Flagpole + Castle!
   let flagXTile = width - 18;
   let castleXTile = width - 12;
+
+  const levelId = `endless-${stage}-${normalizedSeed}`;
+  let pipeWarps: LevelData['pipeWarps'] = undefined;
+  let dryFinishStartX: number | undefined = undefined;
 
   if (theme === 'castle') {
     // Approach step up onto Boss Bridge
@@ -1249,6 +1255,85 @@ export function createEndlessLevel(
       grid[y][width - 1] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
     }
     flagXTile = 99999;
+  } else if (theme === 'underwater') {
+    // Underwater exit warp pipe -> coral barrier wall -> dry shore emergence pipe -> staircase -> flagpole -> castle
+    const warpPipeTile = width - 38;
+    const barrierStartTile = width - 33;
+    const dryShoreStartTile = width - 30;
+    const emergePipeTile = width - 25;
+    const stairsStartTile = width - 21;
+    flagXTile = width - 14;
+    castleXTile = width - 10;
+    dryFinishStartX = dryShoreStartTile * 16;
+
+    // Clear any stray tiles in the finish zone (rows 0..12) so pipe & castle path stay unobstructed
+    for (let cx = Math.min(x, warpPipeTile - 1); cx < width; cx++) {
+      for (let cy = 0; cy <= 12; cy++) {
+        grid[cy][cx] = null;
+      }
+    }
+
+    // Underwater seabed up to the dry shore boundary
+    for (let sx = x; sx < dryShoreStartTile; sx++) {
+      grid[13][sx] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][sx] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    // Underwater warp pipe + coin guide above it
+    placePipe(grid, warpPipeTile, 12, 3, true);
+    coins.push({ x: warpPipeTile * 16 + 16, y: 8 * 16 });
+
+    // Solid coral barrier wall dividing ocean from dry shore exit
+    for (let bx = barrierStartTile; bx < dryShoreStartTile; bx++) {
+      for (let by = 0; by <= 12; by++) {
+        grid[by][bx] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+
+    // Dry outdoor surface finish ground
+    for (let gx = dryShoreStartTile; gx < width; gx++) {
+      grid[13][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    // Surface emergence pipe on dry shore
+    placePipe(grid, emergePipeTile, 12, 2);
+
+    // Small staircase leading to flagpole
+    for (let s = 1; s <= 4; s++) {
+      const sx = stairsStartTile + (s - 1);
+      for (let sy = 13 - s; sy <= 12; sy++) {
+        grid[sy][sx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+
+    // Flagpole
+    grid[12][flagXTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let y = 3; y <= 11; y++) {
+      grid[y][flagXTile] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[2][flagXTile] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    // Castle
+    for (let cx = castleXTile; cx <= Math.min(width - 2, castleXTile + 5); cx++) {
+      for (let cy = 8; cy <= 12; cy++) {
+        grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (cx % 2 === 0) {
+        grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[11][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    pipeWarps = [
+      {
+        from: { x: warpPipeTile * 16, y: 9 * 16, width: 32, height: 16 },
+        toLevel: levelId,
+        toPos: { x: emergePipeTile * 16 + 8, y: 11 * 16 - 16 },
+        type: 'down',
+      },
+    ];
   } else {
     // End castle area (always safe ground)
     for (; x < width; x++) {
@@ -1295,10 +1380,10 @@ export function createEndlessLevel(
   const cp2 = findSafeCheckpointX(Math.floor(width * 0.68));
 
   const timeLimit = Math.max(180, 420 - (cycleNumber - 1) * 30 - cycleIndex * 10);
-  const enemySpeedMultiplier = Number((1 + Math.min(1.1, (stage - 1) * 0.085)).toFixed(2));
+  const enemySpeedMultiplier = spawnProfile.speedMultiplier;
 
   return {
-    id: `endless-${stage}-${normalizedSeed}`,
+    id: levelId,
     name: `INF-${stage}`,
     theme,
     biomeLabel: `CICLO ${cycleNumber} - ${biomeLabelMap[theme]}`,
@@ -1310,10 +1395,12 @@ export function createEndlessLevel(
     marioStart: { x: 40, y: theme === 'underwater' ? 144 : 192 },
     flagX: flagXTile * 16,
     castleX: (castleXTile + 2) * 16,
-    dryFinishStartX: theme === 'underwater' ? (width - 24) * 16 : undefined,
+    dryFinishStartX,
+    pipeWarps,
     bgColor,
     timeLimit,
     endlessStage: stage,
+    cycleNumber,
     seed: normalizedSeed,
     enemySpeedMultiplier,
     checkpoints: [

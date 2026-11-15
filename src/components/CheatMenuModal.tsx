@@ -176,6 +176,18 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  onSetPowerUp('cape');
+                  showSuccess('Pena (Cape) ativada! Segure Pulo para planar e B para girar a capa!');
+                }}
+                className="p-2 rounded bg-stone-900 hover:bg-stone-700 border border-yellow-500/60 text-left font-medium transition shadow-md shadow-yellow-900/30"
+              >
+                <span className="block text-yellow-400 font-bold">🪶 Pena (Cape)</span>
+                <span className="text-[10px] text-yellow-200/80">Planar, mergulho e giro da capa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   onSetPowerUp('femboy');
                   showSuccess('Power-up Femboy ativado! Pulo 2x e 2 bolas brancas ao cair no chão!');
                 }}

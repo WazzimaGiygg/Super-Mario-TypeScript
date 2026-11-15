@@ -223,10 +223,37 @@ export class SpriteAtlas {
   public wazzimaFemboyCrouch!: HTMLCanvasElement;
   public wazzimaFemboySlide!: HTMLCanvasElement;
 
+  // Cape Mario / Cape WazzimaGiygg (16x32 - Golden Cape Feather)
+  public marioCapeIdle!: HTMLCanvasElement;
+  public marioCapeRun1!: HTMLCanvasElement;
+  public marioCapeRun2!: HTMLCanvasElement;
+  public marioCapeRun3!: HTMLCanvasElement;
+  public marioCapeJump!: HTMLCanvasElement;
+  public marioCapeGlide1!: HTMLCanvasElement;
+  public marioCapeGlide2!: HTMLCanvasElement;
+  public marioCapeSpin1!: HTMLCanvasElement;
+  public marioCapeSpin2!: HTMLCanvasElement;
+  public marioCapeSkid!: HTMLCanvasElement;
+  public marioCapeCrouch!: HTMLCanvasElement;
+  public marioCapeSlide!: HTMLCanvasElement;
+
+  public wazzimaCapeIdle!: HTMLCanvasElement;
+  public wazzimaCapeRun1!: HTMLCanvasElement;
+  public wazzimaCapeRun2!: HTMLCanvasElement;
+  public wazzimaCapeRun3!: HTMLCanvasElement;
+  public wazzimaCapeJump!: HTMLCanvasElement;
+  public wazzimaCapeGlide1!: HTMLCanvasElement;
+  public wazzimaCapeGlide2!: HTMLCanvasElement;
+  public wazzimaCapeSpin1!: HTMLCanvasElement;
+  public wazzimaCapeSpin2!: HTMLCanvasElement;
+  public wazzimaCapeSkid!: HTMLCanvasElement;
+  public wazzimaCapeCrouch!: HTMLCanvasElement;
+  public wazzimaCapeSlide!: HTMLCanvasElement;
+
   // Helper to obtain the correct sprite for any character (Mario or WazzimaGiygg)
   public getCharacterSprite(
     character: 'mario' | 'wazzima',
-    power: 'small' | 'super' | 'fire' | 'tanooki' | 'femboy',
+    power: 'small' | 'super' | 'fire' | 'tanooki' | 'femboy' | 'cape',
     state: string,
     animFrame: number,
     options: {
@@ -314,6 +341,30 @@ export class SpriteAtlas {
       return isW ? this.wazzimaFemboyIdle : this.marioFemboyIdle;
     }
 
+    if (power === 'cape') {
+      if (tailWhipTimer > 0) {
+        const spinStep = Math.floor(tailWhipTimer / 4) % 2;
+        if (isW) return spinStep === 0 ? this.wazzimaCapeSpin1 : this.wazzimaCapeSpin2;
+        return spinStep === 0 ? this.marioCapeSpin1 : this.marioCapeSpin2;
+      }
+      if (isFluttering) {
+        const billow = Math.floor((Date.now() / 85) % 2) === 0;
+        if (isW) return billow ? this.wazzimaCapeGlide1 : this.wazzimaCapeGlide2;
+        return billow ? this.marioCapeGlide1 : this.marioCapeGlide2;
+      }
+      if (state === 'crouching') return isW ? this.wazzimaCapeCrouch : this.marioCapeCrouch;
+      if (state === 'jumping' || state === 'falling') return isW ? this.wazzimaCapeJump : this.marioCapeJump;
+      if (state === 'skidding') return isW ? this.wazzimaCapeSkid : this.marioCapeSkid;
+      if (state === 'pole_slide') return isW ? this.wazzimaCapeSlide : this.marioCapeSlide;
+      if (Math.abs(marioVx) > 0.1 || state === 'castle_walk') {
+        const frames = isW
+          ? [this.wazzimaCapeRun1, this.wazzimaCapeRun2, this.wazzimaCapeRun3]
+          : [this.marioCapeRun1, this.marioCapeRun2, this.marioCapeRun3];
+        return frames[animFrame % 3];
+      }
+      return isW ? this.wazzimaCapeIdle : this.marioCapeIdle;
+    }
+
     // Fire power
     if (state === 'crouching') return isW ? this.wazzimaFireCrouch : this.marioFireCrouch;
     if (state === 'jumping' || state === 'falling') return isW ? this.wazzimaFireJump : this.marioFireJump;
@@ -336,6 +387,13 @@ export class SpriteAtlas {
   public koopaWalk1!: HTMLCanvasElement;
   public koopaWalk2!: HTMLCanvasElement;
   public koopaShell!: HTMLCanvasElement;
+
+  public redKoopaWalk1!: HTMLCanvasElement;
+  public redKoopaWalk2!: HTMLCanvasElement;
+  public redKoopaShell!: HTMLCanvasElement;
+
+  public paratroopa1!: HTMLCanvasElement;
+  public paratroopa2!: HTMLCanvasElement;
   
   public piranha1!: HTMLCanvasElement;
   public piranha2!: HTMLCanvasElement;
@@ -344,6 +402,9 @@ export class SpriteAtlas {
   public blooper2!: HTMLCanvasElement;
   public cheepCheep1!: HTMLCanvasElement;
   public cheepCheep2!: HTMLCanvasElement;
+  public fastCheep1!: HTMLCanvasElement;
+  public fastCheep2!: HTMLCanvasElement;
+  public bulletBill!: HTMLCanvasElement;
   public bowser1!: HTMLCanvasElement;
   public bowser2!: HTMLCanvasElement;
   public lavaBubble1!: HTMLCanvasElement;
@@ -376,6 +437,7 @@ export class SpriteAtlas {
   public itemStarFrames: HTMLCanvasElement[] = [];
   public itemCoinFrames: HTMLCanvasElement[] = [];
   public itemSuperLeaf!: HTMLCanvasElement;
+  public itemFeather!: HTMLCanvasElement;
   public itemFemboy!: HTMLCanvasElement;
   
   // Castle & Scenery
@@ -927,6 +989,103 @@ export class SpriteAtlas {
     this.wazzimaFemboySkid = makeFemboySprite(superRun1, femboyWazzimaPalette);
     this.wazzimaFemboyCrouch = makeFemboySprite(superCrouch, femboyWazzimaPalette, true);
     this.wazzimaFemboySlide = makeFemboySprite(superRun1, femboyWazzimaPalette);
+
+    // Cape Power-Up Sprites (Flowing golden cape behind Mario / WazzimaGiygg)
+    const makeCapeSprite = (
+      pattern: string[],
+      palette: Record<string, string>,
+      mode: 'idle' | 'run' | 'jump' | 'glide1' | 'glide2' | 'spin1' | 'spin2' | 'crouch' = 'idle'
+    ) => {
+      const canvas = makeSprite(pattern, palette, 16, 32);
+      const c = canvas.getContext('2d')!;
+      const capeGold = '#f8d800';
+      const capeHighlight = '#fff8a0';
+      const capeShade = '#d87800';
+      const capeBorder = '#402000';
+
+      if (mode === 'crouch') {
+        c.fillStyle = capeBorder;
+        c.fillRect(0, 17, 4, 10);
+        c.fillStyle = capeGold;
+        c.fillRect(1, 18, 3, 8);
+        c.fillStyle = capeShade;
+        c.fillRect(1, 23, 3, 3);
+        return canvas;
+      }
+
+      if (mode === 'spin1' || mode === 'spin2') {
+        const spreadY = mode === 'spin1' ? 14 : 16;
+        c.fillStyle = capeBorder;
+        c.fillRect(0, spreadY - 1, 16, 9);
+        c.fillStyle = capeGold;
+        c.fillRect(0, spreadY, 16, 7);
+        c.fillStyle = capeHighlight;
+        c.fillRect(2, spreadY + 1, 12, 2);
+        c.fillStyle = capeShade;
+        c.fillRect(0, spreadY + 5, 16, 2);
+        return canvas;
+      }
+
+      if (mode === 'glide1' || mode === 'glide2') {
+        const lift = mode === 'glide1' ? -2 : 0;
+        c.fillStyle = capeBorder;
+        c.fillRect(0, 11 + lift, 6, 13);
+        c.fillStyle = capeGold;
+        c.fillRect(0, 12 + lift, 5, 11);
+        c.fillStyle = capeHighlight;
+        c.fillRect(1, 12 + lift, 3, 4);
+        c.fillStyle = capeShade;
+        c.fillRect(0, 20 + lift, 5, 3);
+        return canvas;
+      }
+
+      if (mode === 'jump' || mode === 'run') {
+        c.fillStyle = capeBorder;
+        c.fillRect(0, 13, 5, 13);
+        c.fillStyle = capeGold;
+        c.fillRect(0, 14, 4, 11);
+        c.fillStyle = capeHighlight;
+        c.fillRect(1, 15, 2, 4);
+        c.fillStyle = capeShade;
+        c.fillRect(0, 22, 4, 3);
+        return canvas;
+      }
+
+      // Idle draped cape
+      c.fillStyle = capeBorder;
+      c.fillRect(1, 14, 4, 13);
+      c.fillStyle = capeGold;
+      c.fillRect(2, 15, 3, 11);
+      c.fillStyle = capeShade;
+      c.fillRect(2, 23, 3, 3);
+      return canvas;
+    };
+
+    this.marioCapeIdle = makeCapeSprite(superIdle, superPalette, 'idle');
+    this.marioCapeRun1 = makeCapeSprite(superRun1, superPalette, 'run');
+    this.marioCapeRun2 = makeCapeSprite(superRun2, superPalette, 'run');
+    this.marioCapeRun3 = makeCapeSprite(superRun3, superPalette, 'run');
+    this.marioCapeJump = makeCapeSprite(superJump, superPalette, 'jump');
+    this.marioCapeGlide1 = makeCapeSprite(superJump, superPalette, 'glide1');
+    this.marioCapeGlide2 = makeCapeSprite(superJump, superPalette, 'glide2');
+    this.marioCapeSpin1 = makeCapeSprite(superRun2, superPalette, 'spin1');
+    this.marioCapeSpin2 = makeCapeSprite(superRun3, superPalette, 'spin2');
+    this.marioCapeSkid = makeCapeSprite(superRun1, superPalette, 'run');
+    this.marioCapeCrouch = makeCapeSprite(superCrouch, superPalette, 'crouch');
+    this.marioCapeSlide = makeCapeSprite(superRun1, superPalette, 'idle');
+
+    this.wazzimaCapeIdle = makeCapeSprite(superIdle, wazzimaSuperPalette, 'idle');
+    this.wazzimaCapeRun1 = makeCapeSprite(superRun1, wazzimaSuperPalette, 'run');
+    this.wazzimaCapeRun2 = makeCapeSprite(superRun2, wazzimaSuperPalette, 'run');
+    this.wazzimaCapeRun3 = makeCapeSprite(superRun3, wazzimaSuperPalette, 'run');
+    this.wazzimaCapeJump = makeCapeSprite(superJump, wazzimaSuperPalette, 'jump');
+    this.wazzimaCapeGlide1 = makeCapeSprite(superJump, wazzimaSuperPalette, 'glide1');
+    this.wazzimaCapeGlide2 = makeCapeSprite(superJump, wazzimaSuperPalette, 'glide2');
+    this.wazzimaCapeSpin1 = makeCapeSprite(superRun2, wazzimaSuperPalette, 'spin1');
+    this.wazzimaCapeSpin2 = makeCapeSprite(superRun3, wazzimaSuperPalette, 'spin2');
+    this.wazzimaCapeSkid = makeCapeSprite(superRun1, wazzimaSuperPalette, 'run');
+    this.wazzimaCapeCrouch = makeCapeSprite(superCrouch, wazzimaSuperPalette, 'crouch');
+    this.wazzimaCapeSlide = makeCapeSprite(superRun1, wazzimaSuperPalette, 'idle');
 
     // Tanooki Mario Palette
     const tanookiPalette: Record<string, string> = {
@@ -1558,6 +1717,93 @@ export class SpriteAtlas {
     drawPixelGrid(ctxKs, koopaShellPattern, koopaPalette);
     this.koopaShell = ks;
 
+    // Red Koopa (Fast patrolling Koopa with crimson shell)
+    const redKoopaPalette = {
+      '.': 'transparent',
+      'G': '#b81c00',
+      'L': '#fc5838',
+      'B': '#fce078',
+      'D': '#600800',
+      'W': NES_COLORS.WHITE,
+      'K': NES_COLORS.BLACK,
+      'S': NES_COLORS.MARIO_SKIN,
+    };
+
+    const [rk1, ctxRk1] = createOffscreen(16, 24);
+    drawPixelGrid(ctxRk1, koopa1, redKoopaPalette);
+    this.redKoopaWalk1 = rk1;
+
+    const [rk2, ctxRk2] = createOffscreen(16, 24);
+    drawPixelGrid(ctxRk2, koopa2, redKoopaPalette);
+    this.redKoopaWalk2 = rk2;
+
+    const [rks, ctxRks] = createOffscreen(16, 16);
+    drawPixelGrid(ctxRks, koopaShellPattern, redKoopaPalette);
+    this.redKoopaShell = rks;
+
+    // Winged Red Paratroopa (16x24, flapping white wings)
+    const paratroopa1Pattern = [
+      '......GGGG......',
+      '.....GGLLGG.....',
+      '....GLLLLLLG....',
+      '...GLLKWLLLLG...',
+      '...GLLKWLLLLG...',
+      '...GLLLLLLLLG.WW',
+      '....GLLSSLLG.WWW',
+      '.....GSSSG..WWKW',
+      '....GGGGGGGGWWWK',
+      '...GGGGGGGGGGWWK',
+      '..GLLLLLLLLLLGW.',
+      '..GLLLLLLLLLLG..',
+      '..GBBBBBBBBBBG..',
+      '..GBBBBBBBBBBG..',
+      '...GBBBBBBBBG...',
+      '...GGGGGGGGGG...',
+      '....G......G....',
+      '...SSS....SSS...',
+      '..SSSS....SSSS..',
+      '..SSSS....SSSS..',
+      '................',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const paratroopa2Pattern = [
+      '......GGGG......',
+      '.....GGLLGG.....',
+      '....GLLLLLLG....',
+      '...GLLKWLLLLG...',
+      '...GLLKWLLLLG...',
+      '...GLLLLLLLLG...',
+      '....GLLSSLLG....',
+      '.....GSSSG......',
+      '....GGGGGGGG....',
+      '...GGGGGGGGGGWW.',
+      '..GLLLLLLLLLLWWW',
+      '..GLLLLLLLLLLGWK',
+      '..GBBBBBBBBBBGWK',
+      '..GBBBBBBBBBBGWW',
+      '...GBBBBBBBBG..K',
+      '...GGGGGGGGGG...',
+      '.....G....G.....',
+      '....SSS..SSS....',
+      '...SSSS..SSSS...',
+      '...SSSS..SSSS...',
+      '................',
+      '................',
+      '................',
+      '................',
+    ];
+
+    const [pt1, ctxPt1] = createOffscreen(16, 24);
+    drawPixelGrid(ctxPt1, paratroopa1Pattern, redKoopaPalette);
+    this.paratroopa1 = pt1;
+
+    const [pt2, ctxPt2] = createOffscreen(16, 24);
+    drawPixelGrid(ctxPt2, paratroopa2Pattern, redKoopaPalette);
+    this.paratroopa2 = pt2;
+
     // Piranha Plant
     const piranhaPalette = {
       '.': 'transparent',
@@ -1722,6 +1968,56 @@ export class SpriteAtlas {
     const [cc2, ctxCc2] = createOffscreen(16, 16);
     drawPixelGrid(ctxCc2, cheepPattern2, cheepPalette);
     this.cheepCheep2 = cc2;
+
+    // Fast Turbo Cheep-Cheep (Golden/Magenta darting fish 16x16)
+    const fastCheepPalette = {
+      '.': 'transparent',
+      'R': '#d81888',
+      'O': '#fc74b4',
+      'Y': '#fce030',
+      'W': '#ffffff',
+      'K': '#000000',
+    };
+
+    const [fc1, ctxFc1] = createOffscreen(16, 16);
+    drawPixelGrid(ctxFc1, cheepPattern1, fastCheepPalette);
+    this.fastCheep1 = fc1;
+
+    const [fc2, ctxFc2] = createOffscreen(16, 16);
+    drawPixelGrid(ctxFc2, cheepPattern2, fastCheepPalette);
+    this.fastCheep2 = fc2;
+
+    // Bullet Bill (16x16 facing left)
+    const bulletPalette = {
+      '.': 'transparent',
+      'K': '#101018',
+      'G': '#404858',
+      'S': '#a8b0c0',
+      'W': '#ffffff',
+    };
+
+    const bulletPattern = [
+      '................',
+      '.....KKKKKKKKKK.',
+      '...KKSSSSSSSSKK.',
+      '..KKGGGGGGGGGGKK',
+      '.KKWWKKKKKKKKKKK',
+      '.KWWWSKKKKKKKKGG',
+      'KKWWKKKKKKKKKKGG',
+      'KKKKKKKKKKKKKKGG',
+      'KKKKWWKKKKKKKKGG',
+      'KKKWWWWKKKKKKKGG',
+      'KKKKWWKKKKKKKKKK',
+      '.KKKKKKKKKKKKKKK',
+      '.KKGGGGGGGGGGGKK',
+      '..KKKKKKKKKKKKK.',
+      '....KKKKKKKKKK..',
+      '................',
+    ];
+
+    const [bb, ctxBb] = createOffscreen(16, 16);
+    drawPixelGrid(ctxBb, bulletPattern, bulletPalette);
+    this.bulletBill = bb;
 
     // Bowser (Castle Boss 24x24 facing left)
     const bowserPalette = {
@@ -2402,6 +2698,36 @@ export class SpriteAtlas {
     const [cFemboy, ctxFemboy] = createOffscreen(16, 16);
     drawPixelGrid(ctxFemboy, femboyItemPattern, femboyItemPalette);
     this.itemFemboy = cFemboy;
+
+    // 6. Cape Feather ("Pena" - Super Mario World Golden Feather)
+    const featherPalette = {
+      '.': 'transparent',
+      'B': '#000000',
+      'Y': '#f8d800',
+      'W': '#ffffff',
+      'O': '#e88800',
+    };
+    const featherPattern = [
+      '..........BBBB..',
+      '........BBWWWWB.',
+      '.......BWWYYYYB.',
+      '......BWYYYYYYB.',
+      '.....BWWYYYYYOB.',
+      '....BWWYYYYYOOB.',
+      '...BWWYYYYYOOB..',
+      '...BWYYYYYOOB...',
+      '..BWWYYYYOOB....',
+      '..BWYYYYOOB.....',
+      '..BYYYOOB.......',
+      '.BYYOOOB........',
+      '.BYOOB..........',
+      '.BBOB...........',
+      '.BOB............',
+      '..B.............',
+    ];
+    const [cFeather, ctxFeather] = createOffscreen(16, 16);
+    drawPixelGrid(ctxFeather, featherPattern, featherPalette);
+    this.itemFeather = cFeather;
   }
 
   private generateCastle() {

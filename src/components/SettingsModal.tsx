@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, Tv, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2 } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -25,6 +25,10 @@ interface SettingsModalProps {
   onSelectDifficulty: (diff: GameDifficulty) => void;
   resolutionScale: ResolutionScale;
   onSelectResolution: (scale: ResolutionScale) => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  touchOverlayOnCanvas?: boolean;
+  onToggleTouchOverlay?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -44,6 +48,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSelectDifficulty,
   resolutionScale,
   onSelectResolution,
+  isFullscreen = false,
+  onToggleFullscreen,
+  touchOverlayOnCanvas = true,
+  onToggleTouchOverlay,
 }) => {
   if (!isOpen) return null;
 
@@ -340,13 +348,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   type="button"
                   onClick={onToggleCrt}
-                  className={`px-3 py-1 rounded text-[11px] font-bold ${
+                  className={`px-3 py-1 rounded text-[11px] font-bold cursor-pointer ${
                     crtFilter ? 'bg-amber-600 text-white' : 'bg-stone-700 text-stone-400'
                   }`}
                 >
                   {crtFilter ? 'ATIVO' : 'DESATIVO'}
                 </button>
               </div>
+
+              {/* Fullscreen Mode Toggle (Mobile & Desktop) */}
+              {onToggleFullscreen && (
+                <div className="flex items-center justify-between pt-2 border-t border-stone-700/60">
+                  <div>
+                    <div className="font-medium text-stone-200">Modo Tela Cheia (Mobile / PC)</div>
+                    <div className="text-[10px] text-stone-400">Expande o jogo e controles para ocupar toda a tela</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleFullscreen();
+                    }}
+                    className={`px-3 py-1.5 rounded text-[11px] font-bold flex items-center gap-1.5 cursor-pointer ${
+                      isFullscreen
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-amber-600 hover:bg-amber-500 text-white'
+                    }`}
+                  >
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    <span>{isFullscreen ? 'SAIR' : 'ATIVAR'}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Mobile Touch Overlay Mode Toggle */}
+              {onToggleTouchOverlay && (
+                <div className="flex items-center justify-between pt-2 border-t border-stone-700/60">
+                  <div>
+                    <div className="font-medium text-stone-200">Controles Táteis no Mobile</div>
+                    <div className="text-[10px] text-stone-400">D-pad e botões A/B translúcidos sobre o canvas</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onToggleTouchOverlay}
+                    className={`px-3 py-1 rounded text-[11px] font-bold cursor-pointer ${
+                      touchOverlayOnCanvas ? 'bg-emerald-600 text-white' : 'bg-stone-700 text-stone-300'
+                    }`}
+                  >
+                    {touchOverlayOnCanvas ? 'SOBREPOSTO' : 'ABAIXO'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
