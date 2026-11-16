@@ -13,11 +13,20 @@ import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { LevelEditorModal } from './LevelEditorModal.tsx';
 import { UpdatesModal } from './UpdatesModal.tsx';
+import { SmwOverworldMap } from './SmwOverworldMap.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
 import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
+import {
+  SMW_WIKIWORLD_NODES,
+  SmwBetaProgress,
+  createSmwWikiWorldStage,
+  loadSmwBetaProgress,
+  saveSmwBetaProgress,
+  isSmwNodeUnlocked,
+} from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -82,6 +91,10 @@ export const GameCanvas: React.FC = () => {
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
   const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
   const [isUpdatesOpen, setIsUpdatesOpen] = useState(false);
+  const [isSmwMapOpen, setIsSmwMapOpen] = useState(false);
+  const [isSmwModeActive, setIsSmwModeActive] = useState(false);
+  const [smwProgress, setSmwProgress] = useState<SmwBetaProgress>(() => loadSmwBetaProgress());
+  const [smwJustClearedNodeId, setSmwJustClearedNodeId] = useState<string | null>(null);
   const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
   const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
   const [editorImmortality, setEditorImmortality] = useState(false);
@@ -168,10 +181,38 @@ export const GameCanvas: React.FC = () => {
   useEffect(() => {
     const engine = new GameEngine();
     engine.stats.highScore = getTopScore();
+    engine.onSmwStageCompleted = (nodeId: string) => {
+      setSmwProgress(prev => {
+        const nextCleared = prev.clearedNodeIds.includes(nodeId)
+          ? prev.clearedNodeIds
+          : [...prev.clearedNodeIds, nodeId];
+        const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
+        const nextNode = currNode ? SMW_WIKIWORLD_NODES[currNode.order + 1] : undefined;
+        const nextSelected =
+          nextNode && !nextCleared.includes(nextNode.id)
+            ? nextNode.id
+            : nodeId;
+        const updated: SmwBetaProgress = {
+          ...prev,
+          clearedNodeIds: nextCleared,
+          selectedNodeId: nextSelected,
+        };
+        saveSmwBetaProgress(updated);
+        return updated;
+      });
+      setSmwJustClearedNodeId(nodeId);
+      setIsStageClear(false);
+      setIsPaused(false);
+      setIsGameOver(false);
+      setIsSmwModeActive(true);
+      setIsSmwMapOpen(true);
+      setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
+    };
     engineRef.current = engine;
     multiplayerClient.setEngine(engine);
 
     return () => {
+      engine.onSmwStageCompleted = undefined;
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
@@ -225,7 +266,14 @@ export const GameCanvas: React.FC = () => {
         return;
       }
 
-      if (isMultiplayerOpen || isSettingsOpen || isLeaderboardOpen || isLevelEditorOpen) {
+      if (
+        isMultiplayerOpen ||
+        isSettingsOpen ||
+        isLeaderboardOpen ||
+        isLevelEditorOpen ||
+        isUpdatesOpen ||
+        isSmwMapOpen
+      ) {
         return;
       }
 
@@ -373,7 +421,7 @@ export const GameCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, isLevelEditorOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
+  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, isLevelEditorOpen, isUpdatesOpen, isSmwMapOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
 
   // Gamepad API Polling
   const pollGamepad = useCallback(() => {
@@ -469,6 +517,7 @@ export const GameCanvas: React.FC = () => {
           setAllPlayersClearedReady(engine.allPlayersClearedReady);
           setLocalStageCleared(engine.localStageCleared);
           setIsCampaignVictory(engine.isCampaignVictory);
+          setIsSmwModeActive(engine.gameMode === 'smw_world_map');
           setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
           setMultiplayerMatchResult(engine.multiplayerMatchResult);
           setIsCustomLevelActive(Boolean(engine.level?.isCustom));
@@ -509,13 +558,19 @@ export const GameCanvas: React.FC = () => {
     }
     if (engineRef.current) {
       engineRef.current.isPaused = false;
-      engineRef.current.gameMode = level.singleplayerWorld ? 'singleplayer' : 'classic';
+      engineRef.current.gameMode = level.smwNodeId
+        ? 'smw_world_map'
+        : level.singleplayerWorld
+        ? 'singleplayer'
+        : 'classic';
       engineRef.current.loadLevel(level, true, false);
       setHasStarted(true);
       setIsPaused(false);
       setIsGameOver(false);
       setIsStageClear(false);
       setIsCampaignVictory(false);
+      setIsSmwMapOpen(false);
+      setIsSmwModeActive(Boolean(level.smwNodeId));
     }
   };
 
@@ -554,6 +609,8 @@ export const GameCanvas: React.FC = () => {
       setIsUpdatesOpen(false);
       setHasStarted(true);
       setIsCustomLevelActive(true);
+      setIsSmwMapOpen(false);
+      setIsSmwModeActive(false);
       if (engineRef.current) {
         engineRef.current.playCustomLevel(level, immortal);
         setIsPaused(false);
@@ -571,6 +628,9 @@ export const GameCanvas: React.FC = () => {
     setIsSettingsOpen(false);
     setIsUpdatesOpen(false);
     setIsCheatMenuOpen(false);
+    setIsSmwMapOpen(false);
+    setIsSmwModeActive(false);
+    setSmwJustClearedNodeId(null);
     setIsPaused(false);
     setIsGameOver(false);
     setIsStageClear(false);
@@ -678,6 +738,8 @@ export const GameCanvas: React.FC = () => {
   const handleStartGame = () => {
     SoundEngine.get().resume();
     setIsCampaignVictory(false);
+    setIsSmwMapOpen(false);
+    setIsSmwModeActive(false);
     setHasStarted(true);
     if (engineRef.current) {
       if (multiplayerStatus.connected) {
@@ -697,6 +759,8 @@ export const GameCanvas: React.FC = () => {
     }
     SoundEngine.get().resume();
     setIsCampaignVictory(false);
+    setIsSmwMapOpen(false);
+    setIsSmwModeActive(false);
     setIsSettingsOpen(false);
     setIsLevelEditorOpen(false);
     setHasStarted(true);
@@ -710,6 +774,78 @@ export const GameCanvas: React.FC = () => {
       setMarioPower(engineRef.current.marioPower);
     }
   };
+
+  const handleOpenSmwWorldMap = useCallback(() => {
+    if (multiplayerStatus.connected) {
+      setCheatToast('Desconecte do multiplayer para explorar o Overworld (Beta V0.9)!');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
+    SoundEngine.get().stopMusic();
+    setIsCampaignVictory(false);
+    setIsSettingsOpen(false);
+    setIsLevelEditorOpen(false);
+    setIsUpdatesOpen(false);
+    setIsPaused(false);
+    setIsGameOver(false);
+    setIsStageClear(false);
+    setIsCustomLevelActive(false);
+    setSmwJustClearedNodeId(null);
+    setHasStarted(true);
+    setIsSmwModeActive(true);
+    setIsSmwMapOpen(true);
+    if (engineRef.current) {
+      engineRef.current.gameMode = 'smw_world_map';
+      engineRef.current.isPaused = false;
+      engineRef.current.isGameOver = false;
+    }
+  }, [multiplayerStatus.connected]);
+
+  const handleEnterSmwStage = useCallback(
+    (nodeId: string) => {
+      const node = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
+      if (!node || !isSmwNodeUnlocked(node.order, smwProgress)) return;
+
+      const updated: SmwBetaProgress = {
+        ...smwProgress,
+        selectedNodeId: nodeId,
+        storySeen: true,
+      };
+      setSmwProgress(updated);
+      saveSmwBetaProgress(updated);
+
+      SoundEngine.get().resume();
+      setIsSmwMapOpen(false);
+      setIsSmwModeActive(true);
+      setSmwJustClearedNodeId(null);
+      setHasStarted(true);
+      setIsCustomLevelActive(false);
+      if (engineRef.current) {
+        engineRef.current.startSmwStage(createSmwWikiWorldStage(nodeId), false);
+        setIsPaused(false);
+        setIsGameOver(false);
+        setIsStageClear(false);
+        setStats({ ...engineRef.current.stats, isNewHighScore: false });
+        setMarioPower(engineRef.current.marioPower);
+      }
+    },
+    [smwProgress]
+  );
+
+  const handleReturnToSmwOverworld = useCallback(() => {
+    SoundEngine.get().stopMusic();
+    setIsPaused(false);
+    setIsGameOver(false);
+    setIsStageClear(false);
+    setSmwJustClearedNodeId(null);
+    setIsSmwModeActive(true);
+    setIsSmwMapOpen(true);
+    if (engineRef.current) {
+      engineRef.current.gameMode = 'smw_world_map';
+      engineRef.current.isPaused = false;
+      engineRef.current.isGameOver = false;
+    }
+  }, []);
 
   return (
     <div
@@ -816,7 +952,7 @@ export const GameCanvas: React.FC = () => {
           )}
 
           {/* Translucent On-Screen D-Pad & Action Buttons (A, B) Overlay on Canvas for Mobile Devices */}
-          {isMobileDevice && touchOverlayOnCanvas && hasStarted && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
+          {isMobileDevice && touchOverlayOnCanvas && hasStarted && !isSmwMapOpen && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
             <TouchControls
               variant="canvas-overlay"
               controls={controls}
@@ -889,6 +1025,15 @@ export const GameCanvas: React.FC = () => {
                 >
                   <Crown className="w-4 h-4 text-amber-200" />
                   SINGLEPLAYER (7 MUNDOS)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenSmwWorldMap}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-600 hover:to-teal-500 border-2 border-amber-300/80 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-emerald-950/60 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <MapIcon className="w-4 h-4 text-amber-300" />
+                  SUPER MARIO WORLD (BETA V0.9)
                 </button>
 
                 <button
@@ -1044,6 +1189,16 @@ export const GameCanvas: React.FC = () => {
                     IMORTAL: {editorImmortality ? 'ON' : 'OFF'}
                   </button>
                 )}
+                {isSmwModeActive && (
+                  <button
+                    type="button"
+                    onClick={handleReturnToSmwOverworld}
+                    className="px-5 py-2.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 border border-emerald-400/70 text-emerald-100 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <MapIcon className="w-3.5 h-3.5 text-amber-300" />
+                    OVERWORLD
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1057,6 +1212,49 @@ export const GameCanvas: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Super Mario World Beta V0.9 Overworld Map (Ilha WikiWorldWeb) */}
+          <SmwOverworldMap
+            isOpen={isSmwMapOpen && hasStarted && !isGameOver && !isMultiplayerMatchOver}
+            progress={smwProgress}
+            playerCharacter={engineRef.current?.playerCharacter || 'mario'}
+            justClearedNodeId={smwJustClearedNodeId}
+            onSelectNode={nodeId => {
+              setSmwProgress(prev => {
+                const updated = { ...prev, selectedNodeId: nodeId };
+                saveSmwBetaProgress(updated);
+                return updated;
+              });
+            }}
+            onEnterStage={handleEnterSmwStage}
+            onDismissStory={() => {
+              setSmwProgress(prev => {
+                if (prev.storySeen) return prev;
+                const updated = { ...prev, storySeen: true };
+                saveSmwBetaProgress(updated);
+                return updated;
+              });
+            }}
+            onToggleBetaUnlockAll={() => {
+              setSmwProgress(prev => {
+                const updated = { ...prev, betaUnlockAll: !prev.betaUnlockAll };
+                saveSmwBetaProgress(updated);
+                return updated;
+              });
+            }}
+            onResetProgress={() => {
+              const reset: SmwBetaProgress = {
+                clearedNodeIds: [],
+                selectedNodeId: 'wiki-1-overworld',
+                storySeen: true,
+                betaUnlockAll: false,
+              };
+              setSmwProgress(reset);
+              setSmwJustClearedNodeId(null);
+              saveSmwBetaProgress(reset);
+            }}
+            onBackToMainMenu={handleReturnToMainMenu}
+          />
 
           {/* Multiplayer Winner Overlay (when any player loses all lives) */}
           {isMultiplayerMatchOver && multiplayerMatchResult && (
@@ -1215,7 +1413,7 @@ export const GameCanvas: React.FC = () => {
                   </span>
                 )}
               </p>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-wrap justify-center gap-3">
                 <button
                   type="button"
                   onClick={handleRestart}
@@ -1224,6 +1422,16 @@ export const GameCanvas: React.FC = () => {
                   <RotateCcw className="w-4 h-4" />
                   JOGAR NOVAMENTE
                 </button>
+                {isSmwModeActive && (
+                  <button
+                    type="button"
+                    onClick={handleReturnToSmwOverworld}
+                    className="px-5 py-3 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border border-emerald-400/70 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <MapIcon className="w-4 h-4 text-amber-300" />
+                    OVERWORLD
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsLeaderboardOpen(true)}
@@ -1509,6 +1717,7 @@ export const GameCanvas: React.FC = () => {
         onToggleTouchOverlay={toggleTouchOverlayMode}
         onOpenLevelEditor={openLevelEditor}
         onStartSingleplayer={handleStartSingleplayer}
+        onStartSmwWorldMap={handleOpenSmwWorldMap}
       />
 
       {/* Leaderboard / Placar Modal */}

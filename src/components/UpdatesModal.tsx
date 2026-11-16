@@ -20,8 +20,18 @@ interface UpdateEntry {
 
 const GAME_UPDATES: UpdateEntry[] = [
   {
-    version: 'v1.7',
+    version: 'v1.8',
     label: 'Mais Recente',
+    title: 'Super Mario World (Beta V0.9) · Overworld & Ilha WikiWorldWeb',
+    items: [
+      'Novo modo Super Mario World (Beta V0.9) com seleção interativa de fases diretamente no mapa do Overworld.',
+      'História introdutória oficial de WazzimaGiygg enfrentando Chronus e Bowser para salvar a Princesa Femboy.',
+      'Primeiro conjunto de mundos na Ilha WikiWorldWeb: Overworld, Caverna, Água, Mansão Fantasma e o Castelo de Johannnnes89.',
+    ],
+  },
+  {
+    version: 'v1.7',
+    label: 'Campanha 7×5',
     title: 'Modo Singleplayer: 7 Mundos (35 Fases) & Princesa Femboy',
     items: [
       'Novo Modo Singleplayer acessível pelo Menu Inicial e Configurações com campanha completa de 7 Mundos e 5 fases em cada mundo (1-1 até 7-5).',

@@ -1649,8 +1649,22 @@ const SINGLEPLAYER_WORLD_NAMES: Record<number, string> = {
   7: 'REINO FINAL',
 };
 
+export interface SingleplayerLevelOverrides {
+  seedOverride?: number;
+  id?: string;
+  name?: string;
+  biomeLabel?: string;
+  smwNodeId?: string;
+  smwWorldName?: string;
+  isFinalCastle?: boolean;
+}
+
 // Build a deterministic stage for Singleplayer 7-World x 5-Stage Campaign
-export function createSingleplayerLevel(world: number, stage: number): LevelData {
+export function createSingleplayerLevel(
+  world: number = 1,
+  stage: number = 1,
+  overrides?: SingleplayerLevelOverrides
+): LevelData {
   const w = Math.max(1, Math.min(SINGLEPLAYER_WORLD_COUNT, Math.floor(world)));
   const st = Math.max(1, Math.min(SINGLEPLAYER_STAGES_PER_WORLD, Math.floor(stage)));
   const overallIndex = (w - 1) * SINGLEPLAYER_STAGES_PER_WORLD + st; // 1..35
@@ -1658,10 +1672,11 @@ export function createSingleplayerLevel(world: number, stage: number): LevelData
 
   const worldThemes = SINGLEPLAYER_WORLD_THEMES[w] || SINGLEPLAYER_WORLD_THEMES[1];
   const theme = worldThemes[st - 1] || 'overworld';
-  const isFinalCastle = w === SINGLEPLAYER_WORLD_COUNT && st === SINGLEPLAYER_STAGES_PER_WORLD;
+  const isFinalCastle =
+    overrides?.isFinalCastle ?? (w === SINGLEPLAYER_WORLD_COUNT && st === SINGLEPLAYER_STAGES_PER_WORLD);
 
-  // Deterministic Mulberry32 PRNG per (world, stage)
-  let s = (77000 + w * 1009 + st * 137) >>> 0;
+  // Deterministic Mulberry32 PRNG per (world, stage) or explicit seedOverride
+  let s = (overrides?.seedOverride ?? (77000 + w * 1009 + st * 137)) >>> 0;
   const rand = () => {
     s = (s + 0x6d2b79f5) | 0;
     let t = Math.imul(s ^ (s >>> 15), 1 | s);
@@ -1972,7 +1987,7 @@ export function createSingleplayerLevel(world: number, stage: number): LevelData
 
   let flagXTile = width - 17;
   let castleXTile = width - 11;
-  const levelId = `sp-${w}-${st}`;
+  const levelId = overrides?.id ?? `sp-${w}-${st}`;
   let pipeWarps: LevelData['pipeWarps'] = undefined;
   let dryFinishStartX: number | undefined = undefined;
 
@@ -2127,11 +2142,15 @@ export function createSingleplayerLevel(world: number, stage: number): LevelData
   const timeLimit = Math.max(240, 420 - w * 15);
   const enemySpeedMultiplier = 1 + diffRatio * 0.35;
 
+  const defaultId = `sp-${w}-${st}`;
+  const defaultName = `${w}-${st}`;
+  const defaultBiomeLabel = `MUNDO ${w} (${SINGLEPLAYER_WORLD_NAMES[w]}) · ${biomeLabelMap[theme]}`;
+
   return {
-    id: levelId,
-    name: `${w}-${st}`,
+    id: overrides?.id ?? defaultId,
+    name: overrides?.name ?? defaultName,
     theme,
-    biomeLabel: `MUNDO ${w} (${SINGLEPLAYER_WORLD_NAMES[w]}) · ${biomeLabelMap[theme]}`,
+    biomeLabel: overrides?.biomeLabel ?? defaultBiomeLabel,
     width,
     height,
     tiles: grid,
@@ -2150,6 +2169,8 @@ export function createSingleplayerLevel(world: number, stage: number): LevelData
     singleplayerWorld: w,
     singleplayerStage: st,
     isFinalCastle,
+    smwNodeId: overrides?.smwNodeId,
+    smwWorldName: overrides?.smwWorldName,
     checkpoints: [
       { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: theme === 'underwater' ? 160 : 192 } },
       { x: cp2 * 16, respawnPos: { x: cp2 * 16, y: theme === 'underwater' ? 160 : 192 } },

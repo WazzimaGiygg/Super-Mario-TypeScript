@@ -43,6 +43,7 @@ import {
   SINGLEPLAYER_STAGES_PER_WORLD,
   cloneLevelData,
 } from './levels.ts';
+import { createSmwWikiWorldStage } from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 
 export class GameEngine {
@@ -184,11 +185,12 @@ export class GameEngine {
   public castlePrincessY: number = 0;
   public castlePrincessDialogueTimer: number = 0;
 
-  // Game Mode & Singleplayer 7-World Campaign State
+  // Game Mode & Singleplayer 7-World Campaign + SMW Beta V0.9 World Map State
   public gameMode: GameMode = 'classic';
   public singleplayerWorld: number = 1;
   public singleplayerStage: number = 1;
   public isCampaignVictory: boolean = false;
+  public onSmwStageCompleted?: (nodeId: string) => void;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -309,7 +311,9 @@ export class GameEngine {
     }
     this.bossFireballs = [];
     this.hammerProjectiles = [];
-    if (resolvedLevel.singleplayerWorld !== undefined && resolvedLevel.singleplayerStage !== undefined) {
+    if (resolvedLevel.smwNodeId !== undefined) {
+      this.endlessStage = 0;
+    } else if (resolvedLevel.singleplayerWorld !== undefined && resolvedLevel.singleplayerStage !== undefined) {
       this.singleplayerWorld = resolvedLevel.singleplayerWorld;
       this.singleplayerStage = resolvedLevel.singleplayerStage;
       this.endlessStage = 0;
@@ -377,7 +381,9 @@ export class GameEngine {
 
     const speedMult = newLevel.enemySpeedMultiplier ?? 1;
     const bowserHp =
-      newLevel.singleplayerWorld !== undefined
+      newLevel.smwNodeId === 'wiki-5-castelo'
+        ? 6
+        : newLevel.singleplayerWorld !== undefined
         ? 3 + newLevel.singleplayerWorld
         : 5 + Math.floor(((newLevel.endlessStage || 1) - 1) / 4) * 2;
     this.enemySpawnManager.reset(newLevel.endlessStage ?? 0, newLevel.theme);
@@ -3527,6 +3533,15 @@ export class GameEngine {
       this.loadLevel(cloneLevelData(this.customLevelTemplate), true, false);
       return;
     }
+    if (this.gameMode === 'smw_world_map' && this.level.smwNodeId) {
+      const clearedNodeId = this.level.smwNodeId;
+      this.isStageClear = false;
+      this.syncHighScore(true);
+      this.persistRunScoreToRanking();
+      this.sound.stopMusic();
+      this.onSmwStageCompleted?.(clearedNodeId);
+      return;
+    }
     if (this.level.isFinalCastle) {
       this.isCampaignVictory = true;
       this.isStageClear = false;
@@ -3732,9 +3747,62 @@ export class GameEngine {
     this.loadLevel(firstLevel, true, false);
   }
 
+  public startSmwStage(level: LevelData, resetSession: boolean = false) {
+    this.gameMode = 'smw_world_map';
+    this.isCampaignVictory = false;
+    this.isEditorImmortality = false;
+    this.infiniteLives = this.isCheatActive;
+
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
+
+    this.activeCheckpoint = null;
+    this.activatedCheckpointIndices.clear();
+
+    const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+    const topScore = getTopScore();
+    if (resetSession || !this.currentRunId || this.isGameOver || this.stats.lives <= 0) {
+      this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      this.runInitialHighScore = topScore;
+      this.isNewHighScore = false;
+      this.hasTriggeredNewRecordBanner = false;
+      this.lastSavedRank = null;
+      this.stats = {
+        score: 0,
+        coins: 0,
+        world: level.name,
+        time: level.timeLimit,
+        lives: this.infiniteLives ? 99 : initialLives,
+        highScore: topScore,
+        difficulty: this.difficulty,
+        isNewHighScore: false,
+      };
+      this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
+    }
+
+    this.isPaused = false;
+    this.isGameStarted = true;
+    this.isGameOver = false;
+    this.endlessStage = 0;
+    this.marioStarTimer = 0;
+    this.loadLevel(level, true, false);
+  }
+
   public restartGame() {
     if (this.level?.isCustom && this.customLevelTemplate) {
       this.playCustomLevel(this.customLevelTemplate, this.isEditorImmortality);
+      return;
+    }
+
+    if (this.gameMode === 'smw_world_map' && this.level?.smwNodeId) {
+      this.startSmwStage(createSmwWikiWorldStage(this.level.smwNodeId), true);
       return;
     }
 
@@ -4700,9 +4768,10 @@ export class GameEngine {
 
     // Typewriter dialogue lines
     const heroName = this.playerCharacter === 'wazzima' ? 'WAZZIMAGIYGG' : 'MARIO';
+    const isWikiCastle = this.level.smwNodeId === 'wiki-5-castelo';
     const line1 = `OBRIGADO, ${heroName}!`;
-    const line2 = 'MAS A NOSSA PRINCESA';
-    const line3 = 'ESTÁ EM OUTRO CASTELO!';
+    const line2 = isWikiCastle ? 'CASTELO DE JOHANNNNES89' : 'MAS A NOSSA PRINCESA';
+    const line3 = isWikiCastle ? 'ESTÁ LIVRE DE BOWSER!' : 'ESTÁ EM OUTRO CASTELO!';
     const fullChars = line1.length + line2.length + line3.length;
     const revealedChars = Math.min(fullChars, Math.floor(this.castleToodleDialogueTimer * 1.6));
 

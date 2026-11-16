@@ -217,9 +217,11 @@ export interface LevelData {
   singleplayerWorld?: number;
   singleplayerStage?: number;
   isFinalCastle?: boolean;
+  smwNodeId?: string;
+  smwWorldName?: string;
 }
 
-export type GameMode = 'classic' | 'singleplayer';
+export type GameMode = 'classic' | 'singleplayer' | 'smw_world_map';
 export type GameDifficulty = 'easy' | 'normal' | 'hard';
 export type ResolutionScale = '0.5x' | '0.75x' | '1x' | '1.25x' | '1.5x' | '2x' | 'fit';
 

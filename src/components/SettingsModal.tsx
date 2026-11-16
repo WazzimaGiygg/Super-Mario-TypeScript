@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorldGhostHouse, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -31,6 +31,7 @@ interface SettingsModalProps {
   onToggleTouchOverlay?: () => void;
   onOpenLevelEditor?: () => void;
   onStartSingleplayer?: () => void;
+  onStartSmwWorldMap?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -56,6 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleTouchOverlay,
   onOpenLevelEditor,
   onStartSingleplayer,
+  onStartSmwWorldMap,
 }) => {
   if (!isOpen) return null;
 
@@ -191,6 +193,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
                   <span className="text-[9px] font-['Press_Start_2P',monospace] text-pink-200 shrink-0">JOGAR</span>
+                </button>
+              )}
+
+              {onStartSmwWorldMap && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onStartSmwWorldMap();
+                  }}
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-emerald-950/75 hover:bg-emerald-900/85 border border-emerald-500/65 hover:border-amber-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <MapIcon className="w-4 h-4 text-amber-300 shrink-0" />
+                    <div>
+                      <span className="block font-bold text-emerald-300">Super Mario World (Beta V0.9)</span>
+                      <span className="text-[10px] text-emerald-100/80">Overworld da Ilha WikiWorldWeb até o Castelo de Johannnnes89</span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-300 shrink-0">MAPA</span>
                 </button>
               )}
             </div>
