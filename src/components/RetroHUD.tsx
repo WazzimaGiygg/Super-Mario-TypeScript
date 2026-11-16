@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { GameStats } from '../game/types.ts';
-import { Trophy, Heart, Flame, Maximize2, Minimize2 } from 'lucide-react';
+import { Trophy, Heart, Flame, Maximize2, Minimize2, Bug, Crosshair } from 'lucide-react';
 
 interface RetroHUDProps {
   stats: GameStats;
@@ -16,6 +16,11 @@ interface RetroHUDProps {
   onOpenCheatMenu?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  isDebugMode?: boolean;
+  isDebugPlacementActive?: boolean;
+  debugCoords?: { x: number; y: number };
+  isIllegalInstructionBug?: boolean;
+  onToggleDebugPlacement?: () => void;
 }
 
 export const RetroHUD: React.FC<RetroHUDProps> = ({
@@ -27,7 +32,14 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   onOpenCheatMenu,
   isFullscreen = false,
   onToggleFullscreen,
+  isDebugMode = false,
+  isDebugPlacementActive = false,
+  debugCoords = { x: 0, y: 0 },
+  isIllegalInstructionBug = false,
+  onToggleDebugPlacement,
 }) => {
+  const hexX = Math.max(0, Math.round(debugCoords.x)).toString(16).toUpperCase().padStart(4, '0');
+  const hexY = Math.max(0, Math.round(debugCoords.y)).toString(16).toUpperCase().padStart(4, '0');
   // Format numbers with leading zeroes
   const formattedScore = String(stats.score).padStart(6, '0');
   const formattedHighScore = String(stats.highScore).padStart(6, '0');
@@ -72,40 +84,61 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
       <div className="max-w-5xl mx-auto flex flex-col gap-1 sm:gap-1.5">
         {/* Main Scoreboard Row */}
         <div className="grid grid-cols-3 sm:grid-cols-5 items-center text-center gap-2 sm:gap-4">
-          {/* 1. Mario Score (Pontuação / Love Points) */}
+          {/* 1. Mario Score (or Sonic Debug Coordinates when Debug Mode is active) */}
           <div
             className={`flex flex-col items-center sm:items-start bg-stone-900/60 p-1.5 sm:p-2 rounded-lg border ${
-              isFemboy ? 'border-pink-500/60' : 'border-stone-800/80'
+              isDebugMode
+                ? 'border-cyan-400/70 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                : isFemboy
+                ? 'border-pink-500/60'
+                : 'border-stone-800/80'
             }`}
           >
-            {isFemboy ? (
-              <span className="text-[9px] sm:text-[11px] text-pink-400 font-bold tracking-wider mb-0.5 flex items-center gap-1">
-                <Heart className="w-3 h-3 fill-pink-500 text-pink-400 animate-pulse" />
-                <span>LOVE POINTS</span>
-              </span>
+            {isDebugMode ? (
+              <>
+                <span className="text-[9px] sm:text-[11px] text-cyan-300 font-bold tracking-wider mb-0.5 flex items-center gap-1">
+                  <Bug className="w-3 h-3 text-cyan-400" />
+                  <span>COORD DEBUG</span>
+                </span>
+                <span className="tabular-nums font-mono text-xs sm:text-sm md:text-base tracking-widest text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]">
+                  {hexX} {hexY}
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-amber-300 font-mono font-bold tracking-wider mt-0.5">
+                  X:{Math.round(debugCoords.x)} Y:{Math.round(debugCoords.y)}
+                </span>
+              </>
             ) : (
-              <span className="text-[9px] sm:text-[11px] text-amber-400 font-bold tracking-wider mb-0.5">
-                PONTOS
-              </span>
-            )}
-            <span
-              className={`tabular-nums font-mono text-xs sm:text-sm md:text-base tracking-widest ${
-                isFemboy
-                  ? 'text-pink-100 drop-shadow-[0_0_6px_rgba(244,114,182,0.6)]'
-                  : 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]'
-              }`}
-            >
-              {formattedScore}
-            </span>
-            {isCheatActive && (
-              <span className="text-[8px] sm:text-[9px] text-red-500 font-bold tracking-widest animate-pulse mt-0.5">
-                CHEAT USE
-              </span>
-            )}
-            {!isCheatActive && isCustomLevel && (
-              <span className="text-[8px] sm:text-[9px] text-sky-400 font-bold tracking-widest mt-0.5">
-                EDITOR
-              </span>
+              <>
+                {isFemboy ? (
+                  <span className="text-[9px] sm:text-[11px] text-pink-400 font-bold tracking-wider mb-0.5 flex items-center gap-1">
+                    <Heart className="w-3 h-3 fill-pink-500 text-pink-400 animate-pulse" />
+                    <span>LOVE POINTS</span>
+                  </span>
+                ) : (
+                  <span className="text-[9px] sm:text-[11px] text-amber-400 font-bold tracking-wider mb-0.5">
+                    PONTOS
+                  </span>
+                )}
+                <span
+                  className={`tabular-nums font-mono text-xs sm:text-sm md:text-base tracking-widest ${
+                    isFemboy
+                      ? 'text-pink-100 drop-shadow-[0_0_6px_rgba(244,114,182,0.6)]'
+                      : 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]'
+                  }`}
+                >
+                  {formattedScore}
+                </span>
+                {isCheatActive && (
+                  <span className="text-[8px] sm:text-[9px] text-red-500 font-bold tracking-widest animate-pulse mt-0.5">
+                    CHEAT USE
+                  </span>
+                )}
+                {!isCheatActive && isCustomLevel && (
+                  <span className="text-[8px] sm:text-[9px] text-sky-400 font-bold tracking-widest mt-0.5">
+                    EDITOR
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -181,7 +214,22 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-stone-400">{stats.world}</span>
+            {(isCheatActive || isDebugMode || isIllegalInstructionBug) && onOpenCheatMenu && (
+              <button
+                type="button"
+                onClick={onOpenCheatMenu}
+                className={`px-2 py-0.5 rounded border font-bold cursor-pointer whitespace-nowrap ${
+                  isIllegalInstructionBug
+                    ? 'bg-emerald-600/40 text-emerald-200 border-emerald-400 animate-pulse'
+                    : 'bg-red-600/30 text-red-300 border-red-500/50'
+                }`}
+              >
+                {isIllegalInstructionBug ? 'DEV · CORRIGIR' : 'DEV'}
+              </button>
+            )}
+            {!isIllegalInstructionBug && (
+              <span className="text-stone-400">{stats.world}</span>
+            )}
             {onOpenLeaderboard && (
               <button
                 type="button"
@@ -251,16 +299,35 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             ) : null}
           </div>
 
-          {/* Leaderboard & Cheat Triggers */}
+          {/* Leaderboard, Debug Cursor & Developer Triggers */}
           <div className="flex items-center gap-2">
-            {isCheatActive && onOpenCheatMenu && (
+            {isDebugMode && !isIllegalInstructionBug && onToggleDebugPlacement && (
+              <button
+                type="button"
+                onClick={onToggleDebugPlacement}
+                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap ${
+                  isDebugPlacementActive
+                    ? 'bg-cyan-600/35 hover:bg-cyan-600/45 text-cyan-200 border-cyan-400'
+                    : 'bg-stone-800 hover:bg-stone-700 text-cyan-300 border-cyan-600/50'
+                }`}
+              >
+                <Crosshair className="w-3.5 h-3.5 text-cyan-300" />
+                <span>{isDebugPlacementActive ? 'CURSOR ON (B)' : 'CURSOR OFF (B)'}</span>
+              </button>
+            )}
+
+            {(isCheatActive || isDebugMode || isIllegalInstructionBug) && onOpenCheatMenu && (
               <button
                 type="button"
                 onClick={onOpenCheatMenu}
-                className="px-2.5 py-1 rounded bg-red-600/30 hover:bg-red-600/40 text-red-300 border border-red-500/50 hover:border-red-400 transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold"
+                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap ${
+                  isIllegalInstructionBug
+                    ? 'bg-emerald-600/40 hover:bg-emerald-500/50 text-emerald-200 border-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.45)]'
+                    : 'bg-red-600/30 hover:bg-red-600/40 text-red-300 border-red-500/50 hover:border-red-400'
+                }`}
               >
-                <Flame className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                <span>PÁGINA DO DESENVOLVEDOR</span>
+                <Flame className={`w-3.5 h-3.5 animate-pulse ${isIllegalInstructionBug ? 'text-emerald-300' : 'text-red-400'}`} />
+                <span>{isIllegalInstructionBug ? 'DESENVOLVEDOR · RESTAURAR TELA' : 'PÁGINA DO DESENVOLVEDOR'}</span>
               </button>
             )}
 

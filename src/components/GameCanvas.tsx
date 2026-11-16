@@ -26,7 +26,7 @@ import {
   isSmwNodeUnlocked,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -64,6 +64,11 @@ export const GameCanvas: React.FC = () => {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isCheatMenuOpen, setIsCheatMenuOpen] = useState(false);
   const [isCheatActive, setIsCheatActive] = useState(false);
+  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [isDebugPlacementActive, setIsDebugPlacementActive] = useState(false);
+  const [debugCoords, setDebugCoords] = useState<{ x: number; y: number }>({ x: 40, y: 192 });
+  const [debugSelectedLabel, setDebugSelectedLabel] = useState('MOEDA');
+  const [isIllegalInstructionBug, setIsIllegalInstructionBug] = useState(false);
   const [cheatToast, setCheatToast] = useState('');
   const [splashCheatInput, setSplashCheatInput] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
@@ -237,6 +242,87 @@ export const GameCanvas: React.FC = () => {
     setTimeout(() => setCheatToast(''), 4500);
   }, []);
 
+  const handleDeveloperButtonClick = useCallback(() => {
+    const engine = engineRef.current;
+    if (engine && engine.isIllegalInstructionBug) {
+      engine.recoverFromIllegalInstruction();
+      setIsIllegalInstructionBug(false);
+      setCheatToast('TELA RESTAURADA PELO BOTÃO DO DESENVOLVEDOR!');
+      setTimeout(() => setCheatToast(''), 4000);
+      return;
+    }
+    setIsCheatMenuOpen(true);
+  }, []);
+
+  const handleToggleDebugMode = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const active = engine.toggleDebugMode();
+    setIsDebugMode(active);
+    setIsDebugPlacementActive(engine.isDebugPlacementActive);
+    setIsCheatActive(engine.isCheatActive);
+    setDebugCoords({ x: engine.marioX, y: engine.marioY });
+    setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+    setCheatToast(
+      active
+        ? 'MODO DEBUG (SONIC) ATIVADO! Pressione B para inserir itens.'
+        : 'Modo Debug desativado.'
+    );
+    setTimeout(() => setCheatToast(''), 3800);
+  }, []);
+
+  const handleToggleDebugPlacement = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const placing = engine.toggleDebugPlacementCursor();
+    setIsDebugMode(engine.isDebugMode);
+    setIsDebugPlacementActive(placing);
+    setIsCheatActive(engine.isCheatActive);
+    setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+  }, []);
+
+  const handleCycleDebugItem = useCallback((delta: -1 | 1) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const spec = engine.cycleDebugPlaceable(delta);
+    setDebugSelectedLabel(spec.label);
+  }, []);
+
+  const handlePlaceDebugItem = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.isDebugMode) return;
+    engine.placeDebugItemAt();
+  }, []);
+
+  const handleCanvasDebugClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const engine = engineRef.current;
+    const canvas = canvasRef.current;
+    if (!engine || !canvas || !engine.isDebugMode || !engine.isDebugPlacementActive) return;
+    if (engine.isPaused || engine.isGameOver || engine.isIllegalInstructionBug) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const scale = Math.min(rect.width / GameEngine.NES_WIDTH, rect.height / GameEngine.NES_HEIGHT);
+    const renderW = GameEngine.NES_WIDTH * scale;
+    const renderH = GameEngine.NES_HEIGHT * scale;
+    const offsetX = rect.left + (rect.width - renderW) / 2;
+    const offsetY = rect.top + (rect.height - renderH) / 2;
+
+    const nesX = (e.clientX - offsetX) / scale;
+    const nesY = (e.clientY - offsetY) / scale;
+    if (nesX < 0 || nesX > GameEngine.NES_WIDTH || nesY < 0 || nesY > GameEngine.NES_HEIGHT) return;
+
+    const worldX = Math.max(
+      0,
+      Math.min(engine.level.width * GameEngine.TILE_SIZE - 16, Math.round(nesX + engine.camera.renderX - 8))
+    );
+    const worldY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 16, Math.round(nesY - 8)));
+    engine.marioX = worldX;
+    engine.marioY = worldY;
+    engine.placeDebugItemAt(worldX, worldY);
+    setDebugCoords({ x: engine.marioX, y: engine.marioY });
+  }, []);
+
   const togglePauseGame = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || !hasStarted || engine.isGameOver || engine.isMultiplayerMatchOver) return;
@@ -356,6 +442,29 @@ export const GameCanvas: React.FC = () => {
         case 'KeyK':
           engine.controls.run = true;
           setControls(c => ({ ...c, run: true }));
+          break;
+        case 'KeyB':
+        case 'KeyE':
+          if (!e.repeat && engine.isDebugMode) {
+            e.preventDefault();
+            engine.toggleDebugPlacementCursor();
+            setIsDebugPlacementActive(engine.isDebugPlacementActive);
+            setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+          }
+          break;
+        case 'BracketLeft':
+          if (engine.isDebugMode) {
+            e.preventDefault();
+            const spec = engine.cycleDebugPlaceable(-1);
+            setDebugSelectedLabel(spec.label);
+          }
+          break;
+        case 'BracketRight':
+          if (engine.isDebugMode) {
+            e.preventDefault();
+            const spec = engine.cycleDebugPlaceable(1);
+            setDebugSelectedLabel(spec.label);
+          }
           break;
         case 'KeyR':
           if (e.ctrlKey || e.metaKey) return;
@@ -521,6 +630,12 @@ export const GameCanvas: React.FC = () => {
           setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
           setMultiplayerMatchResult(engine.multiplayerMatchResult);
           setIsCustomLevelActive(Boolean(engine.level?.isCustom));
+          setIsCheatActive(engine.isCheatActive);
+          setIsDebugMode(engine.isDebugMode);
+          setIsDebugPlacementActive(engine.isDebugPlacementActive);
+          setDebugCoords({ x: engine.marioX, y: engine.marioY });
+          setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+          setIsIllegalInstructionBug(engine.isIllegalInstructionBug);
         }
       }
 
@@ -873,10 +988,75 @@ export const GameCanvas: React.FC = () => {
         isCheatActive={isCheatActive}
         isCustomLevel={isCustomLevelActive}
         isFemboy={marioPower === 'femboy'}
-        onOpenCheatMenu={() => setIsCheatMenuOpen(true)}
+        onOpenCheatMenu={handleDeveloperButtonClick}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        isDebugMode={isDebugMode}
+        isDebugPlacementActive={isDebugPlacementActive}
+        debugCoords={debugCoords}
+        isIllegalInstructionBug={isIllegalInstructionBug}
+        onToggleDebugPlacement={handleToggleDebugPlacement}
       />
+
+      {/* Compact Sonic Debug Placement Bar when Debug Mode is active */}
+      {hasStarted && isDebugMode && !isIllegalInstructionBug && !isSmwMapOpen && (
+        <div className="w-full max-w-4xl px-2 sm:px-4 pt-1 flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleToggleDebugPlacement}
+              className={`px-2 py-1 rounded border font-bold flex items-center gap-1 cursor-pointer transition ${
+                isDebugPlacementActive
+                  ? 'bg-cyan-600/80 border-cyan-300 text-white shadow'
+                  : 'bg-stone-900 border-cyan-600/50 text-cyan-300 hover:bg-stone-800'
+              }`}
+            >
+              <Crosshair className="w-3 h-3" />
+              <span>{isDebugPlacementActive ? 'CURSOR: ON (B)' : 'CURSOR: OFF (B)'}</span>
+            </button>
+
+            <div className="flex items-center bg-stone-900 border border-stone-700 rounded overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleCycleDebugItem(-1)}
+                title="Item anterior ([)"
+                className="px-1.5 py-1 hover:bg-stone-800 text-amber-300 cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-2 py-1 text-amber-200 font-bold tracking-wide min-w-[110px] text-center">
+                {debugSelectedLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleCycleDebugItem(1)}
+                title="Próximo item (] / Shift / X)"
+                className="px-1.5 py-1 hover:bg-stone-800 text-amber-300 cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePlaceDebugItem}
+              className="px-2.5 py-1 rounded bg-emerald-700/80 hover:bg-emerald-600 border border-emerald-400/70 text-white font-bold flex items-center gap-1 cursor-pointer transition"
+            >
+              <Plus className="w-3 h-3" />
+              <span>INSERIR (Espaço)</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleDebugMode}
+            className="px-2 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-300 text-[9px] flex items-center gap-1 cursor-pointer"
+          >
+            <Bug className="w-3 h-3 text-cyan-400" />
+            <span>SAIR DEBUG</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Arcade Frame / TV Screen Bezel */}
       <div
@@ -934,7 +1114,10 @@ export const GameCanvas: React.FC = () => {
             ref={canvasRef}
             width={GameEngine.NES_WIDTH}
             height={GameEngine.NES_HEIGHT}
-            className="w-full h-full object-contain image-rendering-pixelated"
+            onClick={handleCanvasDebugClick}
+            className={`w-full h-full object-contain image-rendering-pixelated ${
+              isDebugMode && isDebugPlacementActive ? 'cursor-crosshair' : ''
+            }`}
             style={{
               imageRendering: 'pixelated',
             }}
@@ -1607,16 +1790,22 @@ export const GameCanvas: React.FC = () => {
             </span>
           </button>
 
-          {/* Página do desenvolvedor (se código estiver ativo) */}
-          {isCheatActive && (
+          {/* Botão do Desenvolvedor (ativo com cheat, debug ou para restaurar ILLEGAL INSTRUCTION) */}
+          {(isCheatActive || isDebugMode || isIllegalInstructionBug) && (
             <button
               type="button"
-              onClick={() => setIsCheatMenuOpen(true)}
-              title="Página do desenvolvedor"
-              className="p-2 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-500 text-red-300 hover:text-white transition flex items-center gap-1.5 animate-pulse"
+              onClick={handleDeveloperButtonClick}
+              title={isIllegalInstructionBug ? 'Restaurar tela bugada (Botão do Desenvolvedor)' : 'Página do desenvolvedor'}
+              className={`p-2 rounded-lg border transition flex items-center gap-1.5 animate-pulse cursor-pointer ${
+                isIllegalInstructionBug
+                  ? 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-400 text-emerald-200'
+                  : 'bg-red-950/80 hover:bg-red-900 border-red-500 text-red-300 hover:text-white'
+              }`}
             >
-              <Flame className="w-4 h-4 text-red-400" />
-              <span className="hidden sm:inline text-[11px] font-bold">Dev</span>
+              <Flame className={`w-4 h-4 ${isIllegalInstructionBug ? 'text-emerald-400' : 'text-red-400'}`} />
+              <span className="hidden sm:inline text-[11px] font-bold">
+                {isIllegalInstructionBug ? 'Restaurar (Dev)' : 'Dev'}
+              </span>
             </button>
           )}
 
@@ -1718,6 +1907,8 @@ export const GameCanvas: React.FC = () => {
         onOpenLevelEditor={openLevelEditor}
         onStartSingleplayer={handleStartSingleplayer}
         onStartSmwWorldMap={handleOpenSmwWorldMap}
+        isDebugMode={isDebugMode}
+        onToggleDebugMode={handleToggleDebugMode}
       />
 
       {/* Leaderboard / Placar Modal */}
@@ -1755,10 +1946,14 @@ export const GameCanvas: React.FC = () => {
         onClose={() => setIsCheatMenuOpen(false)}
         infiniteLives={engineRef.current?.infiniteLives || false}
         isFemboy={marioPower === 'femboy'}
+        isDebugMode={isDebugMode}
+        isDebugPlacementActive={isDebugPlacementActive}
         onToggleInfiniteLives={() => {
           engineRef.current?.toggleInfiniteLives();
           setStats({ ...engineRef.current!.stats });
         }}
+        onToggleDebugMode={handleToggleDebugMode}
+        onToggleDebugPlacement={handleToggleDebugPlacement}
         onSetPowerUp={(power: MarioPower | 'star') => {
           engineRef.current?.setPowerUp(power);
           if (engineRef.current) {

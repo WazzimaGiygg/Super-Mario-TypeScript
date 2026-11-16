@@ -225,6 +225,33 @@ export type GameMode = 'classic' | 'singleplayer' | 'smw_world_map';
 export type GameDifficulty = 'easy' | 'normal' | 'hard';
 export type ResolutionScale = '0.5x' | '0.75x' | '1x' | '1.25x' | '1.5x' | '2x' | 'fit';
 
+export type DebugPlaceableId =
+  | 'coin'
+  | 'mushroom'
+  | 'fireflower'
+  | 'leaf'
+  | 'feather'
+  | 'femboy'
+  | 'star'
+  | '1up'
+  | 'question_coin'
+  | 'question_mushroom'
+  | 'brick'
+  | 'hard_block'
+  | 'goomba'
+  | 'koopa'
+  | 'red_koopa'
+  | 'paratroopa'
+  | 'hammer_bro'
+  | 'boo'
+  | 'dry_bones';
+
+export interface DebugPlaceableSpec {
+  id: DebugPlaceableId;
+  label: string;
+  category: 'item' | 'tile' | 'enemy';
+}
+
 export interface GameStats {
   score: number;
   coins: number;
@@ -234,6 +261,13 @@ export interface GameStats {
   highScore: number;
   difficulty?: GameDifficulty;
   isNewHighScore?: boolean;
+  isDebugMode?: boolean;
+  isDebugPlacementActive?: boolean;
+  debugX?: number;
+  debugY?: number;
+  debugSelectedItemId?: DebugPlaceableId;
+  debugSelectedItemLabel?: string;
+  isIllegalInstructionBug?: boolean;
 }
 
 export interface GamepadControls {

@@ -417,6 +417,66 @@ export class SoundEngine {
     osc.stop(now + 0.09);
   }
 
+  public playIllegalInstructionGlitch() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const glitchFreqs = [620, 145, 880, 95, 510, 72, 410, 55];
+    glitchFreqs.forEach((freq, idx) => {
+      const start = now + idx * 0.045;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = idx % 2 === 0 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(freq, start);
+      osc.frequency.linearRampToValueAtTime(Math.max(40, freq * 0.65), start + 0.042);
+
+      gain.gain.setValueAtTime(0.32, start);
+      gain.gain.linearRampToValueAtTime(0.02, start + 0.045);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(start);
+      osc.stop(start + 0.045);
+    });
+  }
+
+  public playDebugCycle() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(660, now);
+    osc.frequency.setValueAtTime(880, now + 0.025);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.055);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.055);
+  }
+
+  public playDebugRecover() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const notes = [N.C5, N.E5, N.G5, N.C6];
+    notes.forEach((freq, idx) => {
+      const start = now + idx * 0.05;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.26, start);
+      gain.gain.linearRampToValueAtTime(0.01, start + 0.06);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(start);
+      osc.stop(start + 0.06);
+    });
+  }
+
   public playBowserFire() {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;

@@ -20,8 +20,18 @@ interface UpdateEntry {
 
 const GAME_UPDATES: UpdateEntry[] = [
   {
-    version: 'v1.8',
+    version: 'v1.9',
     label: 'Mais Recente',
+    title: 'Modo Debug (Estilo Sonic) & Easter Egg "ILLEGAL INSTRUCTION"',
+    items: [
+      'Novo Modo Debug (estilo Sonic) ativável em Configurações ou na Página do Desenvolvedor: os pontos no placar viram coordenadas X/Y em tempo real.',
+      'Cursor livre de inserção manual (tecla B / E): voe pela fase, alterne entre moedas, power-ups, blocos e inimigos (Shift / X / [ ]) e insira manualmente (Espaço / Z ou clique no mapa).',
+      'Easter Egg secreto: cair no abismo segurando o botão de corrida aciona a tela bugada "ILLEGAL INSTRUCTION", que pode ser restaurada ao normal pressionando o Botão do Desenvolvedor.',
+    ],
+  },
+  {
+    version: 'v1.8',
+    label: 'Beta V0.9',
     title: 'Super Mario World (Beta V0.9) · Overworld & Ilha WikiWorldWeb',
     items: [
       'Novo modo Super Mario World (Beta V0.9) com seleção interativa de fases diretamente no mapa do Overworld.',

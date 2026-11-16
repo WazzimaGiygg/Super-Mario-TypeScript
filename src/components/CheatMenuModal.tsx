@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Flame, Shield, Sparkles, Heart, PlusCircle, X, Check, Flag } from 'lucide-react';
+import { Flame, Shield, Sparkles, Heart, PlusCircle, X, Check, Flag, Bug, Crosshair } from 'lucide-react';
 import { MarioPower } from '../game/types.ts';
 
 interface CheatMenuModalProps {
@@ -12,7 +12,11 @@ interface CheatMenuModalProps {
   onClose: () => void;
   infiniteLives: boolean;
   isFemboy?: boolean;
+  isDebugMode?: boolean;
+  isDebugPlacementActive?: boolean;
   onToggleInfiniteLives: () => void;
+  onToggleDebugMode?: () => void;
+  onToggleDebugPlacement?: () => void;
   onSetPowerUp: (power: MarioPower | 'star') => void;
   onAddScore: (points: number) => void;
   onTeleportToEnd: () => void;
@@ -23,7 +27,11 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
   onClose,
   infiniteLives,
   isFemboy = false,
+  isDebugMode = false,
+  isDebugPlacementActive = false,
   onToggleInfiniteLives,
+  onToggleDebugMode,
+  onToggleDebugPlacement,
   onSetPowerUp,
   onAddScore,
   onTeleportToEnd,
@@ -117,6 +125,59 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* 1b. Modo Debug (Estilo Sonic) */}
+          {onToggleDebugMode && (
+            <div className="bg-stone-800/80 p-3.5 rounded-lg border border-cyan-500/45 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bug className="w-5 h-5 text-cyan-400 shrink-0" />
+                  <div>
+                    <h3 className="font-['Press_Start_2P',monospace] text-[10px] text-cyan-300">
+                      MODO DEBUG (SONIC)
+                    </h3>
+                    <p className="text-[10px] text-stone-300">
+                      Pontos viram coordenadas X/Y e libera inserção manual de itens
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleDebugMode();
+                    showSuccess(isDebugMode ? 'Modo Debug desativado' : 'Modo Debug (Sonic) ativado!');
+                  }}
+                  className={`px-3 py-1.5 rounded font-['Press_Start_2P',monospace] text-[10px] font-bold transition shrink-0 cursor-pointer ${
+                    isDebugMode ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-stone-700 text-stone-400'
+                  }`}
+                >
+                  {isDebugMode ? 'ATIVO' : 'DESATIVO'}
+                </button>
+              </div>
+              {isDebugMode && (
+                <div className="pt-2 border-t border-stone-700/70 flex flex-col gap-2">
+                  <div className="text-[10px] text-cyan-100/85 font-mono leading-relaxed">
+                    • <span className="text-amber-300 font-bold">B / E</span>: Alternar Cursor Livre &nbsp;•{' '}
+                    <span className="text-amber-300 font-bold">Shift / X / [ ]</span>: Trocar Item &nbsp;•{' '}
+                    <span className="text-amber-300 font-bold">Espaço / Z / Clique</span>: Inserir Item
+                  </div>
+                  {onToggleDebugPlacement && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleDebugPlacement();
+                        onClose();
+                      }}
+                      className="w-full py-2 px-3 rounded bg-cyan-700/70 hover:bg-cyan-600 text-white font-['Press_Start_2P',monospace] text-[9px] font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <Crosshair className="w-3.5 h-3.5" />
+                      <span>{isDebugPlacementActive ? 'VOLTAR AO PERSONAGEM (B)' : 'ATIVAR CURSOR DE ITENS (B)'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 2. Selecionar Power-Up */}
           <div className="bg-stone-800/80 p-3.5 rounded-lg border border-stone-700 space-y-2">
