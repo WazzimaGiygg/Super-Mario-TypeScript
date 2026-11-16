@@ -27,7 +27,7 @@ export class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.6;
   private musicEnabled: boolean = true;
-  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'none' = 'none';
+  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'starman' | 'none' = 'none';
 
   // Music sequence playback state
   private musicTimer: number | null = null;
@@ -101,6 +101,7 @@ export class SoundEngine {
       else if (this.currentTrack === 'underwater') this.playMusic('underwater');
       else if (this.currentTrack === 'castle') this.playMusic('castle');
       else if (this.currentTrack === 'ghost_house') this.playMusic('ghost_house');
+      else if (this.currentTrack === 'starman') this.playMusic('starman');
     }
     return this.musicEnabled;
   }
@@ -695,7 +696,7 @@ export class SoundEngine {
 
   // --- BACKGROUND MUSIC ENGINE ---
 
-  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house') {
+  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'starman') {
     this.currentTrack = track;
     this.musicPaused = false;
     if (!this.musicEnabled) return;
@@ -712,6 +713,8 @@ export class SoundEngine {
       this.initCastleMusic();
     } else if (track === 'ghost_house') {
       this.initGhostHouseMusic();
+    } else if (track === 'starman') {
+      this.initStarmanMusic();
     }
   }
 
@@ -902,6 +905,25 @@ export class SoundEngine {
       [N.C3, H], [N.REST, Q],
     ];
 
+    this.musicStep = 0;
+    this.playNextMusicSlice();
+  }
+
+  private initStarmanMusic() {
+    // Classic high-energy Starman invincibility loop
+    const S = 0.088;
+    this.currentScore = [
+      [N.C5, S], [N.C5, S], [N.C5, S], [N.D5, S], [N.C5, S], [N.REST, S], [N.C5, S], [N.D5, S],
+      [N.C5, S], [N.D5, S], [N.E5, S], [N.C5, S], [N.D5, S], [N.C5, S], [N.E5, S], [N.REST, S],
+      [N.B4, S], [N.B4, S], [N.B4, S], [N.C5, S], [N.B4, S], [N.REST, S], [N.B4, S], [N.C5, S],
+      [N.B4, S], [N.C5, S], [N.D5, S], [N.B4, S], [N.C5, S], [N.B4, S], [N.D5, S], [N.REST, S],
+    ];
+    this.currentBass = [
+      [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S],
+      [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S], [N.F3, S], [N.C4, S],
+      [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S],
+      [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S],
+    ];
     this.musicStep = 0;
     this.playNextMusicSlice();
   }

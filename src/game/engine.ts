@@ -102,6 +102,10 @@ export class GameEngine {
   public marioGrowthTimer: number = 0;
   public marioShrinkTimer: number = 0;
   public marioDeathTimer: number = 0;
+  private marioTransitionFrom: MarioPower = 'small';
+  private marioTransitionKind: 'grow' | 'power_flash' | 'shrink' = 'grow';
+  private marioFireThrowTimer: number = 0;
+  private starComboCount: number = 0;
   private stompComboCount: number = 0;
   private static readonly STOMP_COMBO_SCORES = [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000, 8000] as const;
   private static readonly SHELL_STREAK_SCORES = [500, 800, 1000, 2000, 4000, 5000, 8000] as const;
@@ -378,6 +382,7 @@ export class GameEngine {
       // Respawn after death: strip power-ups (always return as Small Mario)
       this.marioPower = 'small';
       this.marioStarTimer = 0;
+      this.starComboCount = 0;
       if (this.activeCheckpoint) {
         this.marioX = this.activeCheckpoint.x;
         this.marioY = this.activeCheckpoint.y;
@@ -396,6 +401,9 @@ export class GameEngine {
     this.marioGrounded = false;
     this.lastSafeGroundPos = { x: this.marioX, y: Math.min(this.marioY, GameEngine.NES_HEIGHT - 48) };
     this.stompComboCount = 0;
+    this.marioGrowthTimer = 0;
+    this.marioShrinkTimer = 0;
+    this.marioFireThrowTimer = 0;
     this.marioState = 'idle';
     this.marioFacing = 'right';
     this.marioInvulnerableTimer = isRespawn ? 40 : 0;
@@ -738,15 +746,47 @@ export class GameEngine {
 
   // --- MARIO UPDATE ---
   private updateMario(deltaMs: number) {
-    // 1. Invulnerability timer
-    if (this.marioInvulnerableTimer > 0) {
-      this.marioInvulnerableTimer--;
-    }
+    // 1. Starman invincibility timer & trailing sparkle aura
     if (this.marioStarTimer > 0) {
       this.marioStarTimer--;
+      if (
+        this.marioStarTimer % 4 === 0 &&
+        this.marioState !== 'dead' &&
+        this.marioState !== 'castle_entered'
+      ) {
+        const starColors = ['#fce078', '#58f8f8', '#78f858', '#ff70b8'];
+        this.particleSystem.add({
+          type: 'sparkle',
+          x: this.marioX + 2 + Math.random() * 12,
+          y: this.marioY + 2 + Math.random() * Math.max(10, this.getMarioHeight() - 4),
+          vx: (Math.random() - 0.5) * 0.9,
+          vy: -0.5 - Math.random() * 0.6,
+          life: 0,
+          maxLife: 16,
+          color: starColors[Math.floor((this.marioStarTimer / 4) % starColors.length)],
+          size: 2,
+        });
+      }
+      if (this.marioStarTimer === 0) {
+        this.starComboCount = 0;
+        if (
+          !this.isStageClear &&
+          this.marioState !== 'dead' &&
+          this.marioState !== 'pole_slide' &&
+          this.marioState !== 'castle_walk' &&
+          this.marioState !== 'castle_entered' &&
+          !this.isIllegalInstructionBug
+        ) {
+          this.startLevelMusic(this.level.theme);
+        }
+      }
     }
 
-    // 2. Growth / Shrink freeze animations
+    if (this.marioFireThrowTimer > 0) {
+      this.marioFireThrowTimer--;
+    }
+
+    // 2. Growth / Shrink freeze animations (pause post-damage invulnerability countdown until control resumes)
     if (this.marioGrowthTimer > 0) {
       this.marioGrowthTimer--;
       return;
@@ -754,6 +794,11 @@ export class GameEngine {
     if (this.marioShrinkTimer > 0) {
       this.marioShrinkTimer--;
       return;
+    }
+
+    // 3. Temporary post-damage invulnerability timer
+    if (this.marioInvulnerableTimer > 0) {
+      this.marioInvulnerableTimer--;
     }
 
     // 3. Death sequence (Authentic NES arc)
@@ -966,7 +1011,8 @@ export class GameEngine {
 
     const isUnderwater = this.isMarioUnderwater();
     const isRunning = this.controls.run;
-    const maxSpeed = isUnderwater ? (isRunning ? 2.2 : 1.55) : (isRunning ? 3.4 : 2.0);
+    const starBoost = this.marioStarTimer > 0 ? 1.15 : 1;
+    const maxSpeed = (isUnderwater ? (isRunning ? 2.2 : 1.55) : (isRunning ? 3.4 : 2.0)) * starBoost;
     const accel = isUnderwater ? 0.13 : (isRunning ? 0.22 : 0.16);
     // Ground friction: 0.72 stops Mario quickly when directional key is released (eliminates ice-like excessive sliding)
     // Air/Water friction: slightly looser for natural momentum control
@@ -1114,7 +1160,10 @@ export class GameEngine {
     // Action button pressed (Run button):
     const runPressed = this.controls.run && !this.prevControls.run;
     if (runPressed) {
-      if (this.marioPower === 'fire' && this.fireballs.length < 2) {
+      const activePlayerFireballs = this.fireballs.filter(
+        fb => fb.alive && !fb.exploding && fb.color !== 'white'
+      ).length;
+      if (this.marioPower === 'fire' && activePlayerFireballs < 2) {
         this.shootFireball();
       } else if ((this.marioPower === 'tanooki' || this.marioPower === 'cape') && this.tailWhipTimer <= 0) {
         // Tanooki Tail Whip / Cape Spin 360 Sweep!
@@ -1470,6 +1519,7 @@ export class GameEngine {
 
     // Defeat any enemy standing on this block
     const blockTopY = ty * GameEngine.TILE_SIZE;
+    const blockCenterX = (tx + 0.5) * GameEngine.TILE_SIZE;
     this.enemies.forEach(e => {
       if (
         e.alive &&
@@ -1484,6 +1534,25 @@ export class GameEngine {
         this.sound.playKick();
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(100, e.x, e.y);
+      }
+    });
+
+    // Bounce any active Mushroom / 1-UP / Starman resting on top of the bumped block
+    this.items.forEach(item => {
+      if (
+        !item.collected &&
+        !item.emerging &&
+        (item.type === 'mushroom' || item.type === '1up' || item.type === 'star') &&
+        item.y + item.height >= blockTopY - 4 &&
+        item.y + item.height <= blockTopY + 4 &&
+        item.x + item.width > tx * GameEngine.TILE_SIZE &&
+        item.x < (tx + 1) * GameEngine.TILE_SIZE
+      ) {
+        item.vy = -3.8;
+        const itemCenterX = item.x + item.width / 2;
+        if (Math.abs(itemCenterX - blockCenterX) > 2) {
+          item.vx = itemCenterX < blockCenterX ? -Math.abs(item.vx || 1.2) : Math.abs(item.vx || 1.2);
+        }
       }
     });
 
@@ -1583,16 +1652,26 @@ export class GameEngine {
         emerging: true,
         emergeY: y - 16,
       });
+    } else if (content === 'fireflower') {
+      // Explicit Fire Flower block: emerges and remains stationary on the block
+      this.sound.playPowerUpAppear();
+      this.items.push({
+        id: this.nextEntityId++,
+        type: 'fireflower',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 16,
+        grounded: false,
+        collected: false,
+        emerging: true,
+        emergeY: y - 16,
+      });
     } else if (content === 'mushroom') {
-      // If Mario already has Super power or above, give Super Leaf / Tanooki or Fire Flower!
-      let itemType: 'mushroom' | 'fireflower' | 'leaf' = 'mushroom';
-      if (this.marioPower === 'small') {
-        itemType = 'mushroom';
-      } else if (this.marioPower === 'super') {
-        itemType = 'leaf';
-      } else {
-        itemType = 'fireflower';
-      }
+      // Classic SMB power-up progression: Small Mario gets Super Mushroom, Big Mario gets Fire Flower
+      const itemType: 'mushroom' | 'fireflower' = this.marioPower === 'small' ? 'mushroom' : 'fireflower';
 
       this.sound.playPowerUpAppear();
       this.items.push({
@@ -1600,14 +1679,14 @@ export class GameEngine {
         type: itemType,
         x,
         y: y,
-        vx: itemType === 'leaf' ? 0 : 1.2,
-        vy: itemType === 'leaf' ? -2.0 : 0,
+        vx: itemType === 'fireflower' ? 0 : 1.2,
+        vy: 0,
         width: 16,
         height: 16,
         grounded: false,
         collected: false,
         emerging: true,
-        emergeY: itemType === 'leaf' ? y - 24 : y - 16,
+        emergeY: y - 16,
       });
     } else if (content === 'star') {
       this.sound.playPowerUpAppear();
@@ -2340,7 +2419,7 @@ export class GameEngine {
   }
 
   private marioHitEnemy(e: Enemy, isStomp: boolean) {
-    // Starman kills everything except lava sparks
+    // Starman kills everything except lava sparks with classic combo escalation
     if (this.marioStarTimer > 0) {
       if (e.type === 'lava_bubble') return;
       e.alive = false;
@@ -2352,7 +2431,13 @@ export class GameEngine {
       if (e.type === 'bowser') {
         this.addScore(5000, e.x, e.y, 'BOWSER!');
       } else {
-        this.addScore(200, e.x, e.y);
+        const step = this.starComboCount;
+        this.starComboCount++;
+        if (step < GameEngine.STOMP_COMBO_SCORES.length) {
+          this.addScore(GameEngine.STOMP_COMBO_SCORES[step], e.x, e.y);
+        } else {
+          this.awardExtraLife(e.x, e.y);
+        }
       }
       return;
     }
@@ -2482,6 +2567,7 @@ export class GameEngine {
 
   private damageMario() {
     if (
+      this.marioStarTimer > 0 ||
       this.marioInvulnerableTimer > 0 ||
       this.marioState === 'dead' ||
       this.marioState === 'pipe_entering' ||
@@ -2510,16 +2596,20 @@ export class GameEngine {
 
     if (this.marioPower === 'tanooki' || this.marioPower === 'femboy' || this.marioPower === 'cape') {
       // Tanooki, Femboy, and Cape power-ups downgrade to Super Mario on damage
+      this.marioTransitionFrom = this.marioPower;
+      this.marioTransitionKind = 'shrink';
       this.marioPower = 'super';
       this.marioInvulnerableTimer = 120;
-      this.marioShrinkTimer = 25;
+      this.marioShrinkTimer = 24;
       this.sound.playPipe();
       this.triggerScreenShake(2.0, 6);
     } else if (this.marioPower === 'fire' || this.marioPower === 'super') {
-      // Super Mario absorbs the hit, retains player life, and reverts to Small Mario
+      // Fire / Super Mario absorbs the hit, retains player life, and reverts to Small Mario with temporary invincibility
+      this.marioTransitionFrom = this.marioPower;
+      this.marioTransitionKind = 'shrink';
       this.marioPower = 'small';
       this.marioY += 16; // Anchors feet on ground so Mario does not hover
-      this.marioInvulnerableTimer = 120; // 2 seconds flashing invulnerability
+      this.marioInvulnerableTimer = 120; // 2 seconds flashing temporary invincibility after shrink
       this.marioShrinkTimer = 32; // Freeze frames for shrink animation
       this.sound.playPipe();
       this.triggerScreenShake(2.5, 7);
@@ -2620,17 +2710,21 @@ export class GameEngine {
         item.x += Math.sin(Date.now() / swayFreq) * swayAmp;
         item.y += fallSpeed;
       } else {
-        // Moving items (Mushroom, Star, 1UP)
-        item.x += item.vx;
+        // Grounded / Moving items (Super Mushroom, Fire Flower, Starman, 1-UP)
+        if (item.type === 'fireflower') {
+          item.vx = 0; // Fire Flower remains stationary atop its block
+        } else {
+          item.x += item.vx;
 
-        // Horizontal collision
-        const itemBoxH: Rect = { x: item.x, y: item.y, width: item.width, height: item.height - 2 };
-        const tilesH = this.getTilesIntersecting(itemBoxH);
-        for (const t of tilesH) {
-          if (this.isSolidTile(t.tile.type)) {
-            item.vx = -item.vx;
-            item.x += item.vx;
-            break;
+          // Horizontal collision
+          const itemBoxH: Rect = { x: item.x, y: item.y, width: item.width, height: item.height - 2 };
+          const tilesH = this.getTilesIntersecting(itemBoxH);
+          for (const t of tilesH) {
+            if (this.isSolidTile(t.tile.type)) {
+              item.vx = -item.vx;
+              item.x += item.vx;
+              break;
+            }
           }
         }
 
@@ -2647,7 +2741,7 @@ export class GameEngine {
             if (item.vy > 0) {
               item.y = t.tileY * GameEngine.TILE_SIZE - item.height;
               if (item.type === 'star') {
-                item.vy = -5.5; // Star bounces high
+                item.vy = -5.2; // Starman bounces energetically
               } else {
                 item.vy = 0;
               }
@@ -2667,66 +2761,75 @@ export class GameEngine {
     this.items = this.items.filter(i => !i.collected);
   }
 
+  private transitionMarioPower(targetPower: MarioPower, itemX: number, itemY: number, label: string) {
+    this.sound.playPowerUpEat();
+    const prevPower = this.marioPower;
+
+    // Super Mushroom never downgrades an already powered-up Big/Fire/Suit Mario
+    if (targetPower === 'super' && prevPower !== 'small') {
+      this.addScore(1000, itemX, itemY);
+      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      return;
+    }
+
+    this.marioTransitionFrom = prevPower;
+    this.marioPower = targetPower;
+
+    if (prevPower === 'small' && targetPower !== 'small') {
+      // Shift up 16px so feet remain anchored on ground, while protecting against tight ceiling clipping
+      const targetY = this.marioY - 16;
+      const headTiles = this.getTilesIntersecting({ x: this.marioX + 1, y: targetY, width: 14, height: 14 }).filter(t =>
+        this.isSolidTile(t.tile.type)
+      );
+      if (headTiles.length === 0) {
+        this.marioY = targetY;
+      } else {
+        const ceilingBottom = Math.max(...headTiles.map(t => (t.tileY + 1) * GameEngine.TILE_SIZE));
+        const spaceBelowClear = !this.getTilesIntersecting({
+          x: this.marioX + 1,
+          y: ceilingBottom,
+          width: 14,
+          height: 30,
+        }).some(t => this.isSolidTile(t.tile.type));
+        if (spaceBelowClear) {
+          this.marioY = ceilingBottom;
+        } else {
+          this.marioY = targetY;
+          this.marioState = 'crouching';
+        }
+      }
+      this.marioTransitionKind = 'grow';
+      this.marioGrowthTimer = 36;
+    } else if (prevPower !== targetPower) {
+      // Already Big -> switching/upgrading suit (e.g. Super -> Fire Flower) flashes palette without shrinking
+      this.marioTransitionKind = 'power_flash';
+      this.marioGrowthTimer = 28;
+    }
+
+    this.addScore(1000, itemX, itemY, label);
+    this.spawnPowerUpSparkles(this.marioX, this.marioY);
+  }
+
   private collectItem(item: Item) {
     if (item.type === 'leaf') {
-      this.sound.playPowerUpEat();
-      const prevPower = this.marioPower;
-      this.marioPower = 'tanooki';
-      if (prevPower === 'small') {
-        this.marioY -= 16;
-      }
-      this.marioGrowthTimer = 36;
-      this.addScore(1000, item.x, item.y, 'TANOOKI!');
-      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.transitionMarioPower('tanooki', item.x, item.y, 'TANOOKI!');
     } else if (item.type === 'feather') {
-      this.sound.playPowerUpEat();
-      const prevPower = this.marioPower;
-      this.marioPower = 'cape';
-      if (prevPower === 'small') {
-        this.marioY -= 16;
-      }
-      this.marioGrowthTimer = 36;
-      this.addScore(1000, item.x, item.y, 'PENA!');
-      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.transitionMarioPower('cape', item.x, item.y, 'PENA!');
     } else if (item.type === 'femboy') {
-      this.sound.playPowerUpEat();
-      const prevPower = this.marioPower;
-      this.marioPower = 'femboy';
-      if (prevPower === 'small') {
-        this.marioY -= 16;
-      }
-      this.marioGrowthTimer = 36;
-      this.addScore(1000, item.x, item.y, 'FEMBOY!');
-      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.transitionMarioPower('femboy', item.x, item.y, 'FEMBOY!');
     } else if (item.type === 'mushroom') {
-      this.sound.playPowerUpEat();
-      const prevPower = this.marioPower;
-      this.marioPower = 'super';
-      if (prevPower === 'small') {
-        this.marioY -= 16; // Shift up 16px so feet remain anchored on the ground
-      }
-      this.marioGrowthTimer = 36;
-      this.addScore(1000, item.x, item.y, 'SUPER!');
-      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.transitionMarioPower('super', item.x, item.y, 'SUPER!');
     } else if (item.type === 'fireflower') {
-      this.sound.playPowerUpEat();
-      const prevPower = this.marioPower;
-      this.marioPower = 'fire';
-      if (prevPower === 'small') {
-        this.marioY -= 16;
-      }
-      this.marioGrowthTimer = 36;
-      this.addScore(1000, item.x, item.y, 'FIRE!');
-      this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.transitionMarioPower('fire', item.x, item.y, 'FIRE!');
     } else if (item.type === 'star') {
       this.sound.playPowerUpEat();
-      this.marioStarTimer = 600; // ~10 seconds of invincibility
+      this.marioStarTimer = 600; // 10 seconds of temporary Starman invincibility
+      this.starComboCount = 0;
+      this.sound.playMusic('starman');
       this.addScore(1000, item.x, item.y, 'STAR!');
       this.spawnPowerUpSparkles(this.marioX, this.marioY);
     } else if (item.type === '1up') {
-      this.sound.playPowerUpEat();
-      this.stats.lives++;
-      this.addScore(1000, item.x, item.y, '1-UP');
+      this.awardExtraLife(item.x, item.y);
     }
   }
 
@@ -2737,11 +2840,13 @@ export class GameEngine {
   // --- FIREBALLS UPDATE ---
   private shootFireball() {
     this.sound.playFireball();
+    this.marioFireThrowTimer = 8;
+    const isCrouching = this.marioPower !== 'small' && this.marioState === 'crouching';
     const dir = this.marioFacing === 'right' ? 1 : -1;
     this.fireballs.push({
       id: this.nextEntityId++,
       x: this.marioFacing === 'right' ? this.marioX + 14 : this.marioX - 4,
-      y: this.marioY + 8,
+      y: isCrouching ? this.marioY + 14 : this.marioY + 8,
       vx: dir * 5.0,
       vy: 1.5,
       alive: true,
@@ -2827,7 +2932,7 @@ export class GameEngine {
       this.enemies.forEach(e => {
         if (e.alive && !fb.exploding && this.rectsIntersect(fbBox, { x: e.x, y: e.y, width: e.width, height: e.height })) {
           fb.exploding = true;
-          if (e.type === 'boo') {
+          if (e.type === 'boo' || e.type === 'lava_bubble') {
             this.sound.playBump();
             return;
           }
@@ -2957,6 +3062,8 @@ export class GameEngine {
   private triggerCastleAxeClear(axeTX: number, axeTY: number) {
     this.level.tiles[axeTY][axeTX] = null;
     this.bossFireballs = [];
+    this.marioStarTimer = 0;
+    this.starComboCount = 0;
     this.marioVx = 0;
     this.marioVy = 0;
     this.sound.stopMusic();
@@ -3097,14 +3204,21 @@ export class GameEngine {
   public setPowerUp(power: MarioPower | 'star') {
     if (power === 'star') {
       this.marioStarTimer = 999999;
+      this.starComboCount = 0;
       this.sound.playPowerUpEat();
+      this.sound.playMusic('starman');
     } else {
       const prevPower = this.marioPower;
+      this.marioTransitionFrom = prevPower;
       this.marioPower = power;
       if (prevPower === 'small' && power !== 'small') {
         this.marioY -= 16;
+        this.marioTransitionKind = 'grow';
       } else if (prevPower !== 'small' && power === 'small') {
         this.marioY += 16;
+        this.marioTransitionKind = 'shrink';
+      } else {
+        this.marioTransitionKind = 'power_flash';
       }
       this.marioGrowthTimer = 25;
       this.sound.playPowerUpEat();
@@ -3767,6 +3881,8 @@ export class GameEngine {
 
     if (this.marioX >= this.level.flagX - 6 && this.marioX <= this.level.flagX + 8) {
       // Grab the flagpole!
+      this.marioStarTimer = 0;
+      this.starComboCount = 0;
       this.marioState = 'pole_slide';
       this.marioVx = 0;
       this.marioVy = 0;
@@ -4598,7 +4714,323 @@ export class GameEngine {
     drawShadowText('TIME', 218, 12, '#ffffff');
     drawShadowText(String(this.stats.time).padStart(3, '0'), 222, 21, timeColor);
 
+    // 6. Active Temporary Starman Invincibility Meter (subtle 8x8 icon + timer bar under Coins column)
+    if (this.marioStarTimer > 0 && this.atlas.itemStarFrames.length > 0) {
+      const starIcon = this.atlas.itemStarFrames[Math.floor((Date.now() / 70) % this.atlas.itemStarFrames.length)];
+      ctx.drawImage(starIcon, 84, 24, 8, 8);
+      if (this.marioStarTimer > 10000) {
+        ctx.font = '5px "Press Start 2P", monospace';
+        drawShadowText('STAR ∞', 95, 30, '#fce078');
+      } else {
+        const ratio = Math.max(0, Math.min(1, this.marioStarTimer / 600));
+        const barW = 30;
+        const fillW = Math.max(1, Math.round(barW * ratio));
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(94, 26, barW + 2, 4);
+        ctx.fillStyle = this.marioStarTimer < 120 && Math.floor(this.marioStarTimer / 4) % 2 === 0 ? '#ff4444' : '#fce078';
+        ctx.fillRect(95, 27, fillW, 2);
+      }
+    }
+
     ctx.restore();
+  }
+
+  private renderParallaxPeriod(period: number, scrollOffset: number, drawSlice: (x: number, idx: number) => void) {
+    const startIdx = Math.floor((scrollOffset - period) / period);
+    const endIdx = Math.ceil((scrollOffset + GameEngine.NES_WIDTH + period) / period);
+    for (let idx = startIdx; idx <= endIdx; idx++) {
+      const screenX = Math.round(idx * period - scrollOffset);
+      if (screenX > GameEngine.NES_WIDTH + period || screenX + period < -16) continue;
+      drawSlice(screenX, idx);
+    }
+  }
+
+  private renderOverworldParallax(ctx: CanvasRenderingContext2D, camX: number, clipStartX: number = 0) {
+    const timeSec = Date.now() / 1000;
+    ctx.save();
+    if (clipStartX > 0) {
+      ctx.beginPath();
+      ctx.rect(clipStartX, 0, Math.max(0, GameEngine.NES_WIDTH - clipStartX), GameEngine.NES_HEIGHT);
+      ctx.clip();
+    }
+
+    // Layer 0: Subtle horizon sky atmospheric bands
+    ctx.fillStyle = '#6ca2ff';
+    ctx.fillRect(0, 128, GameEngine.NES_WIDTH, 42);
+    ctx.fillStyle = '#84b6ff';
+    ctx.fillRect(0, 170, GameEngine.NES_WIDTH, 42);
+
+    // Layer 1a: Distant drifting cirrus clouds (0.14x parallax + gentle wind drift)
+    const farCloudScroll = camX * 0.14 + timeSec * 4.5;
+    this.renderParallaxPeriod(160, farCloudScroll, (sx, idx) => {
+      const cy = 34 + ((Math.abs(idx) * 19) % 34);
+      ctx.fillStyle = '#c8e0ff';
+      ctx.fillRect(sx + 14, cy + 4, 28, 6);
+      ctx.fillRect(sx + 20, cy + 1, 16, 4);
+      ctx.fillStyle = '#e8f2ff';
+      ctx.fillRect(sx + 16, cy + 3, 22, 4);
+    });
+
+    // Layer 1b: Distant mountain range silhouettes (0.18x parallax)
+    this.renderParallaxPeriod(240, camX * 0.18, (sx) => {
+      // Twin distant peaks
+      ctx.fillStyle = '#487ce0';
+      ctx.beginPath();
+      ctx.moveTo(sx, 208);
+      ctx.lineTo(sx + 56, 118);
+      ctx.lineTo(sx + 114, 208);
+      ctx.lineTo(sx + 172, 132);
+      ctx.lineTo(sx + 240, 208);
+      ctx.closePath();
+      ctx.fill();
+
+      // Subtle sunlit upper ridge highlights
+      ctx.fillStyle = '#6294ec';
+      ctx.beginPath();
+      ctx.moveTo(sx + 56, 118);
+      ctx.lineTo(sx + 76, 148);
+      ctx.lineTo(sx + 56, 142);
+      ctx.lineTo(sx + 38, 150);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(sx + 172, 132);
+      ctx.lineTo(sx + 190, 158);
+      ctx.lineTo(sx + 172, 152);
+      ctx.lineTo(sx + 156, 160);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Layer 2: Mid-ground rolling emerald hills & treeline silhouettes (0.40x parallax)
+    this.renderParallaxPeriod(192, camX * 0.40, (sx) => {
+      ctx.fillStyle = '#2e7e46';
+      ctx.beginPath();
+      ctx.arc(sx + 48, 212, 46, Math.PI, 0);
+      ctx.arc(sx + 136, 214, 54, Math.PI, 0);
+      ctx.fill();
+
+      ctx.fillStyle = '#3b9854';
+      ctx.beginPath();
+      ctx.arc(sx + 48, 214, 38, Math.PI, 0);
+      ctx.arc(sx + 136, 216, 44, Math.PI, 0);
+      ctx.fill();
+
+      // Distant hill ridge rim
+      ctx.fillStyle = '#52b868';
+      ctx.fillRect(sx + 26, 174, 44, 2);
+      ctx.fillRect(sx + 110, 170, 52, 2);
+    });
+
+    ctx.restore();
+  }
+
+  private renderUndergroundParallax(ctx: CanvasRenderingContext2D, camX: number) {
+    // Layer 1: Deep cavern rock silhouettes & ceiling stalactites (0.18x parallax)
+    this.renderParallaxPeriod(224, camX * 0.18, (sx, idx) => {
+      ctx.fillStyle = '#0c1024';
+      ctx.fillRect(sx, 28, 224, 182);
+
+      // Deep stalactite clusters
+      ctx.fillStyle = '#141c3c';
+      const peaks = [24, 72, 128, 184];
+      peaks.forEach((px, pIdx) => {
+        const len = 28 + (((Math.abs(idx) + pIdx) * 13) % 26);
+        ctx.beginPath();
+        ctx.moveTo(sx + px - 14, 28);
+        ctx.lineTo(sx + px, 28 + len);
+        ctx.lineTo(sx + px + 14, 28);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      // Deep stalagmites
+      ctx.beginPath();
+      ctx.moveTo(sx + 40, 212);
+      ctx.lineTo(sx + 64, 152);
+      ctx.lineTo(sx + 92, 212);
+      ctx.moveTo(sx + 148, 212);
+      ctx.lineTo(sx + 178, 144);
+      ctx.lineTo(sx + 208, 212);
+      ctx.fill();
+    });
+
+    // Layer 2: Mid-ground stone arches & faint glowing crystals (0.42x parallax)
+    this.renderParallaxPeriod(192, camX * 0.42, (sx, idx) => {
+      ctx.fillStyle = '#182448';
+      ctx.fillRect(sx + 18, 36, 18, 174);
+      ctx.fillRect(sx + 122, 36, 14, 174);
+      ctx.fillStyle = '#1f2e58';
+      ctx.fillRect(sx + 21, 36, 4, 174);
+      ctx.fillRect(sx + 125, 36, 3, 174);
+
+      // Subtle glowing cavern crystal veins
+      const glowPhase = Math.floor(Date.now() / 420 + idx) % 2 === 0;
+      ctx.fillStyle = glowPhase ? '#287898' : '#206080';
+      ctx.fillRect(sx + 24, 88, 4, 8);
+      ctx.fillRect(sx + 30, 94, 3, 5);
+      ctx.fillRect(sx + 128, 122, 4, 9);
+      ctx.fillStyle = '#58b8d8';
+      ctx.fillRect(sx + 25, 89, 1, 3);
+      ctx.fillRect(sx + 129, 123, 1, 3);
+    });
+  }
+
+  private renderUnderwaterParallax(ctx: CanvasRenderingContext2D, camX: number, waterEndScreenX: number) {
+    if (waterEndScreenX <= 0) return;
+    const timeSec = Date.now() / 1000;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, waterEndScreenX, GameEngine.NES_HEIGHT);
+    ctx.clip();
+
+    // Layer 1a: Shimmering diagonal surface sunbeams (0.12x parallax)
+    this.renderParallaxPeriod(144, camX * 0.12, (sx, idx) => {
+      const sway = Math.sin(timeSec * 1.4 + idx) * 6;
+      ctx.fillStyle = 'rgba(130, 215, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(sx + 20, 26);
+      ctx.lineTo(sx + 52, 26);
+      ctx.lineTo(sx + 84 + sway, 208);
+      ctx.lineTo(sx + 38 + sway, 208);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Layer 1b: Distant deep-sea trench silhouettes (0.20x parallax)
+    this.renderParallaxPeriod(240, camX * 0.20, (sx) => {
+      ctx.fillStyle = '#0e3694';
+      ctx.beginPath();
+      ctx.moveTo(sx, 208);
+      ctx.lineTo(sx + 36, 148);
+      ctx.lineTo(sx + 92, 166);
+      ctx.lineTo(sx + 148, 128);
+      ctx.lineTo(sx + 204, 162);
+      ctx.lineTo(sx + 240, 208);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Layer 2: Mid-ground reef silhouettes & rising parallax bubbles (0.42x parallax)
+    this.renderParallaxPeriod(192, camX * 0.42, (sx, idx) => {
+      ctx.fillStyle = '#1850b8';
+      ctx.beginPath();
+      ctx.arc(sx + 44, 208, 30, Math.PI, 0);
+      ctx.arc(sx + 132, 208, 24, Math.PI, 0);
+      ctx.fill();
+
+      // Coral branching silhouette
+      ctx.fillRect(sx + 90, 168, 6, 40);
+      ctx.fillRect(sx + 82, 176, 8, 5);
+      ctx.fillRect(sx + 96, 172, 8, 5);
+
+      // Gentle ambient background bubble
+      const bubbleY = 200 - (((timeSec * 18 + Math.abs(idx) * 47) % 156));
+      ctx.fillStyle = 'rgba(184, 244, 255, 0.35)';
+      ctx.fillRect(Math.round(sx + 62 + Math.sin(timeSec * 2 + idx) * 3), Math.round(bubbleY), 3, 3);
+    });
+
+    ctx.restore();
+  }
+
+  private renderGhostHouseParallax(ctx: CanvasRenderingContext2D, camX: number) {
+    // Layer 1: Distant moonlit haunted towers & attic rafters (0.16x parallax)
+    this.renderParallaxPeriod(256, camX * 0.16, (sx) => {
+      ctx.fillStyle = '#120822';
+      ctx.fillRect(sx + 24, 58, 40, 152);
+      ctx.beginPath();
+      ctx.moveTo(sx + 18, 58);
+      ctx.lineTo(sx + 44, 26);
+      ctx.lineTo(sx + 70, 58);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillRect(sx + 156, 76, 52, 134);
+      ctx.beginPath();
+      ctx.moveTo(sx + 150, 76);
+      ctx.lineTo(sx + 182, 44);
+      ctx.lineTo(sx + 214, 76);
+      ctx.closePath();
+      ctx.fill();
+
+      // Distant faint tower window
+      ctx.fillStyle = '#2a2454';
+      ctx.fillRect(sx + 40, 68, 8, 14);
+      ctx.fillRect(sx + 178, 88, 8, 14);
+    });
+
+    // Layer 2: Mid-ground gothic hallway pillars & archways (0.42x parallax)
+    this.renderParallaxPeriod(160, camX * 0.42, (sx) => {
+      ctx.fillStyle = '#1d1032';
+      ctx.fillRect(sx + 12, 24, 16, 186);
+      ctx.fillRect(sx + 104, 24, 16, 186);
+      // Gothic pointed arch connecting pillars
+      ctx.fillRect(sx + 28, 24, 76, 12);
+      ctx.fillStyle = '#2a1848';
+      ctx.fillRect(sx + 14, 24, 3, 186);
+      ctx.fillRect(sx + 106, 24, 3, 186);
+      // Wainscoting lower wall trim
+      ctx.fillStyle = '#22133a';
+      ctx.fillRect(sx, 174, 160, 36);
+      ctx.fillStyle = '#36205a';
+      ctx.fillRect(sx, 174, 160, 2);
+    });
+  }
+
+  private renderCastleParallax(ctx: CanvasRenderingContext2D, camX: number) {
+    const flicker = Math.floor(Date.now() / 120) % 2;
+
+    // Layer 0: Subtle pulsing magma glow near bottom abyss
+    ctx.fillStyle = flicker === 0 ? 'rgba(180, 36, 0, 0.14)' : 'rgba(210, 54, 0, 0.18)';
+    ctx.fillRect(0, 178, GameEngine.NES_WIDTH, 62);
+
+    // Layer 1: Distant fortress towers & battlements (0.18x parallax)
+    this.renderParallaxPeriod(240, camX * 0.18, (sx) => {
+      ctx.fillStyle = '#16090c';
+      ctx.fillRect(sx + 18, 66, 48, 144);
+      ctx.fillRect(sx + 18, 58, 10, 8);
+      ctx.fillRect(sx + 37, 58, 10, 8);
+      ctx.fillRect(sx + 56, 58, 10, 8);
+
+      ctx.fillRect(sx + 132, 84, 60, 126);
+      ctx.fillRect(sx + 132, 76, 12, 8);
+      ctx.fillRect(sx + 156, 76, 12, 8);
+      ctx.fillRect(sx + 180, 76, 12, 8);
+
+      // Slit castle windows glowing warmly
+      ctx.fillStyle = '#5c1810';
+      ctx.fillRect(sx + 39, 82, 6, 14);
+      ctx.fillRect(sx + 159, 102, 6, 14);
+    });
+
+    // Layer 2: Mid-ground stone arches, chains & flickering dungeon torches (0.44x parallax)
+    this.renderParallaxPeriod(176, camX * 0.44, (sx) => {
+      // Stone columns
+      ctx.fillStyle = '#24161a';
+      ctx.fillRect(sx + 16, 24, 16, 186);
+      ctx.fillRect(sx + 112, 24, 16, 186);
+      ctx.fillStyle = '#322026';
+      ctx.fillRect(sx + 18, 24, 3, 186);
+      ctx.fillRect(sx + 114, 24, 3, 186);
+
+      // Hanging chain silhouette
+      ctx.fillStyle = '#3c2a30';
+      for (let cy = 26; cy < 72; cy += 6) {
+        ctx.fillRect(sx + 72, cy, 3, 4);
+      }
+
+      // Dungeon wall torch with warm glow
+      ctx.fillStyle = 'rgba(248, 152, 40, 0.14)';
+      ctx.fillRect(sx + 62, 88, 22, 22);
+      ctx.fillStyle = '#4a3228';
+      ctx.fillRect(sx + 71, 100, 4, 10);
+      ctx.fillStyle = '#f87818';
+      ctx.fillRect(sx + 70, 95 + flicker, 6, 5);
+      ctx.fillStyle = '#fce068';
+      ctx.fillRect(sx + 72, 96 - flicker, 2, 3);
+    });
   }
 
   private renderScenery(ctx: CanvasRenderingContext2D) {
@@ -4608,6 +5040,12 @@ export class GameEngine {
         this.level.dryFinishStartX !== undefined
           ? Math.min(GameEngine.NES_WIDTH, Math.round(this.level.dryFinishStartX - camX))
           : GameEngine.NES_WIDTH;
+
+      // Deep ocean parallax layers clipped to underwater span + sky parallax on dry finale
+      this.renderUnderwaterParallax(ctx, camX, waterEndScreenX);
+      if (waterEndScreenX < GameEngine.NES_WIDTH) {
+        this.renderOverworldParallax(ctx, camX, Math.max(0, waterEndScreenX));
+      }
 
       if (waterEndScreenX > 0) {
         // Animated shimmering top water wave line
@@ -4632,7 +5070,7 @@ export class GameEngine {
         } else if (s.type === 'seaweed_short') {
           this.drawSeaweed(ctx, sx, s.y, 26);
         } else if (s.type === 'cloud_med') {
-          this.drawCloud(ctx, sx, s.y, 32);
+          this.drawCloud(ctx, Math.round(s.x - camX * 0.65), s.y, 32);
         } else if (s.type === 'bush_small') {
           this.drawBush(ctx, sx, s.y, 32);
         }
@@ -4640,11 +5078,24 @@ export class GameEngine {
       return;
     }
 
+    if (this.level.theme === 'underground') {
+      this.renderUndergroundParallax(ctx, camX);
+      return;
+    }
+
+    if (this.level.theme === 'castle') {
+      this.renderCastleParallax(ctx, camX);
+      return;
+    }
+
     if (this.level.theme === 'ghost_house') {
+      this.renderGhostHouseParallax(ctx, camX);
       const flicker = Math.floor(Date.now() / 140) % 2;
       const mistShift = Math.sin(Date.now() / 900) * 6;
       this.sceneries.forEach(s => {
-        const sx = Math.round(s.x - camX);
+        const parallaxFactor =
+          s.type === 'ghost_window' || s.type === 'ghost_portrait' ? 0.78 : 0.9;
+        const sx = Math.round(s.x - camX * parallaxFactor);
         if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
 
         if (s.type === 'ghost_window') {
@@ -4705,22 +5156,26 @@ export class GameEngine {
 
     if (this.level.theme !== 'overworld') return;
 
-    this.sceneries.forEach(s => {
-      const sx = Math.round(s.x - camX);
-      if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+    this.renderOverworldParallax(ctx, camX);
 
-      if (s.type === 'cloud_med') {
-        this.drawCloud(ctx, sx, s.y, 32);
-      } else if (s.type === 'cloud_large') {
-        this.drawCloud(ctx, sx, s.y, 48);
-      } else if (s.type === 'hill_large') {
-        this.drawHill(ctx, sx, s.y, 48, 35);
-      } else if (s.type === 'hill_small') {
-        this.drawHill(ctx, sx, s.y, 32, 20);
-      } else if (s.type === 'bush_large') {
-        this.drawBush(ctx, sx, s.y, 48);
-      } else if (s.type === 'bush_small') {
-        this.drawBush(ctx, sx, s.y, 32);
+    // Clouds scroll at 0.58x, midground hills at 0.78x, foreground bushes at 1.0x
+    this.sceneries.forEach(s => {
+      if (s.type === 'cloud_med' || s.type === 'cloud_large') {
+        const sx = Math.round(s.x - camX * 0.58);
+        if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+        this.drawCloud(ctx, sx, s.y, s.type === 'cloud_large' ? 48 : 32);
+      } else if (s.type === 'hill_large' || s.type === 'hill_small') {
+        const sx = Math.round(s.x - camX * 0.78);
+        if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+        this.drawHill(ctx, sx, s.y, s.type === 'hill_large' ? 48 : 32, s.type === 'hill_large' ? 35 : 20);
+      } else {
+        const sx = Math.round(s.x - camX);
+        if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+        if (s.type === 'bush_large') {
+          this.drawBush(ctx, sx, s.y, 48);
+        } else if (s.type === 'bush_small') {
+          this.drawBush(ctx, sx, s.y, 32);
+        }
       }
     });
   }
@@ -4916,28 +5371,45 @@ export class GameEngine {
     const camX = this.camera.renderX;
     const coinFrame = Math.floor((Date.now() / 120) % 4);
     const flowerFrame = Math.floor((Date.now() / 100) % 4);
+    const starFrame = Math.floor((Date.now() / 70) % Math.max(1, this.atlas.itemStarFrames.length));
 
     this.items.forEach(item => {
       const ix = Math.round(item.x - camX);
       const iy = Math.round(item.y);
       if (ix < -16 || ix > GameEngine.NES_WIDTH + 16) return;
 
+      let sprite: HTMLCanvasElement | null = null;
       if (item.type === 'leaf') {
-        ctx.drawImage(this.atlas.itemSuperLeaf, ix, iy);
+        sprite = this.atlas.itemSuperLeaf;
       } else if (item.type === 'feather') {
-        ctx.drawImage(this.atlas.itemFeather, ix, iy);
+        sprite = this.atlas.itemFeather;
       } else if (item.type === 'mushroom') {
-        ctx.drawImage(this.atlas.itemMushroomSuper, ix, iy);
+        sprite = this.atlas.itemMushroomSuper;
       } else if (item.type === '1up') {
-        ctx.drawImage(this.atlas.itemMushroom1Up, ix, iy);
+        sprite = this.atlas.itemMushroom1Up;
       } else if (item.type === 'fireflower') {
-        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, iy);
+        sprite = this.atlas.itemFireFlowerFrames[flowerFrame];
       } else if (item.type === 'coin') {
-        ctx.drawImage(this.atlas.itemCoinFrames[coinFrame], ix, iy);
+        sprite = this.atlas.itemCoinFrames[coinFrame];
       } else if (item.type === 'star') {
-        ctx.drawImage(this.atlas.itemFireFlowerFrames[flowerFrame], ix, iy);
+        sprite = this.atlas.itemStarFrames[starFrame] ?? this.atlas.itemFireFlowerFrames[flowerFrame];
       } else if (item.type === 'femboy') {
-        ctx.drawImage(this.atlas.itemFemboy, ix, iy);
+        sprite = this.atlas.itemFemboy;
+      }
+
+      if (!sprite) return;
+
+      if (item.emerging) {
+        // Clip emerging item neatly at the top lip of the ? block so it rises out from inside
+        const blockTopY = item.emergeY + 16;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(ix - 2, 0, 20, Math.max(0, blockTopY));
+        ctx.clip();
+        ctx.drawImage(sprite, ix, iy);
+        ctx.restore();
+      } else {
+        ctx.drawImage(sprite, ix, iy);
       }
     });
   }
@@ -5526,8 +5998,14 @@ export class GameEngine {
       return;
     }
 
-    // Blinking during invulnerability (or translucent silhouette when using Sonic Debug Cursor)
-    if (this.marioInvulnerableTimer > 0 && Math.floor(this.marioInvulnerableTimer / 4) % 2 === 0) {
+    // Blinking during temporary post-damage invulnerability (only after growth/shrink freeze and when Starman is inactive)
+    if (
+      this.marioStarTimer <= 0 &&
+      this.marioGrowthTimer <= 0 &&
+      this.marioShrinkTimer <= 0 &&
+      this.marioInvulnerableTimer > 0 &&
+      Math.floor(this.marioInvulnerableTimer / 3) % 2 === 0
+    ) {
       return;
     }
 
@@ -5573,44 +6051,66 @@ export class GameEngine {
       ctx.translate(-mx, -my);
     }
 
-    // Authentic NES Growth Animation (Flickering between small and super sprites with anchored feet)
+    const getIdlePowerSprite = (power: MarioPower): HTMLCanvasElement => {
+      return this.atlas.getCharacterSprite(this.playerCharacter, power, 'idle', 0);
+    };
+
+    // Authentic NES Growth & Power-Up Flash Transitions
     if (this.marioGrowthTimer > 0) {
-      const isSmallFlicker = Math.floor(this.marioGrowthTimer / 4) % 2 === 1;
-      const isW = this.playerCharacter === 'wazzima';
-      const sprite = isSmallFlicker
-        ? (isW ? this.atlas.wazzimaSmallIdle : this.atlas.marioSmallIdle)
-        : (this.marioPower === 'tanooki'
-            ? (isW ? this.atlas.wazzimaTanookiIdle : this.atlas.marioTanookiIdle)
-            : this.marioPower === 'cape'
-            ? (isW ? this.atlas.wazzimaCapeIdle : this.atlas.marioCapeIdle)
-            : this.marioPower === 'femboy'
-            ? (isW ? this.atlas.wazzimaFemboyIdle : this.atlas.marioFemboyIdle)
-            : (isW ? this.atlas.wazzimaSuperIdle : this.atlas.marioSuperIdle));
-      const drawY = isSmallFlicker ? my + 16 : my;
-      ctx.drawImage(sprite, mx, drawY);
+      if (this.marioTransitionKind === 'power_flash') {
+        const currentSprite = this.atlas.getCharacterSprite(
+          this.playerCharacter,
+          this.marioPower,
+          this.marioState,
+          this.marioAnimFrame,
+          {
+            isStatue: this.isStatue,
+            tailWhipTimer: this.tailWhipTimer,
+            isFluttering: this.isFluttering,
+            marioVx: this.marioVx,
+          }
+        );
+        const phase = Math.floor(this.marioGrowthTimer / 2);
+        const flashed = phase % 2 === 0 ? currentSprite : this.atlas.getStarmanSprite(currentSprite, phase);
+        ctx.drawImage(flashed, mx, my);
+      } else {
+        const isSmallFlicker = Math.floor(this.marioGrowthTimer / 4) % 2 === 1;
+        const sprite = isSmallFlicker ? getIdlePowerSprite('small') : getIdlePowerSprite(this.marioPower);
+        const drawY = isSmallFlicker ? my + 16 : my;
+        ctx.drawImage(sprite, mx, drawY);
+      }
       ctx.restore();
       return;
     }
 
-    // Authentic NES Shrink Animation (Flickering between super and small sprites with anchored feet)
+    // Authentic NES Shrink Transition (Flickering between previous Big sprite and new state with anchored feet)
     if (this.marioShrinkTimer > 0) {
-      const isSuperFlicker = Math.floor(this.marioShrinkTimer / 4) % 2 === 1;
-      const isW = this.playerCharacter === 'wazzima';
-      const sprite = isSuperFlicker
-        ? (isW ? this.atlas.wazzimaSuperIdle : this.atlas.marioSuperIdle)
-        : (isW ? this.atlas.wazzimaSmallIdle : this.atlas.marioSmallIdle);
-      const drawY = isSuperFlicker ? my - 16 : my;
-      ctx.drawImage(sprite, mx, drawY);
+      const showPrevBig = Math.floor(this.marioShrinkTimer / 4) % 2 === 1;
+      const fromPower = this.marioTransitionFrom !== 'small' ? this.marioTransitionFrom : 'super';
+      if (this.marioPower === 'small') {
+        const sprite = showPrevBig ? getIdlePowerSprite(fromPower) : getIdlePowerSprite('small');
+        const drawY = showPrevBig ? my - 16 : my;
+        ctx.drawImage(sprite, mx, drawY);
+      } else {
+        const sprite = showPrevBig ? getIdlePowerSprite(fromPower) : getIdlePowerSprite(this.marioPower);
+        ctx.drawImage(sprite, mx, my);
+      }
       ctx.restore();
       return;
     }
 
     // Get current character sprite (Mario or WazzimaGiygg)
-    const spriteCanvas = this.atlas.getCharacterSprite(
+    const effectiveState =
+      this.marioFireThrowTimer > 0 && this.marioPower === 'fire' && this.marioGrounded && Math.abs(this.marioVx) < 0.2
+        ? 'running'
+        : this.marioState;
+    const effectiveFrame = this.marioFireThrowTimer > 0 && this.marioPower === 'fire' ? 1 : this.marioAnimFrame;
+
+    let spriteCanvas = this.atlas.getCharacterSprite(
       this.playerCharacter,
       this.marioPower,
-      this.marioState,
-      this.marioAnimFrame,
+      effectiveState,
+      effectiveFrame,
       {
         isStatue: this.isStatue,
         tailWhipTimer: this.tailWhipTimer,
@@ -5618,6 +6118,16 @@ export class GameEngine {
         marioVx: this.marioVx,
       }
     );
+
+    if (spriteCanvas && this.marioStarTimer > 0) {
+      // Rapid rainbow palette cycling; slows & alternates base colors in the final 2 seconds to warn expiration
+      const isExpiring = this.marioStarTimer < 120;
+      const stepDivisor = isExpiring ? 5 : 3;
+      const tick = Math.floor(this.marioStarTimer / stepDivisor);
+      if (!isExpiring || tick % 2 === 0) {
+        spriteCanvas = this.atlas.getStarmanSprite(spriteCanvas, tick);
+      }
+    }
 
     if (spriteCanvas) {
       ctx.drawImage(spriteCanvas, mx, my);

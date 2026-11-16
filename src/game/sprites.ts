@@ -473,6 +473,84 @@ export class SpriteAtlas {
   public brickDebris!: HTMLCanvasElement;
   public smokePuff!: HTMLCanvasElement;
 
+  private starmanSpriteCache: WeakMap<HTMLCanvasElement, HTMLCanvasElement[]> = new WeakMap();
+
+  public getStarmanSprite(baseSprite: HTMLCanvasElement, phase: number): HTMLCanvasElement {
+    let variants = this.starmanSpriteCache.get(baseSprite);
+    if (!variants) {
+      // 4 authentic NES palette-shifted variants for Starman invincibility & Fire Flower flash
+      const palettes: { primary: [number, number, number]; accent: [number, number, number]; glow: [number, number, number] }[] = [
+        // 0: Golden Star
+        { primary: [252, 224, 120], accent: [248, 160, 24], glow: [255, 255, 255] },
+        // 1: Electric Cyan
+        { primary: [88, 248, 248], accent: [32, 128, 248], glow: [255, 255, 255] },
+        // 2: Emerald Flash
+        { primary: [120, 248, 88], accent: [0, 168, 0], glow: [252, 224, 120] },
+        // 3: Hot Crimson / Magenta
+        { primary: [255, 92, 184], accent: [216, 40, 0], glow: [255, 232, 240] },
+      ];
+
+      const w = baseSprite.width;
+      const h = baseSprite.height;
+      const baseCtx = baseSprite.getContext('2d');
+      const baseData = baseCtx ? baseCtx.getImageData(0, 0, w, h) : null;
+
+      variants = palettes.map(pal => {
+        const [canvas, ctx] = createOffscreen(w, h);
+        if (!baseData) {
+          ctx.drawImage(baseSprite, 0, 0);
+          return canvas;
+        }
+        const out = ctx.createImageData(w, h);
+        const src = baseData.data;
+        const dst = out.data;
+        for (let i = 0; i < src.length; i += 4) {
+          const a = src[i + 3];
+          if (a === 0) continue;
+          const r = src[i];
+          const g = src[i + 1];
+          const b = src[i + 2];
+          const maxC = Math.max(r, g, b);
+          const minC = Math.min(r, g, b);
+          const lum = r * 0.299 + g * 0.587 + b * 0.114;
+
+          // Keep black outlines / eyes crisp
+          if (maxC < 32) {
+            dst[i] = r;
+            dst[i + 1] = g;
+            dst[i + 2] = b;
+            dst[i + 3] = a;
+          } else if (lum > 205 && maxC - minC < 40) {
+            // Bright white highlights
+            dst[i] = pal.glow[0];
+            dst[i + 1] = pal.glow[1];
+            dst[i + 2] = pal.glow[2];
+            dst[i + 3] = a;
+          } else if (lum > 135) {
+            // Skin / light outfit tones
+            dst[i] = pal.primary[0];
+            dst[i + 1] = pal.primary[1];
+            dst[i + 2] = pal.primary[2];
+            dst[i + 3] = a;
+          } else {
+            // Darker shirt / hair / boots
+            dst[i] = pal.accent[0];
+            dst[i + 1] = pal.accent[1];
+            dst[i + 2] = pal.accent[2];
+            dst[i + 3] = a;
+          }
+        }
+        ctx.putImageData(out, 0, 0);
+        return canvas;
+      });
+
+      this.starmanSpriteCache.set(baseSprite, variants);
+    }
+
+    const idx = ((phase % variants.length) + variants.length) % variants.length;
+    return variants[idx];
+  }
+
   private constructor() {
     this.generateAllSprites();
   }
@@ -3114,6 +3192,45 @@ export class SpriteAtlas {
     const [cFeather, ctxFeather] = createOffscreen(16, 16);
     drawPixelGrid(ctxFeather, featherPattern, featherPalette);
     this.itemFeather = cFeather;
+
+    // 7. Starman (16x16 classic 5-pointed flashing invincibility star with black eyes)
+    const starColorSets = [
+      { outer: '#fce078', inner: '#fc9838', glint: '#ffffff' },
+      { outer: '#78f858', inner: '#00a800', glint: '#ffffff' },
+      { outer: '#58f8f8', inner: '#2088f8', glint: '#ffffff' },
+      { outer: '#ff70b8', inner: '#d82800', glint: '#fce078' },
+    ];
+    const starPattern = [
+      '.......BB.......',
+      '......BOOB......',
+      '......BOOB......',
+      '.....BOOOOB.....',
+      '.BBBBOOOOOOBBBB.',
+      'BOOGGOOOOOOOOOB.',
+      '.BOOOOBOOBOOOOB.',
+      '..BOOOBOOBOOOB..',
+      '...BOOOOOOOOB...',
+      '...BOOOOOOOOB...',
+      '..BOOOOI IOOOB..'.replace(' ', ''),
+      '..BOOOBBBBOOOB..',
+      '.BOOOB....BOOOB.',
+      '.BOOB......BOOB.',
+      '.BBB........BBB.',
+      '................',
+    ];
+    this.itemStarFrames = [];
+    for (const cs of starColorSets) {
+      const [cStar, ctxStar] = createOffscreen(16, 16);
+      const starPalette = {
+        '.': 'transparent',
+        'B': '#000000',
+        'O': cs.outer,
+        'I': cs.inner,
+        'G': cs.glint,
+      };
+      drawPixelGrid(ctxStar, starPattern, starPalette);
+      this.itemStarFrames.push(cStar);
+    }
   }
 
   private generateCastle() {

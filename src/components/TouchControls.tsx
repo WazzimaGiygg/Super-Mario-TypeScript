@@ -37,8 +37,14 @@ interface TouchControlsProps {
   onOpenMultiplayer?: () => void;
   onOpenSettings?: () => void;
   multiplayerConnected?: boolean;
-  /** 'canvas-overlay' renders translucent controls directly over the canvas; 'docked' renders the solid gamepad bar below */
+  /** 'canvas-overlay' renders transparent controls directly over the canvas; 'docked' renders the solid gamepad bar below */
   variant?: 'canvas-overlay' | 'docked';
+}
+
+interface ActionHitResult {
+  a: boolean;
+  b: boolean;
+  combo: boolean;
 }
 
 export const TouchControls: React.FC<TouchControlsProps> = ({
@@ -113,8 +119,19 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     down: false,
   });
 
-  // Action Buttons Touch State
-  const btnTouchesRef = useRef<Map<number, string>>(new Map());
+  // Action Buttons Zone & Multi-Touch / Slide Hit-Detection Refs
+  const actionZoneRef = useRef<HTMLDivElement>(null);
+  const btnBRef = useRef<HTMLButtonElement>(null);
+  const btnARef = useRef<HTMLButtonElement>(null);
+  const btnComboRef = useRef<HTMLButtonElement>(null);
+  const actionTouchIdsRef = useRef<Set<number>>(new Set());
+  const actionMouseActiveRef = useRef<boolean>(false);
+  const activeActionsRef = useRef<{ jump: boolean; run: boolean }>({ jump: false, run: false });
+  const [pressedButtons, setPressedButtons] = useState<ActionHitResult>({
+    a: false,
+    b: false,
+    combo: false,
+  });
 
   // Haptic Feedback Helper
   const triggerHaptic = useCallback(
@@ -134,8 +151,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   // Sync Auto-Run state with GameEngine controls
   useEffect(() => {
     if (autoRunEnabled) {
+      activeActionsRef.current.run = true;
       onControlChange('run', true);
-    } else {
+    } else if (!pressedButtons.b && !pressedButtons.combo) {
+      activeActionsRef.current.run = false;
       onControlChange('run', false);
     }
     try {
@@ -143,6 +162,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     } catch {
       // ignore
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRunEnabled, onControlChange]);
 
   // Persist Haptic Preference
@@ -176,27 +196,29 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     }
   };
 
-  // --- CONTINUOUS D-PAD INPUT PROCESSING ---
+  // --- PROPORTIONAL GEOMETRIC D-PAD HIT-DETECTION ---
   const processDpadPoint = useCallback(
     (clientX: number, clientY: number) => {
       if (!dpadRef.current) return;
       const rect = dpadRef.current.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
+      const radius = Math.min(rect.width, rect.height) / 2;
 
       const dx = clientX - centerX;
       const dy = clientY - centerY;
       const dist = Math.hypot(dx, dy);
-      const maxRadius = rect.width / 2 - 8;
+      const maxRadius = Math.max(12, radius - Math.max(8, radius * 0.16));
 
       const clampedDist = Math.min(dist, maxRadius);
       const angle = Math.atan2(dy, dx);
-      const kx = clampedDist * Math.cos(angle);
-      const ky = clampedDist * Math.sin(angle);
-      setKnobPos({ x: kx, y: ky });
+      setKnobPos({
+        x: clampedDist * Math.cos(angle),
+        y: clampedDist * Math.sin(angle),
+      });
 
-      const deadzone = 7;
-      const threshold = 10;
+      const deadzone = Math.max(5, radius * 0.14);
+      const axisThreshold = Math.max(7, radius * 0.21);
 
       let nextLeft = false;
       let nextRight = false;
@@ -204,10 +226,22 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       let nextDown = false;
 
       if (dist > deadzone) {
-        if (dx < -threshold) nextLeft = true;
-        if (dx > threshold) nextRight = true;
-        if (dy < -threshold) nextUp = true;
-        if (dy > threshold) nextDown = true;
+        if (dx < -axisThreshold) nextLeft = true;
+        else if (dx > axisThreshold) nextRight = true;
+
+        if (dy < -axisThreshold) nextUp = true;
+        else if (dy > axisThreshold) nextDown = true;
+
+        // Ensure zero dead-spots along 45deg diagonals just outside the deadzone ring
+        if (!nextLeft && !nextRight && !nextUp && !nextDown) {
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            if (dx < 0) nextLeft = true;
+            else nextRight = true;
+          } else {
+            if (dy < 0) nextUp = true;
+            else nextDown = true;
+          }
+        }
       }
 
       const prev = activeDirectionsRef.current;
@@ -264,30 +298,21 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     }
   }, [onControlChange]);
 
-  // Global mouse release safety for D-pad drag testing
-  useEffect(() => {
-    const handleWindowMouseMove = (e: MouseEvent) => {
-      if (dpadMouseActiveRef.current) {
-        processDpadPoint(e.clientX, e.clientY);
-      }
-    };
-    const handleWindowMouseUp = () => {
-      if (dpadMouseActiveRef.current) {
-        releaseDpad();
-      }
-    };
-    window.addEventListener('mousemove', handleWindowMouseMove);
-    window.addEventListener('mouseup', handleWindowMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      window.removeEventListener('mouseup', handleWindowMouseUp);
-    };
-  }, [processDpadPoint, releaseDpad]);
-
   const handleDpadTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (dpadTouchIdRef.current !== null) return;
+    // Recover cleanly if a previous touch ID went stale without firing touchend
+    if (dpadTouchIdRef.current !== null) {
+      let stillActive = false;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === dpadTouchIdRef.current) {
+          stillActive = true;
+          break;
+        }
+      }
+      if (stillActive) return;
+    }
     const touch = e.changedTouches[0];
+    if (!touch) return;
     dpadTouchIdRef.current = touch.identifier;
     processDpadPoint(touch.clientX, touch.clientY);
   };
@@ -295,11 +320,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const handleDpadTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (dpadTouchIdRef.current === null) return;
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i];
+    for (let i = 0; i < e.touches.length; i++) {
+      const touch = e.touches[i];
       if (touch.identifier === dpadTouchIdRef.current) {
         processDpadPoint(touch.clientX, touch.clientY);
-        break;
+        return;
       }
     }
   };
@@ -310,8 +335,19 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === dpadTouchIdRef.current) {
         releaseDpad();
+        return;
+      }
+    }
+    // Also check if the tracked touch disappeared from active touches
+    let stillActive = false;
+    for (let i = 0; i < e.touches.length; i++) {
+      if (e.touches[i].identifier === dpadTouchIdRef.current) {
+        stillActive = true;
         break;
       }
+    }
+    if (!stillActive) {
+      releaseDpad();
     }
   };
 
@@ -322,60 +358,195 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     processDpadPoint(e.clientX, e.clientY);
   };
 
-  // --- ACTION BUTTONS (MULTI-TOUCH + MOUSE FALLBACK) ---
-  const activateButton = (buttonType: 'jump' | 'run' | 'combo') => {
-    if (buttonType === 'jump') {
-      triggerHaptic(14);
-      onControlChange('jump', true);
-    } else if (buttonType === 'run') {
-      triggerHaptic(10);
-      onControlChange('run', true);
-    } else if (buttonType === 'combo') {
-      triggerHaptic(18);
-      onControlChange('run', true);
-      onControlChange('jump', true);
-    }
-  };
+  // --- UNIFIED GEOMETRIC HIT-DETECTION FOR ACTION BUTTONS (A / B / B+A) ---
+  const evaluateActionPoint = useCallback((clientX: number, clientY: number, allowNearestFallback: boolean): ActionHitResult => {
+    const checkCircle = (el: HTMLButtonElement | null, padPx: number): { hit: boolean; dist: number; radius: number } => {
+      if (!el) return { hit: false, dist: Infinity, radius: 0 };
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const radius = Math.max(r.width, r.height) / 2;
+      const dist = Math.hypot(clientX - cx, clientY - cy);
+      return { hit: dist <= radius + padPx, dist, radius };
+    };
 
-  const deactivateButton = (buttonType: 'jump' | 'run' | 'combo') => {
-    if (buttonType === 'jump') {
-      onControlChange('jump', false);
-    } else if (buttonType === 'run') {
-      if (!autoRunEnabled) {
-        onControlChange('run', false);
+    const hitA = checkCircle(btnARef.current, 8);
+    const hitB = checkCircle(btnBRef.current, 8);
+    const hitCombo = checkCircle(btnComboRef.current, 4);
+
+    let a = hitA.hit;
+    let b = hitB.hit;
+    let combo = hitCombo.hit;
+
+    // Fallback to nearest button within generous outer margin so fast edge taps never drop
+    if (!a && !b && !combo && allowNearestFallback) {
+      const candidates: { key: keyof ActionHitResult; dist: number; limit: number }[] = [
+        { key: 'a', dist: hitA.dist, limit: hitA.radius + 18 },
+        { key: 'b', dist: hitB.dist, limit: hitB.radius + 18 },
+        { key: 'combo', dist: hitCombo.dist, limit: hitCombo.radius + 12 },
+      ];
+      candidates.sort((x, y) => x.dist - y.dist);
+      if (candidates[0].dist <= candidates[0].limit) {
+        if (candidates[0].key === 'a') a = true;
+        else if (candidates[0].key === 'b') b = true;
+        else combo = true;
       }
-    } else if (buttonType === 'combo') {
-      onControlChange('jump', false);
-      if (!autoRunEnabled) {
-        onControlChange('run', false);
+    }
+
+    return { a, b, combo };
+  }, []);
+
+  const applyActionAggregate = useCallback(
+    (agg: ActionHitResult) => {
+      const nextJump = agg.a || agg.combo;
+      const nextRun = autoRunEnabled || agg.b || agg.combo;
+
+      setPressedButtons(prev =>
+        prev.a === agg.a && prev.b === agg.b && prev.combo === agg.combo ? prev : agg
+      );
+
+      if (activeActionsRef.current.jump !== nextJump) {
+        activeActionsRef.current.jump = nextJump;
+        onControlChange('jump', nextJump);
+        if (nextJump) triggerHaptic(14);
       }
-    }
+
+      if (activeActionsRef.current.run !== nextRun) {
+        activeActionsRef.current.run = nextRun;
+        onControlChange('run', nextRun);
+        if (nextRun) triggerHaptic(10);
+      }
+    },
+    [autoRunEnabled, onControlChange, triggerHaptic]
+  );
+
+  const releaseAllActionButtons = useCallback(
+    (forceClearRun: boolean = false) => {
+      actionTouchIdsRef.current.clear();
+      actionMouseActiveRef.current = false;
+      setPressedButtons({ a: false, b: false, combo: false });
+
+      if (activeActionsRef.current.jump) {
+        activeActionsRef.current.jump = false;
+        onControlChange('jump', false);
+      }
+      const keepRun = !forceClearRun && autoRunEnabled;
+      if (activeActionsRef.current.run !== keepRun) {
+        activeActionsRef.current.run = keepRun;
+        onControlChange('run', keepRun);
+      }
+    },
+    [autoRunEnabled, onControlChange]
+  );
+
+  const syncActionTouches = useCallback(
+    (touches: React.TouchList) => {
+      const zoneRect = actionZoneRef.current?.getBoundingClientRect();
+      const margin = 14;
+      const nextTrackedIds = new Set<number>();
+      let anyA = false;
+      let anyB = false;
+      let anyCombo = false;
+
+      for (let i = 0; i < touches.length; i++) {
+        const t = touches[i];
+        if (t.identifier === dpadTouchIdRef.current) continue;
+
+        const wasTracked = actionTouchIdsRef.current.has(t.identifier);
+        const insideZone = zoneRect
+          ? t.clientX >= zoneRect.left - margin &&
+            t.clientX <= zoneRect.right + margin &&
+            t.clientY >= zoneRect.top - margin &&
+            t.clientY <= zoneRect.bottom + margin
+          : false;
+
+        if (!wasTracked && !insideZone) continue;
+
+        nextTrackedIds.add(t.identifier);
+        const hit = evaluateActionPoint(t.clientX, t.clientY, !wasTracked || insideZone);
+        if (hit.a) anyA = true;
+        if (hit.b) anyB = true;
+        if (hit.combo) anyCombo = true;
+      }
+
+      actionTouchIdsRef.current = nextTrackedIds;
+      applyActionAggregate({ a: anyA, b: anyB, combo: anyCombo });
+    },
+    [applyActionAggregate, evaluateActionPoint]
+  );
+
+  const handleActionTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    syncActionTouches(e.touches);
   };
 
-  const handleButtonTouchStart = (buttonType: 'jump' | 'run' | 'combo') => (e: React.TouchEvent) => {
+  const handleActionTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const touch = e.changedTouches[0];
-    btnTouchesRef.current.set(touch.identifier, buttonType);
-    activateButton(buttonType);
+    syncActionTouches(e.touches);
   };
 
-  const handleButtonTouchEnd = (buttonType: 'jump' | 'run' | 'combo') => (e: React.TouchEvent) => {
+  const handleActionTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     e.preventDefault();
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      btnTouchesRef.current.delete(e.changedTouches[i].identifier);
-    }
-    deactivateButton(buttonType);
+    syncActionTouches(e.touches);
   };
 
-  const handleButtonMouseDown = (buttonType: 'jump' | 'run' | 'combo') => (e: React.MouseEvent) => {
+  const handleActionMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (actionTouchIdsRef.current.size > 0) return;
     e.preventDefault();
-    activateButton(buttonType);
+    actionMouseActiveRef.current = true;
+    const hit = evaluateActionPoint(e.clientX, e.clientY, true);
+    applyActionAggregate(hit);
   };
 
-  const handleButtonMouseUp = (buttonType: 'jump' | 'run' | 'combo') => (e: React.MouseEvent) => {
-    e.preventDefault();
-    deactivateButton(buttonType);
-  };
+  // Global mouse drag & release safety for both D-pad and Action Zone
+  useEffect(() => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (dpadMouseActiveRef.current) {
+        processDpadPoint(e.clientX, e.clientY);
+      }
+      if (actionMouseActiveRef.current) {
+        const hit = evaluateActionPoint(e.clientX, e.clientY, false);
+        applyActionAggregate(hit);
+      }
+    };
+    const handleWindowMouseUp = () => {
+      if (dpadMouseActiveRef.current) {
+        releaseDpad();
+      }
+      if (actionMouseActiveRef.current) {
+        releaseAllActionButtons(false);
+      }
+    };
+    const handleWindowBlur = () => {
+      releaseDpad();
+      releaseAllActionButtons(false);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        releaseDpad();
+        releaseAllActionButtons(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [applyActionAggregate, evaluateActionPoint, processDpadPoint, releaseAllActionButtons, releaseDpad]);
+
+  // Prevent stuck controls if TouchControls unmounts mid-press (pause, death, modal, stage clear)
+  useEffect(() => {
+    return () => {
+      releaseDpad();
+      releaseAllActionButtons(true);
+    };
+  }, [releaseDpad, releaseAllActionButtons]);
 
   // Layout & Size scales
   const isLarge = controlSize === 'large';
@@ -386,7 +557,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const dpadSizeClass = isCanvasOverlay
     ? isLarge
       ? 'w-32 h-32 sm:w-36 sm:h-36'
-      : 'w-26 h-26 sm:w-32 sm:h-32'
+      : 'w-28 h-28 sm:w-32 sm:h-32'
     : isOverlayLandscape
     ? isLarge
       ? 'w-36 h-36'
@@ -411,27 +582,30 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     ? 'w-9 h-9 sm:w-11 sm:h-11 text-[8px]'
     : 'w-12 h-12 sm:w-14 sm:h-14 text-[9px]';
 
-  // --- TRANSLUCENT ON-CANVAS OVERLAY LAYOUT ---
+  const isJumpActive = controls.jump || pressedButtons.a || pressedButtons.combo;
+  const isRunActive = controls.run || autoRunEnabled || pressedButtons.b || pressedButtons.combo;
+
+  // --- TRANSPARENT ON-CANVAS OVERLAY LAYOUT ---
   if (isCanvasOverlay) {
     return (
       <div
-        aria-label="Controles táteis na tela"
-        className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-between p-2 sm:p-3 select-none touch-none"
+        aria-label="Controles táteis transparentes na tela"
+        className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-between p-1.5 sm:p-2.5 select-none touch-none"
       >
-        {/* Top Translucent Quick-Actions Strip */}
-        <div className="pointer-events-auto flex items-center justify-between gap-1.5 bg-stone-950/45 backdrop-blur-[2px] border border-white/15 rounded-lg px-2 py-1 text-[9px] shadow-md">
-          <div className="flex items-center gap-1">
+        {/* Top Ultra-Compact Transparent Quick-Actions Strip (split into corner pills so center canvas HUD stays clear) */}
+        <div className="w-full flex items-center justify-between gap-1.5 opacity-80 hover:opacity-100 transition-opacity">
+          <div className="pointer-events-auto flex items-center gap-1 bg-black/25 backdrop-blur-[1px] border border-white/15 rounded-lg px-1.5 py-0.5 text-[9px]">
             <button
               type="button"
               onClick={toggleAutoRun}
               title="Trava de Corrida (Auto-Run)"
-              className={`px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1 border transition cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 border transition cursor-pointer ${
                 autoRunEnabled
-                  ? 'bg-amber-500/45 border-amber-300 text-amber-100'
-                  : 'bg-black/40 border-white/15 text-stone-300'
+                  ? 'bg-amber-500/40 border-amber-300/80 text-amber-100'
+                  : 'bg-black/25 border-white/15 text-white/80'
               }`}
             >
-              <Zap className={`w-3 h-3 ${autoRunEnabled ? 'text-amber-300 fill-amber-300' : 'text-stone-400'}`} />
+              <Zap className={`w-3 h-3 ${autoRunEnabled ? 'text-amber-300 fill-amber-300' : 'text-white/60'}`} />
               <span>AUTO</span>
             </button>
 
@@ -441,8 +615,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               title={hapticEnabled ? 'Vibração Ativada' : 'Vibração Desativada'}
               className={`p-1 rounded border transition cursor-pointer ${
                 hapticEnabled
-                  ? 'bg-emerald-500/25 border-emerald-400/50 text-emerald-200'
-                  : 'bg-black/40 border-white/15 text-stone-400'
+                  ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
+                  : 'bg-black/25 border-white/15 text-white/50'
               }`}
             >
               <Vibrate className="w-3 h-3" />
@@ -452,13 +626,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               type="button"
               onClick={toggleSize}
               title="Tamanho dos Botões"
-              className="p-1 rounded bg-black/40 border border-white/15 text-stone-200 cursor-pointer"
+              className="p-1 rounded bg-black/25 border border-white/15 text-white/80 cursor-pointer"
             >
               <Sliders className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="pointer-events-auto flex items-center gap-1 bg-black/25 backdrop-blur-[1px] border border-white/15 rounded-lg px-1.5 py-0.5">
             {onOpenMultiplayer && (
               <button
                 type="button"
@@ -466,8 +640,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 title="Multiplayer"
                 className={`p-1 rounded border transition cursor-pointer ${
                   multiplayerConnected
-                    ? 'bg-emerald-600/50 border-emerald-400 text-emerald-100'
-                    : 'bg-black/40 border-white/15 text-emerald-300'
+                    ? 'bg-emerald-600/45 border-emerald-400/80 text-emerald-100'
+                    : 'bg-black/25 border-white/15 text-emerald-300'
                 }`}
               >
                 <Users className="w-3 h-3" />
@@ -479,7 +653,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 type="button"
                 onClick={onOpenSettings}
                 title="Configurações"
-                className="p-1 rounded bg-black/40 border border-white/15 text-amber-300 cursor-pointer"
+                className="p-1 rounded bg-black/25 border border-white/15 text-amber-300 cursor-pointer"
               >
                 <Settings className="w-3 h-3" />
               </button>
@@ -490,7 +664,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 type="button"
                 onClick={onToggleMute}
                 title={isMuted ? 'Desmutar Som' : 'Mutar Som'}
-                className="p-1 rounded bg-black/40 border border-white/15 text-stone-200 cursor-pointer"
+                className="p-1 rounded bg-black/25 border border-white/15 text-white/85 cursor-pointer"
               >
                 {isMuted ? <VolumeX className="w-3 h-3 text-red-400" /> : <Volume2 className="w-3 h-3 text-amber-300" />}
               </button>
@@ -501,10 +675,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 type="button"
                 onClick={onTogglePause}
                 title={isPaused ? 'Continuar' : 'Pausar'}
-                className={`px-2 py-0.5 rounded border font-['Press_Start_2P',monospace] text-[8px] flex items-center gap-1 cursor-pointer ${
+                className={`px-1.5 py-0.5 rounded border font-['Press_Start_2P',monospace] text-[8px] flex items-center gap-1 cursor-pointer ${
                   isPaused
-                    ? 'bg-amber-500/80 text-black border-amber-300 font-bold'
-                    : 'bg-black/45 border-white/20 text-stone-100'
+                    ? 'bg-amber-500/75 text-black border-amber-300 font-bold'
+                    : 'bg-black/30 border-white/20 text-white/90'
                 }`}
               >
                 {isPaused ? <Play className="w-2.5 h-2.5 fill-black" /> : <Pause className="w-2.5 h-2.5" />}
@@ -517,7 +691,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 type="button"
                 onClick={onRestart}
                 title="Reiniciar"
-                className="p-1 rounded bg-black/40 border border-white/15 text-stone-200 cursor-pointer"
+                className="p-1 rounded bg-black/25 border border-white/15 text-white/85 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
               </button>
@@ -530,8 +704,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                 title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
                 className={`p-1 rounded border cursor-pointer ${
                   isFullscreen
-                    ? 'bg-emerald-600/45 border-emerald-400 text-emerald-100'
-                    : 'bg-black/40 border-amber-400/50 text-amber-300'
+                    ? 'bg-emerald-600/40 border-emerald-400/80 text-emerald-100'
+                    : 'bg-black/25 border-amber-400/50 text-amber-300'
                 }`}
               >
                 {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
@@ -540,30 +714,32 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           </div>
         </div>
 
-        {/* Bottom Translucent D-Pad (Left) & A / B Action Buttons (Right) */}
-        <div className="w-full flex items-end justify-between pb-1">
-          {/* Translucent Virtual D-Pad */}
+        {/* Bottom Transparent D-Pad (Left) & A / B Action Buttons (Right) */}
+        <div className="w-full flex items-end justify-between pb-1 px-0.5">
+          {/* Transparent Virtual D-Pad */}
           <div className="pointer-events-auto flex flex-col items-center">
             <div
               ref={dpadRef}
               aria-label="Direcional D-Pad"
-              className={`relative ${dpadSizeClass} rounded-full bg-stone-950/35 backdrop-blur-[2px] border-2 border-white/25 shadow-[0_4px_16px_rgba(0,0,0,0.4)] touch-none flex items-center justify-center select-none`}
+              className={`relative ${dpadSizeClass} rounded-full bg-white/[0.06] backdrop-blur-[1px] border-2 border-white/25 shadow-[0_2px_12px_rgba(0,0,0,0.28)] touch-none flex items-center justify-center select-none`}
               onTouchStart={handleDpadTouchStart}
               onTouchMove={handleDpadTouchMove}
               onTouchEnd={handleDpadTouchEnd}
               onTouchCancel={handleDpadTouchEnd}
               onMouseDown={handleDpadMouseDown}
             >
-              {/* Translucent Cross Guides */}
-              <div className="absolute inset-2 flex items-center justify-center pointer-events-none opacity-30">
-                <div className="w-7 h-full bg-white/25 rounded-sm" />
-                <div className="absolute h-7 w-full bg-white/25 rounded-sm" />
+              {/* Transparent Cross Guides */}
+              <div className="absolute inset-2 flex items-center justify-center pointer-events-none">
+                <div className="w-8 h-full bg-white/[0.08] border border-white/15 rounded-md" />
+                <div className="absolute h-8 w-full bg-white/[0.08] border border-white/15 rounded-md" />
               </div>
 
               {/* UP */}
               <div
-                className={`absolute top-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                  controls.up ? 'bg-amber-400/85 text-black scale-110' : 'text-white/75'
+                className={`pointer-events-none absolute top-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  controls.up
+                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
                 <ArrowUp className="w-4 h-4" />
@@ -571,8 +747,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* DOWN */}
               <div
-                className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                  controls.down ? 'bg-amber-400/85 text-black scale-110' : 'text-white/75'
+                className={`pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  controls.down
+                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
                 <ArrowDown className="w-4 h-4" />
@@ -580,8 +758,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* LEFT */}
               <div
-                className={`absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                  controls.left ? 'bg-amber-400/85 text-black scale-110' : 'text-white/75'
+                className={`pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  controls.left
+                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -589,16 +769,18 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* RIGHT */}
               <div
-                className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                  controls.right ? 'bg-amber-400/85 text-black scale-110' : 'text-white/75'
+                className={`pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  controls.right
+                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
                 <ArrowRight className="w-4 h-4" />
               </div>
 
-              {/* Translucent Center Knob */}
+              {/* Transparent Center Thumb Puck */}
               <div
-                className="absolute w-9 h-9 rounded-full bg-white/20 backdrop-blur-xs border border-white/45 shadow flex items-center justify-center pointer-events-none transition-transform duration-75"
+                className="pointer-events-none absolute w-8 h-8 rounded-full bg-white/15 border border-white/40 shadow-sm flex items-center justify-center transition-transform duration-75"
                 style={{
                   transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
                 }}
@@ -607,76 +789,77 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
                   className={`w-2.5 h-2.5 rounded-full ${
                     controls.left || controls.right || controls.up || controls.down
                       ? 'bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.9)]'
-                      : 'bg-white/50'
+                      : 'bg-white/45'
                   }`}
                 />
               </div>
             </div>
           </div>
 
-          {/* Translucent Action Buttons (B+A Combo, B = Run/Fire, A = Jump) */}
-          <div className="pointer-events-auto flex items-end gap-2 sm:gap-3">
+          {/* Unified Action Hit-Zone: B+A Combo, B (Run/Fire), A (Jump) */}
+          <div
+            ref={actionZoneRef}
+            aria-label="Botões de Ação A e B"
+            className="pointer-events-auto flex items-end gap-2.5 sm:gap-3.5 p-1 touch-none select-none"
+            onTouchStart={handleActionTouchStart}
+            onTouchMove={handleActionTouchMove}
+            onTouchEnd={handleActionTouchEnd}
+            onTouchCancel={handleActionTouchEnd}
+            onMouseDown={handleActionMouseDown}
+          >
             {/* Combo B+A */}
             <div className="flex flex-col items-center mb-1">
               <button
+                ref={btnComboRef}
                 type="button"
                 aria-label="Botão Combo Correr e Pular"
-                className={`${comboBtnSizeClass} rounded-full bg-purple-600/45 active:bg-purple-500/80 backdrop-blur-[2px] border-2 border-purple-200/50 flex items-center justify-center text-white/95 font-['Press_Start_2P',monospace] font-bold shadow-lg transition-transform active:scale-95 select-none touch-none`}
-                onTouchStart={handleButtonTouchStart('combo')}
-                onTouchEnd={handleButtonTouchEnd('combo')}
-                onTouchCancel={handleButtonTouchEnd('combo')}
-                onMouseDown={handleButtonMouseDown('combo')}
-                onMouseUp={handleButtonMouseUp('combo')}
-                onMouseLeave={handleButtonMouseUp('combo')}
+                onClick={(e) => e.preventDefault()}
+                className={`${comboBtnSizeClass} rounded-full backdrop-blur-[1px] border-2 flex items-center justify-center text-white/90 font-['Press_Start_2P',monospace] font-bold shadow-md transition-all select-none touch-none ${
+                  pressedButtons.combo
+                    ? 'bg-purple-500/55 border-purple-200 scale-95 shadow-[0_0_12px_rgba(168,85,247,0.65)]'
+                    : 'bg-purple-500/15 border-purple-200/45'
+                }`}
               >
-                B+A
+                <span className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">B+A</span>
               </button>
             </div>
 
             {/* B Button (Run / Fire) */}
             <div className="flex flex-col items-center">
               <button
+                ref={btnBRef}
                 type="button"
                 aria-label="Botão B Correr"
-                className={`${btnSizeClass} rounded-full border-2 backdrop-blur-[2px] flex items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-lg transition-all select-none touch-none ${
-                  controls.run || autoRunEnabled
-                    ? 'bg-red-500/75 border-red-200 scale-95 shadow-[0_0_14px_rgba(239,68,68,0.65)]'
-                    : 'bg-red-600/40 border-red-200/60 active:bg-red-500/75'
+                onClick={(e) => e.preventDefault()}
+                className={`${btnSizeClass} rounded-full border-2 backdrop-blur-[1px] flex items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-md transition-all select-none touch-none ${
+                  isRunActive
+                    ? 'bg-red-500/55 border-red-200 scale-95 shadow-[0_0_14px_rgba(248,113,113,0.7)]'
+                    : 'bg-red-500/15 border-red-200/55'
                 }`}
-                onTouchStart={handleButtonTouchStart('run')}
-                onTouchEnd={handleButtonTouchEnd('run')}
-                onTouchCancel={handleButtonTouchEnd('run')}
-                onMouseDown={handleButtonMouseDown('run')}
-                onMouseUp={handleButtonMouseUp('run')}
-                onMouseLeave={handleButtonMouseUp('run')}
               >
-                B
+                <span className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">B</span>
               </button>
-              <span className="text-[8px] font-['Press_Start_2P',monospace] text-white/80 drop-shadow mt-0.5">
-                B
+              <span className="pointer-events-none text-[7px] font-['Press_Start_2P',monospace] text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] mt-0.5">
+                {autoRunEnabled ? 'AUTO' : 'CORRER'}
               </span>
             </div>
 
             {/* A Button (Jump) */}
             <div className="flex flex-col items-center -translate-y-2.5">
               <button
+                ref={btnARef}
                 type="button"
                 aria-label="Botão A Pular"
-                className={`${btnSizeClass} rounded-full border-2 backdrop-blur-[2px] flex items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-lg transition-all select-none touch-none ${
-                  controls.jump
-                    ? 'bg-amber-400/80 border-amber-100 text-black scale-95 shadow-[0_0_16px_rgba(251,191,36,0.7)]'
-                    : 'bg-amber-500/45 border-amber-200/70 active:bg-amber-400/80'
+                onClick={(e) => e.preventDefault()}
+                className={`${btnSizeClass} rounded-full border-2 backdrop-blur-[1px] flex items-center justify-center font-['Press_Start_2P',monospace] font-bold shadow-md transition-all select-none touch-none ${
+                  isJumpActive
+                    ? 'bg-amber-400/60 border-amber-100 text-black scale-95 shadow-[0_0_16px_rgba(251,191,36,0.75)]'
+                    : 'bg-amber-400/15 border-amber-200/60 text-white'
                 }`}
-                onTouchStart={handleButtonTouchStart('jump')}
-                onTouchEnd={handleButtonTouchEnd('jump')}
-                onTouchCancel={handleButtonTouchEnd('jump')}
-                onMouseDown={handleButtonMouseDown('jump')}
-                onMouseUp={handleButtonMouseUp('jump')}
-                onMouseLeave={handleButtonMouseUp('jump')}
               >
-                A
+                <span className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">A</span>
               </button>
-              <span className="text-[8px] font-['Press_Start_2P',monospace] text-amber-200/90 drop-shadow mt-0.5">
+              <span className="pointer-events-none text-[7px] font-['Press_Start_2P',monospace] text-amber-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] mt-0.5">
                 PULAR
               </span>
             </div>
@@ -852,7 +1035,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             </div>
 
             <div
-              className={`absolute top-2 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                 controls.up ? 'bg-amber-500 text-black scale-110 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'text-stone-400'
               }`}
             >
@@ -860,7 +1043,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             </div>
 
             <div
-              className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                 controls.down ? 'bg-amber-500 text-black scale-110 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'text-stone-400'
               }`}
             >
@@ -868,7 +1051,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             </div>
 
             <div
-              className={`absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                 controls.left ? 'bg-amber-500 text-black scale-110 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'text-stone-400'
               }`}
             >
@@ -876,7 +1059,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             </div>
 
             <div
-              className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+              className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                 controls.right ? 'bg-amber-500 text-black scale-110 shadow-[0_0_8px_rgba(245,158,11,0.8)]' : 'text-stone-400'
               }`}
             >
@@ -902,64 +1085,64 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </div>
 
         {/* --- ERGONOMIC ACTION BUTTONS ZONE (RIGHT THUMB) --- */}
-        <div className="pointer-events-auto flex flex-col items-end">
+        <div
+          ref={actionZoneRef}
+          className="pointer-events-auto flex flex-col items-end touch-none select-none"
+          onTouchStart={handleActionTouchStart}
+          onTouchMove={handleActionTouchMove}
+          onTouchEnd={handleActionTouchEnd}
+          onTouchCancel={handleActionTouchEnd}
+          onMouseDown={handleActionMouseDown}
+        >
           <div className="relative flex items-center gap-3 sm:gap-5 pr-1">
             <div className="flex flex-col items-center">
               <button
+                ref={btnComboRef}
                 type="button"
-                className={`${comboBtnSizeClass} rounded-full bg-gradient-to-br from-purple-600/85 to-purple-800/85 active:from-purple-700 active:to-purple-900 border-2 border-purple-400/80 shadow-[0_3px_8px_rgba(147,51,234,0.3)] flex flex-col items-center justify-center text-white font-['Press_Start_2P',monospace] font-bold transform active:scale-95 transition-all select-none touch-none`}
-                onTouchStart={handleButtonTouchStart('combo')}
-                onTouchEnd={handleButtonTouchEnd('combo')}
-                onTouchCancel={handleButtonTouchEnd('combo')}
-                onMouseDown={handleButtonMouseDown('combo')}
-                onMouseUp={handleButtonMouseUp('combo')}
-                onMouseLeave={handleButtonMouseUp('combo')}
+                onClick={(e) => e.preventDefault()}
+                className={`${comboBtnSizeClass} rounded-full border-2 shadow-[0_3px_8px_rgba(147,51,234,0.3)] flex flex-col items-center justify-center text-white font-['Press_Start_2P',monospace] font-bold transition-all select-none touch-none ${
+                  pressedButtons.combo
+                    ? 'bg-gradient-to-br from-purple-700 to-purple-900 border-purple-200 scale-95'
+                    : 'bg-gradient-to-br from-purple-600/85 to-purple-800/85 border-purple-400/80'
+                }`}
               >
-                <span>B+A</span>
+                <span className="pointer-events-none">B+A</span>
               </button>
-              <span className="text-[8px] font-mono text-purple-300 font-bold mt-1">COMBO</span>
+              <span className="pointer-events-none text-[8px] font-mono text-purple-300 font-bold mt-1">COMBO</span>
             </div>
 
             <div className="flex flex-col items-center">
               <button
+                ref={btnBRef}
                 type="button"
-                className={`${btnSizeClass} rounded-full border-4 border-stone-900 flex flex-col items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-[0_4px_10px_rgba(0,0,0,0.6)] transform active:translate-y-1 transition-all select-none touch-none ${
-                  controls.run || autoRunEnabled
+                onClick={(e) => e.preventDefault()}
+                className={`${btnSizeClass} rounded-full border-4 border-stone-900 flex flex-col items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-[0_4px_10px_rgba(0,0,0,0.6)] transition-all select-none touch-none ${
+                  isRunActive
                     ? 'bg-gradient-to-br from-red-600/90 to-red-800/90 shadow-[inset_0_2px_6px_rgba(0,0,0,0.6),0_0_12px_rgba(239,68,68,0.5)] translate-y-0.5'
-                    : 'bg-gradient-to-br from-red-500/80 to-red-700/80 active:from-red-600 active:to-red-800'
+                    : 'bg-gradient-to-br from-red-500/80 to-red-700/80'
                 }`}
-                onTouchStart={handleButtonTouchStart('run')}
-                onTouchEnd={handleButtonTouchEnd('run')}
-                onTouchCancel={handleButtonTouchEnd('run')}
-                onMouseDown={handleButtonMouseDown('run')}
-                onMouseUp={handleButtonMouseUp('run')}
-                onMouseLeave={handleButtonMouseUp('run')}
               >
-                <span>B</span>
+                <span className="pointer-events-none">B</span>
               </button>
-              <span className="text-[9px] font-['Press_Start_2P',monospace] text-stone-400 mt-1">
+              <span className="pointer-events-none text-[9px] font-['Press_Start_2P',monospace] text-stone-400 mt-1">
                 {autoRunEnabled ? 'CORRENDO' : 'CORRER'}
               </span>
             </div>
 
             <div className="flex flex-col items-center -translate-y-3">
               <button
+                ref={btnARef}
                 type="button"
-                className={`${btnSizeClass} rounded-full border-4 border-stone-900 flex flex-col items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-[0_6px_14px_rgba(0,0,0,0.7)] transform active:translate-y-1 transition-all select-none touch-none ${
-                  controls.jump
+                onClick={(e) => e.preventDefault()}
+                className={`${btnSizeClass} rounded-full border-4 border-stone-900 flex flex-col items-center justify-center font-['Press_Start_2P',monospace] text-white font-bold shadow-[0_6px_14px_rgba(0,0,0,0.7)] transition-all select-none touch-none ${
+                  isJumpActive
                     ? 'bg-gradient-to-br from-red-600/90 to-red-800/90 shadow-[inset_0_2px_6px_rgba(0,0,0,0.6),0_0_14px_rgba(239,68,68,0.6)] translate-y-0.5'
-                    : 'bg-gradient-to-br from-red-500/80 to-red-700/80 active:from-red-600 active:to-red-800'
+                    : 'bg-gradient-to-br from-red-500/80 to-red-700/80'
                 }`}
-                onTouchStart={handleButtonTouchStart('jump')}
-                onTouchEnd={handleButtonTouchEnd('jump')}
-                onTouchCancel={handleButtonTouchEnd('jump')}
-                onMouseDown={handleButtonMouseDown('jump')}
-                onMouseUp={handleButtonMouseUp('jump')}
-                onMouseLeave={handleButtonMouseUp('jump')}
               >
-                <span>A</span>
+                <span className="pointer-events-none">A</span>
               </button>
-              <span className="text-[9px] font-['Press_Start_2P',monospace] text-stone-300 font-bold mt-1">PULAR</span>
+              <span className="pointer-events-none text-[9px] font-['Press_Start_2P',monospace] text-stone-300 font-bold mt-1">PULAR</span>
             </div>
           </div>
         </div>
