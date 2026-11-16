@@ -415,6 +415,12 @@ export class SpriteAtlas {
   public lavaBubble1!: HTMLCanvasElement;
   public lavaBubble2!: HTMLCanvasElement;
 
+  public booChase!: HTMLCanvasElement;
+  public booShy!: HTMLCanvasElement;
+  public dryBonesWalk1!: HTMLCanvasElement;
+  public dryBonesWalk2!: HTMLCanvasElement;
+  public dryBonesCrumbled!: HTMLCanvasElement;
+
   // Tiles (16x16)
   public tileGround!: HTMLCanvasElement;
   public tileGroundUnderground!: HTMLCanvasElement;
@@ -422,6 +428,8 @@ export class SpriteAtlas {
   public tileBrickUnderground!: HTMLCanvasElement;
   public tileCoral!: HTMLCanvasElement;
   public tileSeaGround!: HTMLCanvasElement;
+  public tileGhostFloor!: HTMLCanvasElement;
+  public tileGhostBrick!: HTMLCanvasElement;
   public tileLavaFrames: HTMLCanvasElement[] = [];
   public tileBridge!: HTMLCanvasElement;
   public tileAxeFrames: HTMLCanvasElement[] = [];
@@ -455,6 +463,8 @@ export class SpriteAtlas {
   public flagTriangle!: HTMLCanvasElement;
   public toodleSprite!: HTMLCanvasElement;
   public toodleHappySprite!: HTMLCanvasElement;
+  public princessFemboySprite!: HTMLCanvasElement;
+  public princessFemboyHappySprite!: HTMLCanvasElement;
 
   // Particles & Projectiles
   public fireballFrames: HTMLCanvasElement[] = [];
@@ -2322,6 +2332,151 @@ export class SpriteAtlas {
     const [lb2, ctxLb2] = createOffscreen(16, 16);
     drawPixelGrid(ctxLb2, bubblePattern2, bubblePalette);
     this.lavaBubble2 = lb2;
+
+    // Boo (Ghost House Phantom 16x16 facing left)
+    const booPalette = {
+      '.': 'transparent',
+      'K': '#180c28',
+      'W': '#ffffff',
+      'S': '#c8d0ec',
+      'P': '#f888b8',
+      'R': '#d82058',
+    };
+    const booChasePattern = [
+      '.....KKKKKK.....',
+      '...KKWWWWWWKK...',
+      '..KWWWWWWWWWWK..',
+      '.KWWWKKWWKKWWWK.',
+      '.KWWWSKWWKSWWWK.',
+      'KWWWWKKWWKKWWWWK',
+      'KWWWWWWWWWWWWWWK',
+      'KWWKRRRRRRRRKWWK',
+      'KKWRKWWRRRWKRRWK',
+      'KWWKRRRRRRRRKWWK',
+      'KWWWSKWWWWKSWWWK',
+      '.KWWWSKKKKWWWWK.',
+      '.KWWSSWWWWSSWWK.',
+      '..KSSWWWWWWSSK..',
+      '...KKSSSSSSKK...',
+      '.....KKKKKK.....',
+    ];
+    const booShyPattern = [
+      '.....KKKKKK.....',
+      '...KKWWWWWWKK...',
+      '..KWWWWWWWWWWK..',
+      '.KWWWWWWWWWWWWK.',
+      '.KWWKKKKKKKKWWK.',
+      'KWWKWWWWWWWWKWWK',
+      'KWWKWKKKKKKWKWWK',
+      'KPPKWWKWWKWWKPPK',
+      'KPPKWWKWWKWWKPPK',
+      'KWWKKKKKKKKKKWWK',
+      'KWWWWWWWWWWWWWWK',
+      '.KWWWWWWWWWWWWK.',
+      '.KWWSSWWWWSSWWK.',
+      '..KSSWWWWWWSSK..',
+      '...KKSSSSSSKK...',
+      '.....KKKKKK.....',
+    ];
+    const [bChase, ctxBChase] = createOffscreen(16, 16);
+    drawPixelGrid(ctxBChase, booChasePattern, booPalette);
+    this.booChase = bChase;
+
+    const [bShy, ctxBShy] = createOffscreen(16, 16);
+    drawPixelGrid(ctxBShy, booShyPattern, booPalette);
+    this.booShy = bShy;
+
+    // Dry Bones (Skeletal Koopa 16x24 facing left)
+    const dryBonesPalette = {
+      '.': 'transparent',
+      'K': '#141024',
+      'W': '#fcfcfc',
+      'S': '#b8c0d8',
+      'G': '#687090',
+      'R': '#e83838',
+    };
+    const dryBonesWalkPattern1 = [
+      '....KKKKKK......',
+      '...KWWWWWWKK....',
+      '..KWWWWWWWWWK...',
+      '.KWWKKWWWWWWK...',
+      '.KWKRKWWWWWWWK..',
+      '.KWWKKWWWSWWWK..',
+      '.KWWWWWWSSSWK...',
+      '..KWWWWWWWWK....',
+      '..KKWKKKKWWK....',
+      '...KKSSSSWWKK...',
+      '..KKWWWWWWWWKK..',
+      '.KWWSSKWWKSSWWK.',
+      '.KWWWSKKKKWWWWK.',
+      'KWWSSWWWWWWSSWWK',
+      'KWWKWWWWWWWWKWWK',
+      '.KKKSSWWWWSSKKK.',
+      '..KWWWWWWWWWKK..',
+      '..KKSSGGGGSSK...',
+      '...KKKKKKWWKK...',
+      '...KWWK..KWWK...',
+      '..KWWWK..KWWK...',
+      '..KKKKK..KWWWK..',
+      '.........KKKKK..',
+      '................',
+    ];
+    const dryBonesWalkPattern2 = [
+      '....KKKKKK......',
+      '...KWWWWWWKK....',
+      '..KWWWWWWWWWK...',
+      '.KWWKKWWWWWWK...',
+      '.KWKRKWWWWWWWK..',
+      '.KWWKKWWWSWWWK..',
+      '.KWWWWWWSSSWK...',
+      '..KWWWWWWWWK....',
+      '..KKWKKKKWWK....',
+      '...KKSSSSWWKK...',
+      '..KKWWWWWWWWKK..',
+      '.KWWSSKWWKSSWWK.',
+      '.KWWWSKKKKWWWWK.',
+      'KWWSSWWWWWWSSWWK',
+      'KWWKWWWWWWWWKWWK',
+      '.KKKSSWWWWSSKKK.',
+      '..KWWWWWWWWWKK..',
+      '..KKSSGGGGSSK...',
+      '...KKKKWWKKKK...',
+      '....KWWKKWWK....',
+      '....KWWKKWWWK...',
+      '....KKKK.KKKK...',
+      '................',
+      '................',
+    ];
+    const dryBonesCrumbledPattern = [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '......KKKKK.....',
+      '.....KWWWWWK....',
+      '....KWWKKWWWK...',
+      '.KK.KWKRKWWWK...',
+      'KWWKKWWKKWWK.KK.',
+      'KWWWWSSSSWWKKWWK',
+      '.KKKKKKKKWWKWWWK',
+      '..KWWWWWWWWSSWK.',
+      '.KWWSSSSSSKKKK..',
+      '.KKKKKKKKKK.....',
+    ];
+
+    const [db1, ctxDb1] = createOffscreen(16, 24);
+    drawPixelGrid(ctxDb1, dryBonesWalkPattern1, dryBonesPalette);
+    this.dryBonesWalk1 = db1;
+
+    const [db2, ctxDb2] = createOffscreen(16, 24);
+    drawPixelGrid(ctxDb2, dryBonesWalkPattern2, dryBonesPalette);
+    this.dryBonesWalk2 = db2;
+
+    const [dbC, ctxDbC] = createOffscreen(16, 16);
+    drawPixelGrid(ctxDbC, dryBonesCrumbledPattern, dryBonesPalette);
+    this.dryBonesCrumbled = dbC;
   }
 
   private generateTiles() {
@@ -2438,6 +2593,59 @@ export class SpriteAtlas {
     const [cCoral, ctxCoral] = createOffscreen(16, 16);
     drawPixelGrid(ctxCoral, coralPattern, coralPalette);
     this.tileCoral = cCoral;
+
+    // Ghost House Haunted Wooden Plank Floor (16x16)
+    const [cGhostFloor, ctxGhostFloor] = createOffscreen(16, 16);
+    ctxGhostFloor.fillStyle = '#382052';
+    ctxGhostFloor.fillRect(0, 0, 16, 16);
+    // Top wooden plank highlight
+    ctxGhostFloor.fillStyle = '#604088';
+    ctxGhostFloor.fillRect(0, 0, 16, 2);
+    ctxGhostFloor.fillRect(0, 8, 16, 1);
+    // Plank vertical dividers & dark shadow edges
+    ctxGhostFloor.fillStyle = '#180c28';
+    ctxGhostFloor.fillRect(0, 6, 16, 2);
+    ctxGhostFloor.fillRect(0, 14, 16, 2);
+    ctxGhostFloor.fillRect(7, 0, 1, 6);
+    ctxGhostFloor.fillRect(15, 8, 1, 6);
+    // Wood grain & nail dots
+    ctxGhostFloor.fillStyle = '#241438';
+    ctxGhostFloor.fillRect(2, 3, 3, 1);
+    ctxGhostFloor.fillRect(10, 4, 4, 1);
+    ctxGhostFloor.fillRect(3, 11, 4, 1);
+    ctxGhostFloor.fillRect(11, 10, 2, 1);
+    ctxGhostFloor.fillStyle = '#8868b0';
+    ctxGhostFloor.fillRect(1, 3, 1, 1);
+    ctxGhostFloor.fillRect(9, 3, 1, 1);
+    ctxGhostFloor.fillRect(1, 11, 1, 1);
+    ctxGhostFloor.fillRect(9, 11, 1, 1);
+    this.tileGhostFloor = cGhostFloor;
+
+    // Ghost House Gothic Mansion Brick (16x16)
+    const [cGhostBrick, ctxGhostBrick] = createOffscreen(16, 16);
+    ctxGhostBrick.fillStyle = '#48346c';
+    ctxGhostBrick.fillRect(0, 0, 16, 16);
+    // Mortar lines
+    ctxGhostBrick.fillStyle = '#140822';
+    ctxGhostBrick.fillRect(0, 0, 16, 1);
+    ctxGhostBrick.fillRect(0, 7, 16, 2);
+    ctxGhostBrick.fillRect(0, 15, 16, 1);
+    ctxGhostBrick.fillRect(7, 1, 1, 6);
+    ctxGhostBrick.fillRect(3, 9, 1, 6);
+    ctxGhostBrick.fillRect(11, 9, 1, 6);
+    // Highlights
+    ctxGhostBrick.fillStyle = '#785ca8';
+    ctxGhostBrick.fillRect(0, 1, 7, 1);
+    ctxGhostBrick.fillRect(8, 1, 8, 1);
+    ctxGhostBrick.fillRect(0, 9, 3, 1);
+    ctxGhostBrick.fillRect(4, 9, 7, 1);
+    ctxGhostBrick.fillRect(12, 9, 4, 1);
+    // Subtle dark brick shade
+    ctxGhostBrick.fillStyle = '#30204c';
+    ctxGhostBrick.fillRect(1, 5, 5, 1);
+    ctxGhostBrick.fillRect(9, 5, 6, 1);
+    ctxGhostBrick.fillRect(5, 13, 5, 1);
+    this.tileGhostBrick = cGhostBrick;
 
     // 3. Question Blocks (4 animation frames)
     this.tileQuestionFrames = [];
@@ -3035,6 +3243,91 @@ export class SpriteAtlas {
     const [cToodle2, ctxToodle2] = createOffscreen(16, 24);
     drawPixelGrid(ctxToodle2, toodleHappyPattern, toodlePalette);
     this.toodleHappySprite = cToodle2;
+
+    // Princesa Femboy (16x28 NES Pixel Art Sprite facing left: golden crown, pink gem, pastel dress, bow & thigh-highs)
+    const princessPalette = {
+      '.': 'transparent',
+      'K': '#000000',
+      'G': '#fce078', // Royal crown gold
+      'O': '#e09000', // Crown gold shadow
+      'P': '#ff4da6', // Hot pastel pink bow & dress
+      'L': '#ffd6ee', // Soft blush white-pink frills & stockings
+      'H': '#ffe082', // Blonde-gold flowing hair
+      'S': NES_COLORS.MARIO_SKIN,
+      'B': '#ff7aa8', // Rosy cheeks
+      'W': '#ffffff', // Highlights
+      'F': '#d82878', // Shoes
+    };
+
+    const princessIdlePattern = [
+      '.....KKKKKK.....',
+      '....KGGPPGGK....',
+      '....KGOGGOGK....',
+      '...KKHHHHHHKK...',
+      '..KHHHHHHHHHHK..',
+      '.KHHHHWWWWHHHHK.',
+      '.KHHSSSSSSSSHHK.',
+      '.KHKSSKSSKSSKHK.',
+      '.KHKSSKSSKSSKHK.',
+      '.KHHBSSSSSSBHHK.',
+      '..KHHSSSSSSHHK..',
+      '..KHHKKPPKKHHK..',
+      '.KHHKPPPPPPKHHK.',
+      '.KHKLLPPPPPLLHK.',
+      '..KKLPPPPPPPLKK.',
+      '...KPPPPPPPPPK..',
+      '..KPPPPWWPPPPPK.',
+      '..KPPPLLLLPPPK..',
+      '.KPPPLLLLLLPPPK.',
+      '.KPPWLLLLLLWPPK.',
+      '.KLLLLLLLLLLLLK.',
+      '..KKKKKKKKKKKK..',
+      '...KLLK..KLLK...',
+      '...KLLK..KLLK...',
+      '...KPPK..KPPK...',
+      '..KFFFK..KFFFK..',
+      '..KKKKK..KKKKK..',
+      '................',
+    ];
+
+    const princessHappyPattern = [
+      '.....KKKKKK.....',
+      '....KGGPPGGK....',
+      '....KGOGGOGK....',
+      '...KKHHHHHHKK...',
+      '..KHHHHHHHHHHK..',
+      '.KHHHHWWWWHHHHK.',
+      '.KHHSSSSSSSSHHK.',
+      'KSKSSSKSSKSSSKSK',
+      'KSKSSSKSSKSSSKSK',
+      '.KHHBSSSSSSBHHK.',
+      '..KHHSSSSSSHHK..',
+      '..KHHKKPPKKHHK..',
+      '..KHKPPPPPPKHK..',
+      '..KKLLPPPPPLKK..',
+      '...KLPPPPPPPLK..',
+      '...KPPPPPPPPPK..',
+      '..KPPPPWWPPPPPK.',
+      '..KPPPLLLLPPPK..',
+      '.KPPPLLLLLLPPPK.',
+      '.KPPWLLLLLLWPPK.',
+      '.KLLLLLLLLLLLLK.',
+      '..KKKKKKKKKKKK..',
+      '...KLLK..KLLK...',
+      '...KLLK..KLLK...',
+      '...KPPK..KPPK...',
+      '..KFFFK..KFFFK..',
+      '..KKKKK..KKKKK..',
+      '................',
+    ];
+
+    const [cPrin1, ctxPrin1] = createOffscreen(16, 28);
+    drawPixelGrid(ctxPrin1, princessIdlePattern, princessPalette);
+    this.princessFemboySprite = cPrin1;
+
+    const [cPrin2, ctxPrin2] = createOffscreen(16, 28);
+    drawPixelGrid(ctxPrin2, princessHappyPattern, princessPalette);
+    this.princessFemboyHappySprite = cPrin2;
   }
 
   private generateParticles() {

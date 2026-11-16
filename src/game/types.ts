@@ -62,7 +62,9 @@ export type TileType =
   | 'sea_ground'
   | 'lava'
   | 'bridge'
-  | 'axe';
+  | 'axe'
+  | 'ghost_floor'
+  | 'ghost_brick';
 
 export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'none';
 
@@ -87,7 +89,9 @@ export type EnemyType =
   | 'fast_cheep'
   | 'bullet_bill'
   | 'bowser'
-  | 'lava_bubble';
+  | 'lava_bubble'
+  | 'boo'
+  | 'dry_bones';
 
 export interface Enemy {
   id: number;
@@ -170,10 +174,21 @@ export interface Particle {
   rotSpeed?: number;
 }
 
+export interface FloatingPlatformSpec {
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+  axis: 'horizontal' | 'vertical' | 'bob';
+  range: number;
+  speed: number;
+  phase?: number;
+}
+
 export interface LevelData {
   id: string;
   name: string;
-  theme: 'overworld' | 'underground' | 'castle' | 'underwater';
+  theme: 'overworld' | 'underground' | 'castle' | 'underwater' | 'ghost_house';
   width: number; // in tiles (16px per tile)
   height: number; // usually 15 tiles (240px)
   tiles: (BlockTile | null)[][]; // [y][x]
@@ -197,9 +212,14 @@ export interface LevelData {
   enemySpeedMultiplier?: number;
   biomeLabel?: string;
   checkpoints?: { x: number; respawnPos: Point }[];
+  floatingPlatforms?: FloatingPlatformSpec[];
   isCustom?: boolean;
+  singleplayerWorld?: number;
+  singleplayerStage?: number;
+  isFinalCastle?: boolean;
 }
 
+export type GameMode = 'classic' | 'singleplayer';
 export type GameDifficulty = 'easy' | 'normal' | 'hard';
 export type ResolutionScale = '0.5x' | '0.75x' | '1x' | '1.25x' | '1.5x' | '2x' | 'fit';
 

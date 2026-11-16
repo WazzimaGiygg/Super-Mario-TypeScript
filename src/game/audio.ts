@@ -27,7 +27,7 @@ export class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.6;
   private musicEnabled: boolean = true;
-  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'none' = 'none';
+  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'none' = 'none';
 
   // Music sequence playback state
   private musicTimer: number | null = null;
@@ -100,6 +100,7 @@ export class SoundEngine {
       else if (this.currentTrack === 'underground') this.playMusic('underground');
       else if (this.currentTrack === 'underwater') this.playMusic('underwater');
       else if (this.currentTrack === 'castle') this.playMusic('castle');
+      else if (this.currentTrack === 'ghost_house') this.playMusic('ghost_house');
     }
     return this.musicEnabled;
   }
@@ -634,7 +635,7 @@ export class SoundEngine {
 
   // --- BACKGROUND MUSIC ENGINE ---
 
-  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle') {
+  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house') {
     this.currentTrack = track;
     this.musicPaused = false;
     if (!this.musicEnabled) return;
@@ -649,6 +650,8 @@ export class SoundEngine {
       this.initUnderwaterMusic();
     } else if (track === 'castle') {
       this.initCastleMusic();
+    } else if (track === 'ghost_house') {
+      this.initGhostHouseMusic();
     }
   }
 
@@ -803,6 +806,42 @@ export class SoundEngine {
       [N.A3, S], [N.REST, S], [N.A3, S], [N.E3, S], [N.A3, S], [N.REST, S], [N.A3, S], [N.E3, S],
       [N.As3, S], [N.REST, S], [N.As3, S], [N.F3, S], [N.C4, S], [N.B3, S], [N.As3, S], [N.A3, S],
     ];
+    this.musicStep = 0;
+    this.playNextMusicSlice();
+  }
+
+  private initGhostHouseMusic() {
+    // Mysterious, eerie minor-key haunted mansion waltz
+    const E = 0.16;
+    const Q = 0.32;
+    const H = 0.64;
+
+    this.currentScore = [
+      // Creepy descending minor arpeggio phrase A
+      [N.C5, E], [N.Ds5, E], [N.G5, Q], [N.Fs5, Q],
+      [N.F5, E], [N.Ds5, E], [N.D5, Q], [N.B4, Q],
+      [N.C5, Q], [N.REST, E], [N.G4, E], [N.Ds4, Q],
+      [N.D4, H], [N.REST, Q],
+
+      // Phrase B with haunting chromatic lift
+      [N.G4, E], [N.C5, E], [N.Ds5, Q], [N.D5, Q],
+      [N.Gs4, E], [N.C5, E], [N.F5, Q], [N.Ds5, Q],
+      [N.D5, E], [N.F5, E], [N.E5, E], [N.Ds5, E], [N.D5, Q],
+      [N.C5, H], [N.REST, Q],
+    ];
+
+    this.currentBass = [
+      [N.C3, Q], [N.G3, E], [N.Ds3, E], [N.G3, Q],
+      [N.F3, Q], [N.C4, E], [N.G3, E], [N.B3, Q],
+      [N.C3, Q], [N.G3, E], [N.C4, E], [N.G3, Q],
+      [N.G2, H], [N.REST, Q],
+
+      [N.C3, Q], [N.G3, E], [N.C4, E], [N.G3, Q],
+      [N.Gs3, Q], [N.Ds4, E], [N.F3, E], [N.C4, Q],
+      [N.G3, Q], [N.D4, E], [N.G3, E], [N.B3, Q],
+      [N.C3, H], [N.REST, Q],
+    ];
+
     this.musicStep = 0;
     this.playNextMusicSlice();
   }

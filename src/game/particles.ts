@@ -85,6 +85,10 @@ export class ParticleSystem {
         return { primary: '#383838', secondary: '#9090a0', accent: '#fc9838' };
       case 'bowser':
         return { primary: '#008800', secondary: '#f8d838', accent: '#d82800' };
+      case 'boo':
+        return { primary: '#ffffff', secondary: '#c8d0ec', accent: '#d82058' };
+      case 'dry_bones':
+        return { primary: '#fcfcfc', secondary: '#b8c0d8', accent: '#687090' };
       default:
         return { primary: '#fc9838', secondary: '#fffa50', accent: '#ffffff' };
     }
@@ -93,7 +97,7 @@ export class ParticleSystem {
   // --- EFFECT EMITTERS ---
 
   /** Classic tumbling brick shards + theme-colored flying splinters + impact ring & dust puffs */
-  public emitBrickBreak(x: number, y: number, theme: 'overworld' | 'underground' | 'castle' | 'underwater' = 'overworld') {
+  public emitBrickBreak(x: number, y: number, theme: 'overworld' | 'underground' | 'castle' | 'underwater' | 'ghost_house' = 'overworld') {
     const themeColors =
       theme === 'underground'
         ? { primary: '#187888', secondary: '#70d8e8', dust: '#70b8c8' }
@@ -101,6 +105,8 @@ export class ParticleSystem {
         ? { primary: '#787878', secondary: '#d0d0d0', dust: '#b8b8b8' }
         : theme === 'underwater'
         ? { primary: '#e05848', secondary: '#ffb090', dust: '#98e0ff' }
+        : theme === 'ghost_house'
+        ? { primary: '#48346c', secondary: '#8868b0', dust: '#b898e0' }
         : { primary: undefined, secondary: '#f8b880', dust: '#e09060' };
 
     // 4 main tumbling corner brick chunks
@@ -134,6 +140,8 @@ export class ParticleSystem {
         ? ['#187888', '#70d8e8', '#0c4858']
         : theme === 'castle'
         ? ['#787878', '#c8c8c8', '#484848']
+        : theme === 'ghost_house'
+        ? ['#48346c', '#8868b0', '#241438']
         : ['#c84c0c', '#f8b880', '#882800'];
 
     for (let i = 0; i < 10; i++) {

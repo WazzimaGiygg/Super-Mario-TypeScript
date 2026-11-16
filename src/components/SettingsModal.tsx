@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
+import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorldGhostHouse, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ interface SettingsModalProps {
   touchOverlayOnCanvas?: boolean;
   onToggleTouchOverlay?: () => void;
   onOpenLevelEditor?: () => void;
+  onStartSingleplayer?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -54,6 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   touchOverlayOnCanvas = true,
   onToggleTouchOverlay,
   onOpenLevelEditor,
+  onStartSingleplayer,
 }) => {
   if (!isOpen) return null;
 
@@ -139,6 +141,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  onSelectLevel(createWorldGhostHouse());
+                  onClose();
+                }}
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-purple-400 font-medium text-left transition flex flex-col"
+              >
+                <span className="font-bold text-purple-300">Mansão de Fantasmas</span>
+                <span className="text-[10px] text-stone-400">Boo, Dry Bones e salões assombrados</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   onSelectLevel(createWorld1_4());
                   onClose();
                 }}
@@ -154,11 +168,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onSelectLevel(createEndlessLevel(Date.now(), 1));
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 font-medium text-left transition flex flex-col"
+                className="col-span-2 px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 font-medium text-left transition flex flex-col"
               >
                 <span className="font-bold text-emerald-400">Modo Sem Fim (Cíclico)</span>
                 <span className="text-[10px] text-stone-400">1 Overworld → 2 Caverna → 3 Água → 4 Castelo</span>
               </button>
+
+              {onStartSingleplayer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onStartSingleplayer();
+                  }}
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-pink-950/70 hover:bg-pink-900/80 border border-pink-500/60 hover:border-pink-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Crown className="w-4 h-4 text-pink-300 shrink-0" />
+                    <div>
+                      <span className="block font-bold text-pink-300">Modo Singleplayer (7 Mundos · 35 Fases)</span>
+                      <span className="text-[10px] text-pink-100/75">7 Mundos × 5 Fases · Resgate a Princesa Femboy no Castelo 7-5</span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-pink-200 shrink-0">JOGAR</span>
+                </button>
+              )}
             </div>
             {onOpenLevelEditor && (
               <button

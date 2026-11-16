@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LevelData, BlockTile, TileType, Point, EnemyType, ItemContent } from './types.ts';
+import { LevelData, BlockTile, TileType, Point, EnemyType, ItemContent, FloatingPlatformSpec } from './types.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 
 // Helper to create empty grid
@@ -837,6 +837,212 @@ export function createWorld1_4(): LevelData {
   };
 }
 
+// World 3-G: Haunted Ghost House (Mansão de Fantasmas)
+export function createWorldGhostHouse(): LevelData {
+  const width = 195;
+  const height = 15;
+  const grid = createEmptyGrid(width, height);
+  const enemies: { type: EnemyType; x: number; y: number }[] = [];
+  const coins: Point[] = [];
+
+  const fillGhostFloor = (startX: number, len: number) => {
+    for (let x = startX; x < startX + len && x < width; x++) {
+      grid[13][x] = { type: 'ghost_floor', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][x] = { type: 'ghost_floor', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  };
+
+  // Haunted Mansion Roof / Upper Beams along the main interior (0..168)
+  for (let x = 0; x <= 168; x++) {
+    grid[0][x] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[1][x] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Entrance Pillar Framing
+  for (let y = 2; y <= 12; y++) {
+    grid[y][0] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // 1. Entrance Foyer (0..20)
+  fillGhostFloor(0, 21);
+  grid[9][10] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[9][11] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[9][12] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[9][13] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+  coins.push(
+    { x: 10 * 16 + 8, y: 7 * 16 },
+    { x: 11 * 16 + 8, y: 7 * 16 },
+    { x: 12 * 16 + 8, y: 7 * 16 }
+  );
+  enemies.push({ type: 'dry_bones', x: 16 * 16, y: 13 * 16 - 24 });
+
+  // 2. Chasm Gallery & Floating Platforms (21..46)
+  // Static ? blocks high above the floating platforms
+  grid[6][24] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+  grid[6][25] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'boo', x: 20 * 16, y: 7 * 16 });
+  enemies.push({ type: 'boo', x: 28 * 16, y: 6 * 16 });
+
+  coins.push(
+    { x: 30 * 16 + 8, y: 6 * 16 },
+    { x: 31 * 16 + 8, y: 6 * 16 },
+    { x: 32 * 16 + 8, y: 6 * 16 }
+  );
+
+  fillGhostFloor(35, 11);
+  grid[9][39] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
+  grid[5][41] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'dry_bones', x: 40 * 16, y: 13 * 16 - 24 });
+  enemies.push({ type: 'boo', x: 44 * 16, y: 7 * 16 });
+
+  // 3. Haunted Library Dual-Path (46..86)
+  fillGhostFloor(46, 40);
+  // Decorative gothic pillars framing the hall
+  for (let y = 2; y <= 5; y++) {
+    grid[y][49] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[y][67] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Upper attic walkway
+  for (let px = 52; px <= 64; px++) {
+    grid[8][px] = {
+      type: px === 58 ? 'question' : 'ghost_brick',
+      content: px === 58 ? 'femboy' : 'none',
+      bumpOffset: 0,
+      bumpVel: 0,
+    };
+  }
+  coins.push(
+    { x: 54 * 16 + 8, y: 6 * 16 },
+    { x: 56 * 16 + 8, y: 6 * 16 },
+    { x: 60 * 16 + 8, y: 6 * 16 },
+    { x: 62 * 16 + 8, y: 6 * 16 }
+  );
+  enemies.push({ type: 'boo', x: 56 * 16, y: 5 * 16 });
+  enemies.push({ type: 'dry_bones', x: 57 * 16, y: 13 * 16 - 24 });
+  enemies.push({ type: 'dry_bones', x: 63 * 16, y: 13 * 16 - 24 });
+
+  // Raised brick steps & fire flower secret
+  for (let px = 71; px <= 76; px++) {
+    grid[9][px] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[5][73] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
+  grid[5][74] = { type: 'question', content: 'leaf', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'boo', x: 75 * 16, y: 7 * 16 });
+  enemies.push({ type: 'dry_bones', x: 78 * 16, y: 13 * 16 - 24 });
+
+  // 4. Checkpoint Sanctuary (86..97)
+  fillGhostFloor(86, 11);
+  grid[12][89] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[12][90] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[9][92] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+
+  // 5. Abyss of Floating Platforms & Boos (97..137)
+  coins.push(
+    { x: 100 * 16 + 8, y: 8 * 16 },
+    { x: 102 * 16 + 8, y: 7 * 16 },
+    { x: 104 * 16 + 8, y: 8 * 16 }
+  );
+  enemies.push({ type: 'boo', x: 103 * 16, y: 6 * 16 });
+
+  // Central haunted island
+  fillGhostFloor(109, 10);
+  for (let px = 112; px <= 116; px++) {
+    grid[8][px] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[4][114] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'dry_bones', x: 113 * 16, y: 13 * 16 - 24 });
+  enemies.push({ type: 'boo', x: 117 * 16, y: 7 * 16 });
+
+  // Second floating platform abyss & high coin ridge
+  enemies.push({ type: 'boo', x: 126 * 16, y: 5 * 16 });
+  coins.push(
+    { x: 131 * 16 + 8, y: 7 * 16 },
+    { x: 132 * 16 + 8, y: 7 * 16 },
+    { x: 133 * 16 + 8, y: 7 * 16 }
+  );
+  enemies.push({ type: 'boo', x: 135 * 16, y: 8 * 16 });
+
+  // 6. Grand Ballroom Gauntlet & Exit Courtyard (137..194)
+  fillGhostFloor(137, 58);
+
+  // Pillar obstacles & Bone Guards
+  for (let y = 10; y <= 12; y++) {
+    grid[y][143] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[y][144] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[7][148] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
+  enemies.push({ type: 'dry_bones', x: 147 * 16, y: 13 * 16 - 24 });
+  enemies.push({ type: 'boo', x: 152 * 16, y: 6 * 16 });
+  enemies.push({ type: 'dry_bones', x: 156 * 16, y: 13 * 16 - 24 });
+
+  // Final Mansion Staircase (162..167)
+  for (let step = 0; step < 6; step++) {
+    const sx = 162 + step;
+    for (let y = 12 - step; y <= 12; y++) {
+      grid[y][sx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+
+  // Flagpole at tile 175
+  const flagTile = 175;
+  grid[12][flagTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  for (let y = 3; y <= 11; y++) {
+    grid[y][flagTile] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[2][flagTile] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  // Exit Mansion / Castle Gate (180..184)
+  for (let cx = 180; cx <= 184; cx++) {
+    for (let cy = 8; cy <= 12; cy++) {
+      grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    if (cx % 2 === 0) {
+      grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+  grid[11][182] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[12][182] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  const floatingPlatforms: FloatingPlatformSpec[] = [
+    // Chasm Gallery floating elevator + horizontal glider
+    { x: 23 * 16, y: 10 * 16, width: 48, axis: 'vertical', range: 26, speed: 0.035, phase: 0 },
+    { x: 30 * 16, y: 9 * 16, width: 48, axis: 'horizontal', range: 28, speed: 0.032, phase: 1.4 },
+    // Library floating lift near raised steps
+    { x: 80 * 16, y: 8 * 16, width: 40, axis: 'vertical', range: 30, speed: 0.036, phase: 0.6 },
+    // Abyss crossing: twin haunted floating ferries
+    { x: 101 * 16, y: 11 * 16, width: 48, axis: 'horizontal', range: 38, speed: 0.032, phase: 0 },
+    { x: 122 * 16, y: 10 * 16, width: 48, axis: 'vertical', range: 24, speed: 0.038, phase: 1.0 },
+    { x: 130 * 16, y: 9 * 16, width: 48, axis: 'horizontal', range: 32, speed: 0.034, phase: 2.1 },
+    // Ballroom hovering ghost dais
+    { x: 150 * 16, y: 9 * 16, width: 48, axis: 'bob', range: 14, speed: 0.044, phase: 0 },
+  ];
+
+  return {
+    id: 'world-ghost',
+    name: 'MANSÃO',
+    theme: 'ghost_house',
+    biomeLabel: 'MANSÃO DE FANTASMAS',
+    width,
+    height,
+    tiles: grid,
+    enemies,
+    coins,
+    floatingPlatforms,
+    marioStart: { x: 48, y: 192 },
+    flagX: flagTile * 16,
+    castleX: 182 * 16,
+    bgColor: '#120822',
+    timeLimit: 380,
+    checkpoints: [
+      {
+        x: 89 * 16,
+        respawnPos: { x: 89 * 16, y: 160 },
+      },
+    ],
+  };
+}
+
 // Procedural Endless Level Generator with Cyclic Biomes (1 Overworld -> 2 Caverna -> 3 Água -> 4 Castelo com Boss) & Progressive Difficulty
 export function createEndlessLevel(
   seed: number = Date.now(),
@@ -1420,6 +1626,537 @@ export function createEndlessLevel(
   };
 }
 
+export const SINGLEPLAYER_WORLD_COUNT = 7;
+export const SINGLEPLAYER_STAGES_PER_WORLD = 5;
+
+const SINGLEPLAYER_WORLD_THEMES: Record<number, [LevelData['theme'], LevelData['theme'], LevelData['theme'], LevelData['theme'], LevelData['theme']]> = {
+  1: ['overworld', 'underground', 'overworld', 'ghost_house', 'castle'],
+  2: ['overworld', 'underwater', 'underground', 'overworld', 'castle'],
+  3: ['overworld', 'underwater', 'ghost_house', 'underground', 'castle'],
+  4: ['underground', 'overworld', 'underwater', 'ghost_house', 'castle'],
+  5: ['overworld', 'ghost_house', 'underground', 'underwater', 'castle'],
+  6: ['ghost_house', 'underwater', 'underground', 'overworld', 'castle'],
+  7: ['overworld', 'underground', 'underwater', 'ghost_house', 'castle'],
+};
+
+const SINGLEPLAYER_WORLD_NAMES: Record<number, string> = {
+  1: 'PLANÍCIES INICIAIS',
+  2: 'ARQUIPÉLAGO & GRUTAS',
+  3: 'VALE ASSOMBRADO',
+  4: 'CAVERNAS PROFUNDAS',
+  5: 'TERRAS SOMBRIAS',
+  6: 'ABISMO ESPECTRAL',
+  7: 'REINO FINAL',
+};
+
+// Build a deterministic stage for Singleplayer 7-World x 5-Stage Campaign
+export function createSingleplayerLevel(world: number, stage: number): LevelData {
+  const w = Math.max(1, Math.min(SINGLEPLAYER_WORLD_COUNT, Math.floor(world)));
+  const st = Math.max(1, Math.min(SINGLEPLAYER_STAGES_PER_WORLD, Math.floor(stage)));
+  const overallIndex = (w - 1) * SINGLEPLAYER_STAGES_PER_WORLD + st; // 1..35
+  const diffRatio = Math.min(1, (overallIndex - 1) / 34);
+
+  const worldThemes = SINGLEPLAYER_WORLD_THEMES[w] || SINGLEPLAYER_WORLD_THEMES[1];
+  const theme = worldThemes[st - 1] || 'overworld';
+  const isFinalCastle = w === SINGLEPLAYER_WORLD_COUNT && st === SINGLEPLAYER_STAGES_PER_WORLD;
+
+  // Deterministic Mulberry32 PRNG per (world, stage)
+  let s = (77000 + w * 1009 + st * 137) >>> 0;
+  const rand = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const biomeLabelMap: Record<LevelData['theme'], string> = {
+    overworld: 'SUPERFÍCIE',
+    underground: 'CAVERNA',
+    underwater: 'OCEANO',
+    ghost_house: 'MANSÃO FANTASMA',
+    castle: isFinalCastle ? 'CASTELO FINAL' : `CASTELO ${w}`,
+  };
+
+  const bgColor =
+    theme === 'overworld'
+      ? '#5c94fc'
+      : theme === 'underground'
+      ? '#000000'
+      : theme === 'underwater'
+      ? '#1840b8'
+      : theme === 'ghost_house'
+      ? '#120822'
+      : '#140406';
+
+  const groundTileType: TileType =
+    theme === 'underground'
+      ? 'underground_ground'
+      : theme === 'castle'
+      ? 'castle_stone'
+      : theme === 'underwater'
+      ? 'sea_ground'
+      : theme === 'ghost_house'
+      ? 'ghost_floor'
+      : 'ground';
+
+  const brickTileType: TileType =
+    theme === 'underground'
+      ? 'underground_brick'
+      : theme === 'castle'
+      ? 'hard_block'
+      : theme === 'underwater'
+      ? 'coral'
+      : theme === 'ghost_house'
+      ? 'ghost_brick'
+      : 'brick';
+
+  const width = Math.min(240, 155 + Math.floor(diffRatio * 80));
+  const height = 15;
+  const grid = createEmptyGrid(width, height);
+  const enemies: { type: EnemyType; x: number; y: number }[] = [];
+  const coins: Point[] = [];
+  const floatingPlatforms: FloatingPlatformSpec[] = [];
+
+  const placeGroundSpan = (startX: number, spanLen: number) => {
+    for (let i = 0; i < spanLen && startX + i < width; i++) {
+      grid[13][startX + i] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][startX + i] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      if (theme === 'underground' || theme === 'castle' || theme === 'ghost_house') {
+        const ceilType: TileType =
+          theme === 'castle' ? 'castle_stone' : theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick';
+        grid[0][startX + i] = { type: ceilType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[1][startX + i] = { type: ceilType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+  };
+
+  const placePit = (startX: number, gapLen: number) => {
+    for (let i = 0; i < gapLen && startX + i < width; i++) {
+      if (theme === 'castle') {
+        grid[0][startX + i] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[1][startX + i] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[13][startX + i] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[14][startX + i] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      } else if (theme === 'underground' || theme === 'ghost_house') {
+        const ceilType: TileType = theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick';
+        grid[0][startX + i] = { type: ceilType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[1][startX + i] = { type: ceilType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    if (theme === 'castle' && gapLen >= 2 && rand() < 0.55 + diffRatio * 0.35) {
+      const bubbleX = startX + Math.floor(gapLen / 2);
+      enemies.push({ type: 'lava_bubble', x: bubbleX * 16 + 8, y: 13 * 16 });
+    }
+  };
+
+  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'coin' => {
+    const r = rand();
+    const powerChance = 0.54 - diffRatio * 0.16;
+    if (r > powerChance) return 'coin';
+    const typeRoll = rand();
+    if (typeRoll < 0.28) return 'mushroom';
+    if (typeRoll < 0.50) return 'fireflower';
+    if (typeRoll < 0.68) return 'leaf';
+    if (typeRoll < 0.84) return 'feather';
+    return 'femboy';
+  };
+
+  const spawnProfile = EnemySpawnManager.getProfile(Math.max(1, Math.ceil(overallIndex / 2)), theme);
+
+  const spawnEnemy = (tx: number, tyTile: number, forceType?: EnemyType) => {
+    const type =
+      forceType ?? EnemySpawnManager.pickEnemyType(Math.max(1, Math.ceil(overallIndex / 2)), theme, rand, { allowAerial: true });
+    enemies.push(EnemySpawnManager.createSpawnSpec(type, tx, tyTile, rand));
+  };
+
+  let x = 0;
+  placeGroundSpan(0, 15);
+  // Decorative wall for ghost_house / castle entrance
+  if (theme === 'ghost_house' || theme === 'castle') {
+    for (let y = 2; y <= 12; y++) {
+      grid[y][0] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+  }
+  x = 15;
+
+  const finishZoneStart =
+    theme === 'castle' ? width - 30 : theme === 'underwater' ? width - 42 : width - 25;
+
+  while (x < finishZoneStart) {
+    const remaining = finishZoneStart - x;
+    if (remaining < 10) {
+      placeGroundSpan(x, remaining);
+      x += remaining;
+      break;
+    }
+
+    const r = rand();
+    let chunkType: number;
+    if (theme === 'ghost_house' && r > 0.45 && r < 0.72) {
+      chunkType = 7; // Floating Ghost House platform bridge over abyss
+    } else if (r < 0.25) chunkType = 0;
+    else if (r < 0.42) chunkType = 1;
+    else if (r < 0.58) chunkType = 2;
+    else if (r < 0.72) chunkType = 3;
+    else if (r < 0.85) chunkType = 4;
+    else chunkType = 5;
+
+    if (chunkType === 7 && remaining >= 12) {
+      const gap = Math.min(remaining - 4, 8 + Math.floor(rand() * 3));
+      placePit(x, gap);
+      floatingPlatforms.push({
+        x: (x + 2) * 16,
+        y: (9 + Math.floor(rand() * 2)) * 16,
+        width: 48,
+        axis: rand() > 0.5 ? 'horizontal' : 'vertical',
+        range: 24,
+        speed: 0.033 + diffRatio * 0.01,
+        phase: rand() * Math.PI,
+      });
+      if (gap >= 9) {
+        floatingPlatforms.push({
+          x: (x + gap - 4) * 16,
+          y: 9 * 16,
+          width: 48,
+          axis: 'bob',
+          range: 14,
+          speed: 0.04,
+          phase: 1.1,
+        });
+      }
+      coins.push({ x: (x + Math.floor(gap / 2)) * 16 + 8, y: 6 * 16 });
+      enemies.push({ type: 'boo', x: (x + Math.floor(gap / 2)) * 16, y: 6 * 16 });
+      x += gap;
+      const landLen = Math.min(remaining - gap, 4);
+      placeGroundSpan(x, landLen);
+      x += landLen;
+    } else if (chunkType === 0) {
+      const len = Math.min(remaining, 8 + Math.floor(rand() * 5));
+      placeGroundSpan(x, len);
+      const mid = x + Math.floor(len / 2);
+      if (len >= 7) {
+        grid[9][mid - 1] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        grid[9][mid] = { type: 'question', content: pickPowerUp(), bumpOffset: 0, bumpVel: 0 };
+        grid[9][mid + 1] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (rand() > 0.76) {
+        grid[5][x + 2] = {
+          type: 'question',
+          content: rand() > 0.65 ? '1up' : 'coin',
+          bumpOffset: 0,
+          bumpVel: 0,
+          invisible: true,
+        };
+      }
+      spawnEnemy(x + 2, 12);
+      if (len >= 10 && rand() < 0.6 + diffRatio * 0.3) {
+        spawnEnemy(x + len - 3, 12);
+      }
+      x += len;
+    } else if (chunkType === 1) {
+      const pLen = 8;
+      placeGroundSpan(x, pLen);
+      if (theme === 'castle' || theme === 'ghost_house') {
+        const h1 = 2 + Math.floor(rand() * 2);
+        for (let py = 13 - h1; py <= 12; py++) {
+          grid[py][x + 2] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+          grid[py][x + 3] = { type: brickTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+        spawnEnemy(x + 5, 12);
+      } else {
+        const pipeH = 2 + Math.floor(rand() * 2);
+        placePipe(grid, x + 2, 12, pipeH);
+        if (theme !== 'underwater' && rand() < spawnProfile.piranhaChance) {
+          enemies.push({
+            type: 'piranha',
+            x: (x + 2) * 16 + 8,
+            y: (13 - pipeH) * 16,
+          });
+        } else {
+          spawnEnemy(x + 5, theme === 'underwater' ? 9 : 12);
+        }
+      }
+      x += pLen;
+    } else if (chunkType === 2) {
+      const maxGap = w >= 4 ? 4 : 3;
+      const gap = Math.min(remaining - 4, 2 + Math.floor(rand() * (maxGap - 1)));
+      if (gap >= 2) {
+        placePit(x, gap);
+        for (let c = 0; c < gap; c++) {
+          coins.push({ x: (x + c) * 16 + 8, y: 9 * 16 });
+        }
+        if (theme === 'ghost_house' && gap >= 4) {
+          floatingPlatforms.push({
+            x: (x + 1) * 16,
+            y: 11 * 16,
+            width: 36,
+            axis: 'bob',
+            range: 10,
+            speed: 0.04,
+            phase: 0.5,
+          });
+        }
+        x += gap;
+        const landLen = Math.min(remaining - gap, 3);
+        placeGroundSpan(x, landLen);
+        if (rand() < 0.65) {
+          spawnEnemy(x + 1, 12);
+        }
+        x += landLen;
+      } else {
+        placeGroundSpan(x, 4);
+        x += 4;
+      }
+    } else if (chunkType === 3) {
+      const pillarCount = Math.min(3, Math.floor(remaining / 5));
+      if (pillarCount >= 2) {
+        for (let p = 0; p < pillarCount; p++) {
+          const gap = 2 + (w >= 5 && rand() > 0.5 ? 1 : 0);
+          placePit(x, gap);
+          x += gap;
+          const pillarW = 2;
+          const pillarY = 10 + Math.floor(rand() * 2);
+          placePit(x, pillarW);
+          for (let px = 0; px < pillarW && x + px < finishZoneStart; px++) {
+            for (let py = pillarY; py <= 14; py++) {
+              grid[py][x + px] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+            }
+          }
+          coins.push({ x: x * 16 + 8, y: (pillarY - 2) * 16 });
+          x += pillarW;
+        }
+        const safeSpan = Math.min(4, finishZoneStart - x);
+        if (safeSpan > 0) {
+          placeGroundSpan(x, safeSpan);
+          x += safeSpan;
+        }
+      } else {
+        placeGroundSpan(x, 4);
+        x += 4;
+      }
+    } else if (chunkType === 4) {
+      const stSize = Math.min(4, Math.floor((remaining - 3) / 2));
+      if (stSize >= 2) {
+        placeGroundSpan(x, stSize + 2);
+        for (let step = 1; step <= stSize; step++) {
+          for (let py = 13 - step; py <= 12; py++) {
+            grid[py][x + step - 1] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+        }
+        spawnEnemy(x + stSize, 12);
+        x += stSize + 2;
+      } else {
+        placeGroundSpan(x, remaining);
+        x += remaining;
+      }
+    } else {
+      const bLen = Math.min(remaining, 9 + Math.floor(rand() * 3));
+      placeGroundSpan(x, bLen);
+      for (let i = 1; i < bLen - 1; i++) {
+        const isQ = i === Math.floor(bLen / 2);
+        grid[8][x + i] = {
+          type: isQ ? 'question' : brickTileType,
+          content: isQ ? pickPowerUp() : 'none',
+          bumpOffset: 0,
+          bumpVel: 0,
+        };
+        coins.push({ x: (x + i) * 16 + 8, y: 6 * 16 });
+      }
+      spawnEnemy(x + 2, 12);
+      if (diffRatio > 0.25) {
+        spawnEnemy(x + Math.floor(bLen / 2), 7);
+      }
+      x += bLen;
+    }
+  }
+
+  let flagXTile = width - 17;
+  let castleXTile = width - 11;
+  const levelId = `sp-${w}-${st}`;
+  let pipeWarps: LevelData['pipeWarps'] = undefined;
+  let dryFinishStartX: number | undefined = undefined;
+
+  if (theme === 'castle') {
+    const approachEnd = Math.min(width - 25, Math.max(x + 2, finishZoneStart + 3));
+    placeGroundSpan(x, approachEnd - x + 1);
+    for (let sx = Math.max(x, approachEnd - 2); sx <= approachEnd; sx++) {
+      grid[12][sx] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    const bridgeStart = approachEnd + 1;
+    const axeTile = width - 11;
+    for (let bx = bridgeStart; bx < axeTile; bx++) {
+      grid[0][bx] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[1][bx] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[12][bx] = { type: 'bridge', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[13][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    const platMid = Math.floor((bridgeStart + axeTile) / 2);
+    for (let ox = platMid - 2; ox <= platMid + 2; ox++) {
+      grid[7][ox] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    for (let wy = 0; wy <= 8; wy++) {
+      grid[wy][axeTile] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[12][axeTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[11][axeTile] = { type: 'axe', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[13][axeTile] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[14][axeTile] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    const bowserXTile = Math.max(bridgeStart + 5, axeTile - 6);
+    enemies.push({ type: 'bowser', x: bowserXTile * 16, y: 12 * 16 - 24 });
+
+    placeGroundSpan(axeTile + 1, width - (axeTile + 1));
+    castleXTile = width - 7;
+    for (let cx = castleXTile; cx <= Math.min(width - 2, castleXTile + 4); cx++) {
+      for (let cy = 8; cy <= 12; cy++) {
+        grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (cx % 2 === 0) {
+        grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[11][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let y = 2; y <= 12; y++) {
+      grid[y][width - 1] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    flagXTile = 99999;
+  } else if (theme === 'underwater') {
+    const warpPipeTile = width - 38;
+    const barrierStartTile = width - 33;
+    const dryShoreStartTile = width - 30;
+    const emergePipeTile = width - 25;
+    const stairsStartTile = width - 21;
+    flagXTile = width - 14;
+    castleXTile = width - 10;
+    dryFinishStartX = dryShoreStartTile * 16;
+
+    for (let cx = Math.min(x, warpPipeTile - 1); cx < width; cx++) {
+      for (let cy = 0; cy <= 12; cy++) {
+        grid[cy][cx] = null;
+      }
+    }
+    for (let sx = x; sx < dryShoreStartTile; sx++) {
+      grid[13][sx] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][sx] = { type: 'sea_ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    placePipe(grid, warpPipeTile, 12, 3, true);
+    coins.push({ x: warpPipeTile * 16 + 16, y: 8 * 16 });
+    for (let bx = barrierStartTile; bx < dryShoreStartTile; bx++) {
+      for (let by = 0; by <= 12; by++) {
+        grid[by][bx] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    for (let gx = dryShoreStartTile; gx < width; gx++) {
+      grid[13][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    placePipe(grid, emergePipeTile, 12, 2);
+    for (let step = 1; step <= 4; step++) {
+      const sx = stairsStartTile + (step - 1);
+      for (let sy = 13 - step; sy <= 12; sy++) {
+        grid[sy][sx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[12][flagXTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let y = 3; y <= 11; y++) {
+      grid[y][flagXTile] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[2][flagXTile] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let cx = castleXTile; cx <= Math.min(width - 2, castleXTile + 5); cx++) {
+      for (let cy = 8; cy <= 12; cy++) {
+        grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (cx % 2 === 0) {
+        grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[11][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    pipeWarps = [
+      {
+        from: { x: warpPipeTile * 16, y: 9 * 16, width: 32, height: 16 },
+        toLevel: levelId,
+        toPos: { x: emergePipeTile * 16 + 8, y: 11 * 16 - 16 },
+        type: 'down',
+      },
+    ];
+  } else {
+    // Open sky near flagpole & exit castle
+    for (; x < width; x++) {
+      grid[13][x] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      grid[14][x] = { type: groundTileType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    flagXTile = width - 17;
+    grid[12][flagXTile] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let y = 3; y <= 11; y++) {
+      grid[y][flagXTile] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    grid[2][flagXTile] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    castleXTile = width - 11;
+    for (let cx = castleXTile; cx <= castleXTile + 5; cx++) {
+      for (let cy = 8; cy <= 12; cy++) {
+        grid[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (cx % 2 === 0) {
+        grid[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    grid[11][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[12][castleXTile + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  const findSafeCheckpointX = (targetTile: number): number => {
+    for (let offset = 0; offset < 25; offset++) {
+      const tx = Math.min(finishZoneStart - 4, targetTile + offset);
+      const curr = grid[13][tx];
+      const next = grid[13][tx + 1];
+      if (curr && curr.type !== 'lava' && next && next.type !== 'lava' && !grid[12][tx]) {
+        return tx;
+      }
+    }
+    return 4;
+  };
+
+  const cp1 = findSafeCheckpointX(Math.floor(width * 0.36));
+  const cp2 = findSafeCheckpointX(Math.floor(width * 0.68));
+  const timeLimit = Math.max(240, 420 - w * 15);
+  const enemySpeedMultiplier = 1 + diffRatio * 0.35;
+
+  return {
+    id: levelId,
+    name: `${w}-${st}`,
+    theme,
+    biomeLabel: `MUNDO ${w} (${SINGLEPLAYER_WORLD_NAMES[w]}) · ${biomeLabelMap[theme]}`,
+    width,
+    height,
+    tiles: grid,
+    enemies,
+    coins,
+    floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
+    marioStart: { x: 40, y: theme === 'underwater' ? 144 : 192 },
+    flagX: flagXTile * 16,
+    castleX: (castleXTile + 2) * 16,
+    dryFinishStartX,
+    pipeWarps,
+    bgColor,
+    timeLimit,
+    seed: s,
+    enemySpeedMultiplier,
+    singleplayerWorld: w,
+    singleplayerStage: st,
+    isFinalCastle,
+    checkpoints: [
+      { x: cp1 * 16, respawnPos: { x: cp1 * 16, y: theme === 'underwater' ? 160 : 192 } },
+      { x: cp2 * 16, respawnPos: { x: cp2 * 16, y: theme === 'underwater' ? 160 : 192 } },
+    ],
+  };
+}
+
 export function cloneLevelData(level: LevelData): LevelData {
   return {
     ...level,
@@ -1429,6 +2166,9 @@ export function cloneLevelData(level: LevelData): LevelData {
     marioStart: { ...level.marioStart },
     checkpoints: level.checkpoints
       ? level.checkpoints.map(cp => ({ x: cp.x, respawnPos: { ...cp.respawnPos } }))
+      : undefined,
+    floatingPlatforms: level.floatingPlatforms
+      ? level.floatingPlatforms.map(fp => ({ ...fp }))
       : undefined,
     pipeWarps: level.pipeWarps
       ? level.pipeWarps.map(pw => ({
@@ -1456,15 +2196,17 @@ export function createBlankCustomLevel(
       ? 'sea_ground'
       : theme === 'castle'
       ? 'castle_stone'
+      : theme === 'ghost_house'
+      ? 'ghost_floor'
       : 'ground';
 
   const ceilingType: TileType =
-    theme === 'castle' ? 'castle_stone' : 'underground_brick';
+    theme === 'castle' ? 'castle_stone' : theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick';
 
   for (let x = 0; x < width; x++) {
     grid[13][x] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
     grid[14][x] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
-    if (theme === 'underground' || theme === 'castle') {
+    if (theme === 'underground' || theme === 'castle' || theme === 'ghost_house') {
       grid[0][x] = { type: ceilingType, content: 'none', bumpOffset: 0, bumpVel: 0 };
       grid[1][x] = { type: ceilingType, content: 'none', bumpOffset: 0, bumpVel: 0 };
     }
@@ -1477,6 +2219,8 @@ export function createBlankCustomLevel(
       ? '#000000'
       : theme === 'underwater'
       ? '#1840b8'
+      : theme === 'ghost_house'
+      ? '#120822'
       : '#140406';
 
   let flagX = (width - 12) * 16;
@@ -1535,13 +2279,20 @@ export function createBlankCustomLevel(
   };
 }
 
-const VALID_THEMES = new Set<LevelData['theme']>(['overworld', 'underground', 'castle', 'underwater']);
+const VALID_THEMES = new Set<LevelData['theme']>([
+  'overworld',
+  'underground',
+  'castle',
+  'underwater',
+  'ghost_house',
+]);
 
 const THEME_DEFAULT_BG: Record<LevelData['theme'], string> = {
   overworld: '#5c94fc',
   underground: '#000000',
   underwater: '#1840b8',
   castle: '#140406',
+  ghost_house: '#120822',
 };
 
 const VALID_TILE_TYPES = new Set<TileType>([
@@ -1573,6 +2324,8 @@ const VALID_TILE_TYPES = new Set<TileType>([
   'lava',
   'bridge',
   'axe',
+  'ghost_floor',
+  'ghost_brick',
 ]);
 
 const VALID_ITEM_CONTENTS = new Set<ItemContent>([
@@ -1600,6 +2353,8 @@ const VALID_ENEMY_TYPES = new Set<EnemyType>([
   'bullet_bill',
   'bowser',
   'lava_bubble',
+  'boo',
+  'dry_bones',
 ]);
 
 export interface ExportedLevelFile {
@@ -1762,6 +2517,40 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       ? Math.max(60, Math.min(999, Math.floor(candidateObj.timeLimit)))
       : 400;
 
+  const floatingPlatforms: FloatingPlatformSpec[] = [];
+  if (Array.isArray(candidateObj.floatingPlatforms)) {
+    for (const item of candidateObj.floatingPlatforms) {
+      if (!item || typeof item !== 'object') continue;
+      const fp = item as Record<string, unknown>;
+      if (typeof fp.x !== 'number' || typeof fp.y !== 'number') continue;
+      if (!Number.isFinite(fp.x) || !Number.isFinite(fp.y)) continue;
+      const axis =
+        fp.axis === 'horizontal' || fp.axis === 'vertical' || fp.axis === 'bob' ? fp.axis : 'bob';
+      floatingPlatforms.push({
+        x: Math.max(0, Math.min(width * 16 - 16, fp.x)),
+        y: Math.max(16, Math.min(height * 16 - 16, fp.y)),
+        width:
+          typeof fp.width === 'number' && Number.isFinite(fp.width)
+            ? Math.max(24, Math.min(96, fp.width))
+            : 48,
+        height:
+          typeof fp.height === 'number' && Number.isFinite(fp.height)
+            ? Math.max(6, Math.min(16, fp.height))
+            : 10,
+        axis,
+        range:
+          typeof fp.range === 'number' && Number.isFinite(fp.range)
+            ? Math.max(0, Math.min(80, fp.range))
+            : 24,
+        speed:
+          typeof fp.speed === 'number' && Number.isFinite(fp.speed)
+            ? Math.max(0.005, Math.min(0.15, fp.speed))
+            : 0.035,
+        phase: typeof fp.phase === 'number' && Number.isFinite(fp.phase) ? fp.phase : 0,
+      });
+    }
+  }
+
   return {
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     name,
@@ -1772,6 +2561,7 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     tiles,
     enemies,
     coins,
+    floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
     marioStart: { x: marioStartX, y: marioStartY },
     flagX,
     castleX,

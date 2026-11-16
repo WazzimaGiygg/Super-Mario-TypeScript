@@ -12,11 +12,12 @@ import { LeaderboardModal } from './LeaderboardModal.tsx';
 import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { LevelEditorModal } from './LevelEditorModal.tsx';
+import { UpdatesModal } from './UpdatesModal.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
 import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -47,6 +48,7 @@ export const GameCanvas: React.FC = () => {
   const [stageArrivalNotice, setStageArrivalNotice] = useState('');
   const [allPlayersClearedReady, setAllPlayersClearedReady] = useState(false);
   const [localStageCleared, setLocalStageCleared] = useState(false);
+  const [isCampaignVictory, setIsCampaignVictory] = useState(false);
   const [isMultiplayerMatchOver, setIsMultiplayerMatchOver] = useState(false);
   const [multiplayerMatchResult, setMultiplayerMatchResult] = useState<MultiplayerMatchResult | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -79,6 +81,7 @@ export const GameCanvas: React.FC = () => {
   const [resolutionScale, setResolutionScale] = useState<ResolutionScale>('fit');
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
   const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
+  const [isUpdatesOpen, setIsUpdatesOpen] = useState(false);
   const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
   const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
   const [editorImmortality, setEditorImmortality] = useState(false);
@@ -465,6 +468,7 @@ export const GameCanvas: React.FC = () => {
           setStageArrivalNotice(engine.stageArrivalNotice);
           setAllPlayersClearedReady(engine.allPlayersClearedReady);
           setLocalStageCleared(engine.localStageCleared);
+          setIsCampaignVictory(engine.isCampaignVictory);
           setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
           setMultiplayerMatchResult(engine.multiplayerMatchResult);
           setIsCustomLevelActive(Boolean(engine.level?.isCustom));
@@ -505,10 +509,13 @@ export const GameCanvas: React.FC = () => {
     }
     if (engineRef.current) {
       engineRef.current.isPaused = false;
+      engineRef.current.gameMode = level.singleplayerWorld ? 'singleplayer' : 'classic';
       engineRef.current.loadLevel(level, true, false);
+      setHasStarted(true);
       setIsPaused(false);
       setIsGameOver(false);
       setIsStageClear(false);
+      setIsCampaignVictory(false);
     }
   };
 
@@ -528,6 +535,7 @@ export const GameCanvas: React.FC = () => {
       pause: false,
     });
     setIsSettingsOpen(false);
+    setIsUpdatesOpen(false);
     setIsLevelEditorOpen(true);
   }, [hasStarted]);
 
@@ -543,6 +551,7 @@ export const GameCanvas: React.FC = () => {
       SoundEngine.get().resume();
       setIsLevelEditorOpen(false);
       setIsSettingsOpen(false);
+      setIsUpdatesOpen(false);
       setHasStarted(true);
       setIsCustomLevelActive(true);
       if (engineRef.current) {
@@ -560,10 +569,12 @@ export const GameCanvas: React.FC = () => {
   const handleReturnToMainMenu = useCallback(() => {
     setIsLevelEditorOpen(false);
     setIsSettingsOpen(false);
+    setIsUpdatesOpen(false);
     setIsCheatMenuOpen(false);
     setIsPaused(false);
     setIsGameOver(false);
     setIsStageClear(false);
+    setIsCampaignVictory(false);
     setHasStarted(false);
     setIsCustomLevelActive(false);
     if (engineRef.current) {
@@ -666,13 +677,37 @@ export const GameCanvas: React.FC = () => {
 
   const handleStartGame = () => {
     SoundEngine.get().resume();
+    setIsCampaignVictory(false);
     setHasStarted(true);
     if (engineRef.current) {
       if (multiplayerStatus.connected) {
         engineRef.current.isGameStarted = true;
       } else {
+        engineRef.current.gameMode = 'classic';
         engineRef.current.restartGame();
       }
+    }
+  };
+
+  const handleStartSingleplayer = () => {
+    if (multiplayerStatus.connected) {
+      setCheatToast('Desconecte do multiplayer para jogar o modo Singleplayer (7 Mundos)!');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
+    SoundEngine.get().resume();
+    setIsCampaignVictory(false);
+    setIsSettingsOpen(false);
+    setIsLevelEditorOpen(false);
+    setHasStarted(true);
+    setIsCustomLevelActive(false);
+    if (engineRef.current) {
+      engineRef.current.startSingleplayerCampaign(1, 1);
+      setIsPaused(false);
+      setIsGameOver(false);
+      setIsStageClear(false);
+      setStats({ ...engineRef.current.stats, isNewHighScore: false });
+      setMarioPower(engineRef.current.marioPower);
     }
   };
 
@@ -849,6 +884,15 @@ export const GameCanvas: React.FC = () => {
 
                 <button
                   type="button"
+                  onClick={handleStartSingleplayer}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 border-2 border-pink-300/70 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-pink-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Crown className="w-4 h-4 text-amber-200" />
+                  SINGLEPLAYER (7 MUNDOS)
+                </button>
+
+                <button
+                  type="button"
                   onClick={openLevelEditor}
                   className="px-5 py-3 rounded-xl bg-sky-950/90 hover:bg-sky-900 border-2 border-sky-500 text-sky-200 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl shadow-sky-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
                 >
@@ -872,6 +916,15 @@ export const GameCanvas: React.FC = () => {
                 >
                   <Trophy className="w-4 h-4 text-amber-400" />
                   RANKING {stats.highScore > 0 ? `(${stats.highScore.toLocaleString()})` : ''}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsUpdatesOpen(true)}
+                  className="px-5 py-3 rounded-xl bg-purple-950/90 hover:bg-purple-900 border-2 border-purple-500/70 text-purple-200 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <ScrollText className="w-4 h-4 text-purple-300" />
+                  NOVIDADES
                 </button>
 
                 <button
@@ -961,6 +1014,14 @@ export const GameCanvas: React.FC = () => {
                 >
                   <Hammer className="w-3.5 h-3.5 text-sky-400" />
                   EDITOR DE FASES
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsUpdatesOpen(true)}
+                  className="px-5 py-2.5 rounded-lg bg-purple-950 hover:bg-purple-900 border border-purple-500/60 text-purple-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <ScrollText className="w-3.5 h-3.5 text-purple-300" />
+                  NOVIDADES
                 </button>
                 {isCustomLevelActive && (
                   <button
@@ -1175,8 +1236,61 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
+          {/* Final 7-World Singleplayer Victory Overlay (Princesa Femboy Rescued!) */}
+          {isCampaignVictory && !isGameOver && !isMultiplayerMatchOver && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-5 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto">
+              <div className="flex items-center gap-2 mb-2">
+                <Crown className="w-7 h-7 text-amber-400 fill-amber-400" />
+                <Heart className="w-6 h-6 text-pink-400 fill-pink-500" />
+              </div>
+              <h2 className="font-['Press_Start_2P',monospace] text-lg sm:text-2xl text-pink-300 mb-2 tracking-wider drop-shadow-lg">
+                7 MUNDOS CONCLUÍDOS!
+              </h2>
+              <p className="text-amber-300 font-mono text-xs sm:text-sm font-bold mb-1">
+                Você salvou a Princesa Femboy no Castelo Final (7-5)!
+              </p>
+              <p className="text-stone-300 font-mono text-xs mb-3">
+                Pontuação Final:{' '}
+                <span className="font-bold text-amber-400 text-sm">{stats.score.toLocaleString()}</span>
+                {' · '}
+                Moedas: <span className="font-bold text-amber-300">{stats.coins}</span>
+              </p>
+              {stats.isNewHighScore && !isCheatActive && !isCustomLevelActive && (
+                <div className="mb-3 px-4 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <span>NOVO RECORDE LOCAL!</span>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-3 justify-center mt-2">
+                <button
+                  type="button"
+                  onClick={handleStartSingleplayer}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  JOGAR NOVAMENTE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardOpen(true)}
+                  className="px-5 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/50 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Trophy className="w-4 h-4 text-amber-400" />
+                  {!isCheatActive && !isCustomLevelActive && stats.score > 0 ? 'RANKING / NOME' : 'VER RANKING'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReturnToMainMenu}
+                  className="px-5 py-3 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-600 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  MENU INICIAL
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Stage Clear & Multiplayer Waiting Banner */}
-          {isStageClear && !isMultiplayerMatchOver && (
+          {isStageClear && !isCampaignVictory && !isMultiplayerMatchOver && (
             <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-5 py-3 bg-black/92 border-2 border-amber-400 rounded-xl text-center shadow-2xl max-w-[92%]">
               <span className="block font-['Press_Start_2P',monospace] text-amber-400 text-xs sm:text-base">
                 FASE CONCLUÍDA!
@@ -1309,6 +1423,17 @@ export const GameCanvas: React.FC = () => {
             <span className="hidden sm:inline text-[11px] font-bold">Editor</span>
           </button>
 
+          {/* Novidades / Updates */}
+          <button
+            type="button"
+            onClick={() => setIsUpdatesOpen(true)}
+            title="Novidades e atualizações recentes do jogo"
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-purple-500/40 text-purple-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <ScrollText className="w-4 h-4 text-purple-400" />
+            <span className="hidden sm:inline text-[11px]">Novidades</span>
+          </button>
+
           {/* Settings */}
           <button
             type="button"
@@ -1383,6 +1508,7 @@ export const GameCanvas: React.FC = () => {
         touchOverlayOnCanvas={touchOverlayOnCanvas}
         onToggleTouchOverlay={toggleTouchOverlayMode}
         onOpenLevelEditor={openLevelEditor}
+        onStartSingleplayer={handleStartSingleplayer}
       />
 
       {/* Leaderboard / Placar Modal */}
@@ -1467,6 +1593,12 @@ export const GameCanvas: React.FC = () => {
             engineRef.current.setEditorImmortality(enabled);
           }
         }}
+      />
+
+      {/* Updates / Novidades Recentes Modal */}
+      <UpdatesModal
+        isOpen={isUpdatesOpen}
+        onClose={() => setIsUpdatesOpen(false)}
       />
 
       {/* Multiplayer Logoff / Room Inactivity Toast Notification */}

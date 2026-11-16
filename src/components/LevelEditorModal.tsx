@@ -37,6 +37,7 @@ import {
   createWorld1_2,
   createWorld1_4,
   createWorld2_2,
+  createWorldGhostHouse,
   getExportLevelFilename,
   parseImportedLevelFile,
   serializeLevelToFileJson,
@@ -62,6 +63,7 @@ type EditorBrushKind =
   | { kind: 'tile'; tileType: TileType; content?: ItemContent; invisible?: boolean }
   | { kind: 'pipe'; height: 2 | 3 | 4; withPiranha?: boolean }
   | { kind: 'flagpole_goal' }
+  | { kind: 'floating_platform'; axis: 'horizontal' | 'vertical' | 'bob' }
   | { kind: 'enemy'; enemyType: EnemyType };
 
 type PaletteTab = 'blocks' | 'items' | 'enemies' | 'special';
@@ -112,6 +114,7 @@ const THEME_BG_COLORS: Record<LevelData['theme'], string> = {
   underground: '#000000',
   underwater: '#1840b8',
   castle: '#140406',
+  ghost_house: '#120822',
 };
 
 const ITEM_CONTENT_OPTIONS: { value: ItemContent; label: string }[] = [
@@ -291,6 +294,34 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         brush: { kind: 'tile', tileType: 'lava' },
         preview: () => atlas.tileLavaFrames[0] || null,
       },
+      {
+        id: 'tile_ghost_floor',
+        label: 'Piso Mansão',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'ghost_floor' },
+        preview: () => atlas.tileGhostFloor,
+      },
+      {
+        id: 'tile_ghost_brick',
+        label: 'Tijolo Mansão',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'ghost_brick', invisible: invisibleBlock },
+        preview: () => atlas.tileGhostBrick,
+      },
+      {
+        id: 'plat_horiz',
+        label: 'Plat. Flut. Horiz.',
+        tab: 'blocks',
+        brush: { kind: 'floating_platform', axis: 'horizontal' },
+        preview: () => atlas.tileBridge,
+      },
+      {
+        id: 'plat_vert',
+        label: 'Plat. Flut. Vert.',
+        tab: 'blocks',
+        brush: { kind: 'floating_platform', axis: 'vertical' },
+        preview: () => atlas.tileBridge,
+      },
 
       // Question Blocks, Coins & Power-Ups
       {
@@ -420,6 +451,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.lavaBubble1,
       },
       {
+        id: 'enemy_boo',
+        label: 'Boo (Fantasma)',
+        tab: 'enemies',
+        brush: { kind: 'enemy', enemyType: 'boo' },
+        preview: () => atlas.booChase,
+      },
+      {
+        id: 'enemy_dry_bones',
+        label: 'Dry Bones',
+        tab: 'enemies',
+        brush: { kind: 'enemy', enemyType: 'dry_bones' },
+        preview: () => atlas.dryBonesWalk1,
+      },
+      {
         id: 'enemy_bowser',
         label: 'Bowser Boss',
         tab: 'enemies',
@@ -485,6 +530,11 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           draft.enemies = draft.enemies.filter(
             e => !(e.x >= cellMinX - 4 && e.x < cellMaxX + 4 && e.y >= cellMinY - 12 && e.y < cellMaxY)
           );
+          if (draft.floatingPlatforms) {
+            draft.floatingPlatforms = draft.floatingPlatforms.filter(
+              fp => !(cellMaxX > fp.x && cellMinX < fp.x + fp.width && cellMaxY > fp.y && cellMinY < fp.y + 16)
+            );
+          }
         };
 
         if (brush.kind === 'erase') {
@@ -590,12 +640,32 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           return draft;
         }
 
+        if (brush.kind === 'floating_platform') {
+          if (!draft.floatingPlatforms) draft.floatingPlatforms = [];
+          const px = Math.min((draft.width - 3) * 16, tx * 16);
+          const py = ty * 16;
+          draft.floatingPlatforms = draft.floatingPlatforms.filter(
+            fp => !(Math.abs(fp.x - px) < 24 && Math.abs(fp.y - py) < 16)
+          );
+          draft.floatingPlatforms.push({
+            x: px,
+            y: py,
+            width: 48,
+            axis: brush.axis,
+            range: brush.axis === 'bob' ? 14 : 28,
+            speed: 0.035,
+            phase: 0,
+          });
+          return draft;
+        }
+
         if (brush.kind === 'enemy') {
           const isTall =
             brush.enemyType === 'koopa' ||
             brush.enemyType === 'red_koopa' ||
             brush.enemyType === 'paratroopa' ||
-            brush.enemyType === 'hammer_bro';
+            brush.enemyType === 'hammer_bro' ||
+            brush.enemyType === 'dry_bones';
           const isBoss = brush.enemyType === 'bowser';
           let spawnX = tx * 16;
           let spawnY = ty * 16;
@@ -663,6 +733,12 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             break;
           case 'sea_ground':
             sprite = atlas.tileSeaGround;
+            break;
+          case 'ghost_floor':
+            sprite = atlas.tileGhostFloor;
+            break;
+          case 'ghost_brick':
+            sprite = atlas.tileGhostBrick;
             break;
           case 'question':
             sprite = atlas.tileQuestionFrames[0];
@@ -771,6 +847,26 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       ctx.drawImage(atlas.itemCoinFrames[0], cx, cy, cellSize, cellSize);
     });
 
+    // Draw floating platforms preview
+    (currentLevel.floatingPlatforms || []).forEach(fp => {
+      const px = fp.x * scale;
+      const py = fp.y * scale;
+      const pw = fp.width * scale;
+      const ph = (fp.height ?? 10) * scale;
+      ctx.save();
+      ctx.fillStyle = '#483068';
+      ctx.fillRect(px, py, pw, ph);
+      ctx.fillStyle = '#9070c8';
+      ctx.fillRect(px, py, pw, Math.max(2, Math.round(2 * scale)));
+      ctx.strokeStyle = '#c4b5fd';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+      ctx.fillStyle = '#e9d5ff';
+      ctx.font = `${Math.max(8, Math.round(9 * scale))}px monospace`;
+      ctx.fillText(fp.axis === 'horizontal' ? '↔' : fp.axis === 'vertical' ? '↕' : '~', px + 4, py + ph - 2);
+      ctx.restore();
+    });
+
     // Draw enemies
     currentLevel.enemies.forEach(e => {
       const ex = e.x * scale;
@@ -813,6 +909,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           break;
         case 'lava_bubble':
           sprite = atlas.lavaBubble1;
+          break;
+        case 'boo':
+          sprite = atlas.booChase;
+          break;
+        case 'dry_bones':
+          sprite = atlas.dryBonesWalk1;
+          h = 24;
           break;
         case 'bowser':
           sprite = atlas.bowser1;
@@ -942,6 +1045,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       case 'world-2-2':
         base = createWorld2_2();
         break;
+      case 'world-ghost':
+        base = createWorldGhostHouse();
+        break;
       case 'world-1-4':
         base = createWorld1_4();
         break;
@@ -992,6 +1098,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           ? 'sea_ground'
           : draft.theme === 'castle'
           ? 'castle_stone'
+          : draft.theme === 'ghost_house'
+          ? 'ghost_floor'
           : 'ground';
 
       for (let ty = 0; ty < draft.height; ty++) {
@@ -999,9 +1107,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           for (let tx = oldW; tx < clamped; tx++) {
             if (ty >= 13) {
               draft.tiles[ty][tx] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
-            } else if ((draft.theme === 'underground' || draft.theme === 'castle') && ty <= 1) {
+            } else if ((draft.theme === 'underground' || draft.theme === 'castle' || draft.theme === 'ghost_house') && ty <= 1) {
               draft.tiles[ty][tx] = {
-                type: draft.theme === 'castle' ? 'castle_stone' : 'underground_brick',
+                type: draft.theme === 'castle' ? 'castle_stone' : draft.theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick',
                 content: 'none',
                 bumpOffset: 0,
                 bumpVel: 0,
@@ -1234,6 +1342,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               <option value="overworld">Superfície</option>
               <option value="underground">Caverna</option>
               <option value="underwater">Água</option>
+              <option value="ghost_house">Mansão Fantasma</option>
               <option value="castle">Castelo</option>
             </select>
 
@@ -1262,6 +1371,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 <option value="world-1-1">Mundo 1-1</option>
                 <option value="world-1-2">Mundo 1-2</option>
                 <option value="world-2-2">Mundo 2-2 (Água)</option>
+                <option value="world-ghost">Mansão de Fantasmas</option>
                 <option value="world-1-4">Mundo 1-4 (Castelo)</option>
                 <option value="secret-vault">Cofre Secreto</option>
               </select>

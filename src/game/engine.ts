@@ -18,6 +18,7 @@ import {
   GameStats,
   GamepadControls,
   TileType,
+  GameMode,
   GameDifficulty,
   PlayerCharacter,
   RemotePlayerState,
@@ -29,7 +30,19 @@ import { SoundEngine } from './audio.ts';
 import { ParticleSystem } from './particles.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 import { CameraSystem } from './camera.ts';
-import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorld1_4, createEndlessLevel, cloneLevelData } from './levels.ts';
+import {
+  createWorld1_1,
+  createSecretVault,
+  createWorld1_2,
+  createWorld2_2,
+  createWorldGhostHouse,
+  createWorld1_4,
+  createEndlessLevel,
+  createSingleplayerLevel,
+  SINGLEPLAYER_WORLD_COUNT,
+  SINGLEPLAYER_STAGES_PER_WORLD,
+  cloneLevelData,
+} from './levels.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 
 export class GameEngine {
@@ -133,6 +146,24 @@ export class GameEngine {
   public fireballs: Fireball[] = [];
   public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
   public hammerProjectiles: { id: number; x: number; y: number; vx: number; vy: number; animTimer: number }[] = [];
+  public floatingPlatforms: {
+    id: number;
+    originX: number;
+    originY: number;
+    x: number;
+    y: number;
+    prevX: number;
+    prevY: number;
+    dx: number;
+    dy: number;
+    width: number;
+    height: number;
+    axis: 'horizontal' | 'vertical' | 'bob';
+    range: number;
+    speed: number;
+    timer: number;
+  }[] = [];
+  private ridingPlatformId: number | null = null;
   public particleSystem: ParticleSystem = new ParticleSystem();
   public enemySpawnManager: EnemySpawnManager = new EnemySpawnManager();
   private skidDustTimer: number = 0;
@@ -141,13 +172,23 @@ export class GameEngine {
     return this.particleSystem.particles;
   }
 
-  // Castle Axe, Bridge Collapse & Toodle Cutscene State
+  // Castle Axe, Bridge Collapse, Toodle & Final Princesa Femboy Cutscene State
   public bridgeCollapseQueue: { tx: number; ty: number }[] = [];
   public bridgeCollapseTimer: number = 0;
   public castleToodleActive: boolean = false;
   public castleToodleX: number = 0;
   public castleToodleY: number = 0;
   public castleToodleDialogueTimer: number = 0;
+  public castlePrincessActive: boolean = false;
+  public castlePrincessX: number = 0;
+  public castlePrincessY: number = 0;
+  public castlePrincessDialogueTimer: number = 0;
+
+  // Game Mode & Singleplayer 7-World Campaign State
+  public gameMode: GameMode = 'classic';
+  public singleplayerWorld: number = 1;
+  public singleplayerStage: number = 1;
+  public isCampaignVictory: boolean = false;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -179,6 +220,7 @@ export class GameEngine {
   public infiniteLives: boolean = false;
   public isEditorImmortality: boolean = false;
   private customLevelTemplate: LevelData | null = null;
+  private ceilingTileColumns: boolean[] = [];
 
   private timeAccumulator: number = 0;
   private nextEntityId: number = 1;
@@ -219,6 +261,20 @@ export class GameEngine {
       this.infiniteLives = this.isCheatActive;
     }
     this.level = resolvedLevel;
+    this.ceilingTileColumns = new Array(resolvedLevel.width).fill(false);
+    if (
+      resolvedLevel.theme === 'underground' ||
+      resolvedLevel.theme === 'ghost_house' ||
+      resolvedLevel.theme === 'castle'
+    ) {
+      const row0 = resolvedLevel.tiles[0];
+      const row1 = resolvedLevel.tiles[1];
+      for (let tx = 0; tx < resolvedLevel.width; tx++) {
+        const hasRow0 = Boolean(row0?.[tx] && this.isSolidTile(row0[tx]!.type));
+        const hasRow1 = Boolean(row1?.[tx] && this.isSolidTile(row1[tx]!.type));
+        this.ceilingTileColumns[tx] = hasRow0 || hasRow1;
+      }
+    }
     this.isStageClear = false;
     this.isGameOver = false;
     this.localStageCleared = false;
@@ -244,9 +300,20 @@ export class GameEngine {
     this.castleToodleX = 0;
     this.castleToodleY = 0;
     this.castleToodleDialogueTimer = 0;
+    this.castlePrincessActive = false;
+    this.castlePrincessX = 0;
+    this.castlePrincessY = 0;
+    this.castlePrincessDialogueTimer = 0;
+    if (!isRespawn) {
+      this.isCampaignVictory = false;
+    }
     this.bossFireballs = [];
     this.hammerProjectiles = [];
-    if (resolvedLevel.endlessStage !== undefined) {
+    if (resolvedLevel.singleplayerWorld !== undefined && resolvedLevel.singleplayerStage !== undefined) {
+      this.singleplayerWorld = resolvedLevel.singleplayerWorld;
+      this.singleplayerStage = resolvedLevel.singleplayerStage;
+      this.endlessStage = 0;
+    } else if (resolvedLevel.endlessStage !== undefined) {
       this.endlessStage = resolvedLevel.endlessStage;
     } else if (
       resolvedLevel.id === 'world-1-1' ||
@@ -298,6 +365,8 @@ export class GameEngine {
         ? '1-2'
         : newLevel.id === 'world-2-2'
         ? '2-2'
+        : newLevel.id === 'world-ghost'
+        ? 'MANSÃO'
         : newLevel.id === 'world-1-4'
         ? '1-4'
         : newLevel.name;
@@ -307,7 +376,10 @@ export class GameEngine {
     this.flagY = 3 * GameEngine.TILE_SIZE;
 
     const speedMult = newLevel.enemySpeedMultiplier ?? 1;
-    const bowserHp = 5 + Math.floor(((newLevel.endlessStage || 1) - 1) / 4) * 2;
+    const bowserHp =
+      newLevel.singleplayerWorld !== undefined
+        ? 3 + newLevel.singleplayerWorld
+        : 5 + Math.floor(((newLevel.endlessStage || 1) - 1) / 4) * 2;
     this.enemySpawnManager.reset(newLevel.endlessStage ?? 0, newLevel.theme);
 
     // Load enemies (avoid spawning enemies directly on top of Mario's respawn position)
@@ -327,7 +399,11 @@ export class GameEngine {
         height:
           e.type === 'bowser'
             ? 24
-            : e.type === 'koopa' || e.type === 'red_koopa' || e.type === 'paratroopa' || e.type === 'hammer_bro'
+            : e.type === 'koopa' ||
+              e.type === 'red_koopa' ||
+              e.type === 'paratroopa' ||
+              e.type === 'hammer_bro' ||
+              e.type === 'dry_bones'
             ? 24
             : 16,
         alive: true,
@@ -363,6 +439,30 @@ export class GameEngine {
     });
 
     this.fireballs = [];
+    this.ridingPlatformId = null;
+    this.floatingPlatforms = (newLevel.floatingPlatforms ?? []).map(fp => {
+      const phase = fp.phase ?? 0;
+      const offset = Math.sin(phase) * fp.range;
+      const initX = fp.axis === 'horizontal' ? fp.x + offset : fp.x;
+      const initY = fp.axis === 'vertical' || fp.axis === 'bob' ? fp.y + offset : fp.y;
+      return {
+        id: this.nextEntityId++,
+        originX: fp.x,
+        originY: fp.y,
+        x: initX,
+        y: initY,
+        prevX: initX,
+        prevY: initY,
+        dx: 0,
+        dy: 0,
+        width: fp.width,
+        height: fp.height ?? 10,
+        axis: fp.axis,
+        range: fp.range,
+        speed: fp.speed,
+        timer: phase,
+      };
+    });
     this.particleSystem.clear();
     this.generateBackgroundScenery();
 
@@ -373,6 +473,8 @@ export class GameEngine {
       this.sound.playMusic('castle');
     } else if (newLevel.theme === 'underwater') {
       this.sound.playMusic('underwater');
+    } else if (newLevel.theme === 'ghost_house') {
+      this.sound.playMusic('ghost_house');
     } else {
       this.sound.playMusic('overworld');
     }
@@ -404,6 +506,19 @@ export class GameEngine {
           x: this.level.dryFinishStartX + 24,
           y: 13 * 16,
         });
+      }
+      return;
+    }
+
+    if (this.level.theme === 'ghost_house') {
+      const mansionEnd = Math.max(200, this.level.width * 16 - 240);
+      for (let x = 48; x < mansionEnd; x += 140) {
+        this.sceneries.push({ type: 'ghost_window', x, y: 44 });
+        this.sceneries.push({ type: 'ghost_chandelier', x: x + 68, y: 32 });
+        if ((Math.floor(x / 140) % 2) === 0) {
+          this.sceneries.push({ type: 'ghost_portrait', x: x + 104, y: 74 });
+        }
+        this.sceneries.push({ type: 'ghost_mist', x: x + 16, y: 196 });
       }
       return;
     }
@@ -510,6 +625,9 @@ export class GameEngine {
       this.prevControls = { ...this.controls };
       return;
     }
+
+    // Update Floating Platforms (and carry Mario smoothly if riding one)
+    this.updateFloatingPlatforms();
 
     // Update Mario
     this.updateMario(deltaMs);
@@ -690,13 +808,15 @@ export class GameEngine {
         this.marioAnimFrame = (this.marioAnimFrame + 1) % 3;
       }
 
-      // Enter castle door (or stop face-to-face in front of Toodle on castle stages)
-      const targetStopX =
-        this.castleToodleActive && this.level.theme === 'castle'
-          ? this.castleToodleX - 24
-          : this.level.castleX;
+      // Enter castle door (or stop face-to-face in front of Toodle / Princesa Femboy on castle stages)
+      const hasCastleGreeter = (this.castleToodleActive || this.castlePrincessActive) && this.level.theme === 'castle';
+      const targetStopX = this.castlePrincessActive && this.level.theme === 'castle'
+        ? this.castlePrincessX - 24
+        : this.castleToodleActive && this.level.theme === 'castle'
+        ? this.castleToodleX - 24
+        : this.level.castleX;
       if (this.marioX >= targetStopX) {
-        if (this.castleToodleActive && this.level.theme === 'castle') {
+        if (hasCastleGreeter) {
           this.marioX = targetStopX;
         }
         this.marioVx = 0;
@@ -709,6 +829,15 @@ export class GameEngine {
     if (this.marioState === 'castle_entered') {
       if (this.castleToodleActive) {
         this.castleToodleDialogueTimer++;
+      }
+      if (this.castlePrincessActive) {
+        this.castlePrincessDialogueTimer++;
+        if (this.castlePrincessDialogueTimer % 18 === 4) {
+          this.spawnFemboyHeartParticle(
+            this.castlePrincessX + 4 + (Math.random() * 14 - 7),
+            this.castlePrincessY - 4
+          );
+        }
       }
 
       if (this.localStageCleared) {
@@ -736,20 +865,23 @@ export class GameEngine {
 
         // Establish post-countdown delay once time points reach 0
         if (this.stats.time === 0) {
-          this.stageClearDelayTimer = this.castleToodleActive ? 210 : 90; // ~3.5s on castle stages to read Toodle's dialogue
+          this.stageClearDelayTimer = this.castlePrincessActive ? 260 : this.castleToodleActive ? 210 : 90;
         }
         return;
       }
 
       // If time was already 0 before entering castle, wait once
       if (this.stageClearDelayTimer === 0) {
-        this.stageClearDelayTimer = this.castleToodleActive ? 210 : 60;
+        this.stageClearDelayTimer = this.castlePrincessActive ? 260 : this.castleToodleActive ? 210 : 60;
         return;
       }
 
+      const activeDialogueTimer = this.castlePrincessActive
+        ? this.castlePrincessDialogueTimer
+        : this.castleToodleDialogueTimer;
       const skipPressed =
-        this.castleToodleActive &&
-        this.castleToodleDialogueTimer > 75 &&
+        (this.castleToodleActive || this.castlePrincessActive) &&
+        activeDialogueTimer > 75 &&
         ((this.controls.jump && !this.prevControls.jump) || (this.controls.run && !this.prevControls.run));
       if (skipPressed) {
         this.stageClearDelayTimer = 0;
@@ -941,6 +1073,44 @@ export class GameEngine {
     if (isUnderwater && this.marioY < 24) {
       this.marioY = 24;
       if (this.marioVy < 0) this.marioVy = 0;
+    }
+
+    // Prevent passing Cave / Ghost House / Castle stages on top of the ceiling or jumping excessively high
+    // (Exempt when Developer Mode / Cheat Mode is active)
+    if (!this.isCheatActive && !this.isStageClear) {
+      const minTX = Math.max(0, Math.min(this.level.width - 1, Math.floor((this.marioX + 1) / GameEngine.TILE_SIZE)));
+      const maxTX = Math.max(0, Math.min(this.level.width - 1, Math.floor((this.marioX + 14) / GameEngine.TILE_SIZE)));
+      const inCeilingTheme =
+        this.level.theme === 'underground' ||
+        this.level.theme === 'ghost_house' ||
+        this.level.theme === 'castle';
+      const overlapsCeilingSpan =
+        inCeilingTheme && (Boolean(this.ceilingTileColumns[minTX]) || Boolean(this.ceilingTileColumns[maxTX]));
+      const jumpedTooHigh =
+        (overlapsCeilingSpan && this.marioY < -2) ||
+        ((this.level.theme === 'underground' || this.level.theme === 'ghost_house') && this.marioY < -56) ||
+        this.marioY < -80;
+
+      if (jumpedTooHigh) {
+        if (this.isEditorImmortality) {
+          this.marioY = overlapsCeilingSpan ? 34 : 2;
+          this.marioVy = 2.5;
+          this.marioInvulnerableTimer = Math.max(this.marioInvulnerableTimer, 45);
+          this.sound.playPipe();
+          this.particleSystem.emitScoreText('IMORTAL', this.marioX, Math.max(20, this.marioY), {
+            maxLife: 30,
+            vy: -0.9,
+          });
+          return;
+        }
+        this.marioY = Math.max(0, this.marioY);
+        this.particleSystem.emitScoreText('ALTO DEMAIS!', this.marioX - 18, Math.max(20, this.marioY + 12), {
+          maxLife: 50,
+          vy: -0.8,
+        });
+        this.killMario(false);
+        return;
+      }
     }
 
     // Animation frames update
@@ -1142,6 +1312,78 @@ export class GameEngine {
         break;
       }
     }
+
+    // One-way top landing check on floating platforms
+    this.ridingPlatformId = null;
+    if (!this.marioGrounded && this.marioVy >= 0 && this.floatingPlatforms.length > 0) {
+      const mLeft = this.marioX + 1;
+      const mRight = mLeft + width;
+      for (const plat of this.floatingPlatforms) {
+        if (mRight > plat.x + 1 && mLeft < plat.x + plat.width - 1) {
+          if (prevMarioY + height <= plat.prevY + 6 && this.marioY + height >= plat.y) {
+            const impactVy = this.marioVy;
+            this.marioY = plat.y - height;
+            this.marioVy = 0;
+            this.marioGrounded = true;
+            this.ridingPlatformId = plat.id;
+            this.stompComboCount = 0;
+
+            if (!wasGrounded && impactVy >= 1.5 && this.level.theme !== 'underwater') {
+              this.particleSystem.emitLandingDust(this.marioX + 8, this.marioY + height, false);
+            }
+            if (
+              this.marioPower === 'femboy' &&
+              !wasGrounded &&
+              impactVy >= 0.9 &&
+              !this.isStageClear &&
+              this.marioState !== 'dead'
+            ) {
+              this.spawnFemboyGroundFireballs();
+            }
+            if (this.marioState === 'jumping' || this.marioState === 'falling') {
+              this.marioState = Math.abs(this.marioVx) > 0.1 ? 'running' : 'idle';
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  private updateFloatingPlatforms() {
+    if (this.floatingPlatforms.length === 0) {
+      this.ridingPlatformId = null;
+      return;
+    }
+
+    let carriedPlat: (typeof this.floatingPlatforms)[number] | null = null;
+    for (const plat of this.floatingPlatforms) {
+      plat.prevX = plat.x;
+      plat.prevY = plat.y;
+      plat.timer += plat.speed;
+      const offset = Math.sin(plat.timer) * plat.range;
+      plat.x = plat.axis === 'horizontal' ? plat.originX + offset : plat.originX;
+      plat.y = plat.axis === 'vertical' || plat.axis === 'bob' ? plat.originY + offset : plat.originY;
+      plat.dx = plat.x - plat.prevX;
+      plat.dy = plat.y - plat.prevY;
+      if (this.ridingPlatformId === plat.id) {
+        carriedPlat = plat;
+      }
+    }
+
+    if (
+      carriedPlat &&
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pole_slide' &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered'
+    ) {
+      this.marioX += carriedPlat.dx;
+      this.marioY += carriedPlat.dy;
+      const maxMarioX = this.level.width * GameEngine.TILE_SIZE - 16;
+      if (this.marioX < 0) this.marioX = 0;
+      if (this.marioX > maxMarioX) this.marioX = maxMarioX;
+    }
   }
 
   private hitBlock(tx: number, ty: number, block: BlockTile) {
@@ -1195,7 +1437,7 @@ export class GameEngine {
       return;
     }
 
-    if (block.type === 'brick' || block.type === 'underground_brick') {
+    if (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'ghost_brick') {
       if (block.coinsLeft && block.coinsLeft > 0) {
         block.coinsLeft--;
         this.spawnCoin(tx * GameEngine.TILE_SIZE, (ty - 1) * GameEngine.TILE_SIZE);
@@ -1424,6 +1666,71 @@ export class GameEngine {
       if (e.x > this.cameraX + GameEngine.NES_WIDTH + 40 || e.x < this.cameraX - 40) {
         if (e.type === 'bullet_bill' && e.x < this.cameraX - 40) {
           e.alive = false;
+        }
+        return;
+      }
+
+      // Boo (Haunted Ghost AI: freezes & blushes when Mario looks at it; floats toward Mario when facing away)
+      if (e.type === 'boo') {
+        e.stateTimer++;
+        const speedMult = this.level.enemySpeedMultiplier ?? 1;
+        const marioCenterX = this.marioX + 8;
+        const marioCenterY = this.marioY + this.getMarioHeight() / 2 - 4;
+        const booCenterX = e.x + 8;
+        const booCenterY = e.y + 8;
+        const dx = marioCenterX - booCenterX;
+        const dy = marioCenterY - booCenterY;
+
+        const marioLookingAtBoo =
+          (dx > 1 && this.marioFacing === 'left') ||
+          (dx < -1 && this.marioFacing === 'right');
+
+        e.facing = dx >= 0 ? 'right' : 'left';
+
+        if (marioLookingAtBoo) {
+          e.vx = 0;
+          e.vy = 0;
+          e.animFrame = 1; // Shy blush covering eyes
+        } else {
+          e.animFrame = 0; // Menacing chase
+          const dist = Math.hypot(dx, dy) || 1;
+          const speed = 0.78 * speedMult;
+          e.vx = (dx / dist) * speed;
+          e.vy = (dy / dist) * speed + Math.sin(e.stateTimer * 0.1) * 0.16;
+          e.x += e.vx;
+          e.y += e.vy;
+        }
+
+        const canCollideBoo =
+          this.marioState !== 'dead' &&
+          this.marioState !== 'pipe_entering' &&
+          this.marioState !== 'pipe_exiting' &&
+          this.marioState !== 'pole_slide' &&
+          this.marioState !== 'castle_walk' &&
+          this.marioState !== 'castle_entered';
+
+        if (canCollideBoo) {
+          const booHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: 12, height: 12 };
+          if (this.rectsIntersect(marioBox, booHitbox)) {
+            this.marioHitEnemy(e, false);
+          }
+        }
+        return;
+      }
+
+      // Dry Bones crumbled bone-pile state: rests harmlessly then shakes & revives
+      if (e.type === 'dry_bones' && e.state === 'shell_idle') {
+        e.stateTimer--;
+        if (e.stateTimer <= 0) {
+          const speedMult = this.level.enemySpeedMultiplier ?? 1;
+          const dir: -1 | 1 = this.marioX >= e.x ? 1 : -1;
+          e.state = 'walk';
+          e.height = 24;
+          e.y -= 8;
+          e.facing = dir > 0 ? 'right' : 'left';
+          e.vx = EnemySpawnManager.getInitialVelocity('dry_bones', speedMult, dir);
+          this.sound.playBump();
+          this.spawnEnemyDefeatParticles(e.x, e.y + 8, 'dry_bones');
         }
         return;
       }
@@ -1736,8 +2043,8 @@ export class GameEngine {
         }
       }
 
-      // Red Koopa smart ledge-turn AI: stays on platforms instead of walking blindly into pits
-      if (e.type === 'red_koopa' && e.state === 'walk' && enemyGrounded) {
+      // Red Koopa & Dry Bones smart ledge-turn AI: stays on platforms instead of walking blindly into pits
+      if ((e.type === 'red_koopa' || e.type === 'dry_bones') && e.state === 'walk' && enemyGrounded) {
         const probeX = e.vx > 0 ? e.x + e.width + 2 : e.x - 2;
         const probeTX = Math.floor(probeX / GameEngine.TILE_SIZE);
         const footTY = Math.floor((e.y + e.height + 2) / GameEngine.TILE_SIZE);
@@ -1791,7 +2098,8 @@ export class GameEngine {
             other.type === 'fast_cheep' ||
             other.type === 'bullet_bill' ||
             other.type === 'paratroopa' ||
-            other.type === 'hammer_bro'
+            other.type === 'hammer_bro' ||
+            other.type === 'boo'
           ) {
             continue;
           }
@@ -1843,7 +2151,7 @@ export class GameEngine {
         this.marioState !== 'castle_walk' &&
         this.marioState !== 'castle_entered';
 
-      if (canCollideWithMario) {
+      if (canCollideWithMario && !(e.type === 'dry_bones' && e.state === 'shell_idle')) {
         const currentMarioBox = this.getMarioHitbox();
         const enemyHitbox: Rect = { x: e.x + 1, y: e.y + 1, width: e.width - 2, height: e.height - 1 };
         if (this.rectsIntersect(currentMarioBox, enemyHitbox)) {
@@ -1985,9 +2293,28 @@ export class GameEngine {
           this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
           this.awardStompCombo(e.x, e.y);
         }
+      } else if (e.type === 'dry_bones') {
+        if (e.state === 'walk') {
+          this.triggerLargeEnemyImpactShake(e);
+          e.state = 'shell_idle';
+          e.stateTimer = 210; // ~3.5s before bones reassemble
+          e.vx = 0;
+          e.height = 16;
+          this.sound.playStomp();
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
+          this.marioVy = -6.0;
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+          this.awardStompCombo(e.x, e.y);
+        }
+      } else {
+        // Non-stompable enemies (e.g., Boo, Bowser) still damage Mario
+        this.damageMario();
       }
     } else {
       // Hit from side
+      if (e.type === 'dry_bones' && e.state === 'shell_idle') {
+        return;
+      }
       if ((e.type === 'koopa' || e.type === 'red_koopa') && e.state === 'shell_idle') {
         // Kick shell horizontally
         e.state = 'shell_moving';
@@ -2352,6 +2679,24 @@ export class GameEngine {
       this.enemies.forEach(e => {
         if (e.alive && !fb.exploding && this.rectsIntersect(fbBox, { x: e.x, y: e.y, width: e.width, height: e.height })) {
           fb.exploding = true;
+          if (e.type === 'boo') {
+            this.sound.playBump();
+            return;
+          }
+          if (e.type === 'dry_bones') {
+            if (e.state === 'walk') {
+              e.state = 'shell_idle';
+              e.stateTimer = 210;
+              e.vx = 0;
+              e.height = 16;
+              this.sound.playKick();
+              this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+              this.addScore(200, e.x, e.y);
+            } else {
+              e.stateTimer = 210;
+            }
+            return;
+          }
           if (e.type === 'bowser') {
             e.hp = (e.hp ?? 5) - 1;
             e.hitFlashTimer = 10;
@@ -2481,12 +2826,22 @@ export class GameEngine {
     this.bridgeCollapseQueue = bridgeTiles;
     this.bridgeCollapseTimer = 0;
 
-    // Reveal Toodle waiting in the castle victory chamber
-    this.castleToodleActive = true;
-    this.castleToodleX = Math.max(axeTX * GameEngine.TILE_SIZE + 44, this.level.castleX - 20);
-    this.castleToodleY = 13 * GameEngine.TILE_SIZE - 24;
-    this.castleToodleDialogueTimer = 0;
-    this.particleSystem.emitPowerUpSparkles(this.castleToodleX, this.castleToodleY - 8);
+    // Reveal Princesa Femboy on Final Castle (7-5) or Toodle on Worlds 1-6 castles
+    const greeterX = Math.max(axeTX * GameEngine.TILE_SIZE + 44, this.level.castleX - 20);
+    if (this.level.isFinalCastle) {
+      this.castlePrincessActive = true;
+      this.castlePrincessX = greeterX;
+      this.castlePrincessY = 13 * GameEngine.TILE_SIZE - 28;
+      this.castlePrincessDialogueTimer = 0;
+      this.particleSystem.emitPowerUpSparkles(this.castlePrincessX, this.castlePrincessY - 8);
+      this.spawnFemboyHeartParticle(this.castlePrincessX + 8, this.castlePrincessY - 10);
+    } else {
+      this.castleToodleActive = true;
+      this.castleToodleX = greeterX;
+      this.castleToodleY = 13 * GameEngine.TILE_SIZE - 24;
+      this.castleToodleDialogueTimer = 0;
+      this.particleSystem.emitPowerUpSparkles(this.castleToodleX, this.castleToodleY - 8);
+    }
 
     // Drop Bowser into the lava
     this.enemies.forEach(e => {
@@ -2973,7 +3328,7 @@ export class GameEngine {
     const hitTileY = Math.floor((this.marioY + 12) / GameEngine.TILE_SIZE);
     if (hitTileX >= 0 && hitTileX < this.level.width && hitTileY >= 0 && hitTileY < this.level.height) {
       const block = this.level.tiles[hitTileY][hitTileX];
-      if (block && (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'question')) {
+      if (block && (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'ghost_brick' || block.type === 'question')) {
         this.hitBlock(hitTileX, hitTileY, block);
         this.triggerScreenShake(2.0, 5);
       }
@@ -3172,11 +3527,41 @@ export class GameEngine {
       this.loadLevel(cloneLevelData(this.customLevelTemplate), true, false);
       return;
     }
+    if (this.level.isFinalCastle) {
+      this.isCampaignVictory = true;
+      this.isStageClear = false;
+      this.syncHighScore(true);
+      this.persistRunScoreToRanking();
+      this.sound.stopMusic();
+      this.sound.playStageClear();
+      return;
+    }
+    if (
+      this.gameMode === 'singleplayer' &&
+      this.level.singleplayerWorld !== undefined &&
+      this.level.singleplayerStage !== undefined
+    ) {
+      const currW = this.level.singleplayerWorld;
+      const currS = this.level.singleplayerStage;
+      if (currS < SINGLEPLAYER_STAGES_PER_WORLD) {
+        this.loadLevel(createSingleplayerLevel(currW, currS + 1), true, false);
+      } else if (currW < SINGLEPLAYER_WORLD_COUNT) {
+        this.loadLevel(createSingleplayerLevel(currW + 1, 1), true, false);
+      } else {
+        this.isCampaignVictory = true;
+        this.isStageClear = false;
+        this.syncHighScore(true);
+        this.persistRunScoreToRanking();
+      }
+      return;
+    }
     if (this.level.id === 'world-1-1') {
       this.loadLevel(createWorld1_2(), true, false);
     } else if (this.level.id === 'world-1-2') {
       this.loadLevel(createWorld2_2(), true, false);
     } else if (this.level.id === 'world-2-2') {
+      this.loadLevel(createWorldGhostHouse(), true, false);
+    } else if (this.level.id === 'world-ghost') {
       this.loadLevel(createWorld1_4(), true, false);
     } else if (this.level.id === 'world-1-4') {
       // After beating Castle 1-4, continue infinitely through Cycle 2+ (Overworld -> Caverna -> Água -> Castelo)
@@ -3297,12 +3682,68 @@ export class GameEngine {
     this.loadLevel(prepared, true, false);
   }
 
+  public startSingleplayerCampaign(world: number = 1, stage: number = 1) {
+    this.gameMode = 'singleplayer';
+    this.singleplayerWorld = Math.max(1, Math.min(SINGLEPLAYER_WORLD_COUNT, Math.floor(world)));
+    this.singleplayerStage = Math.max(1, Math.min(SINGLEPLAYER_STAGES_PER_WORLD, Math.floor(stage)));
+    this.isCampaignVictory = false;
+
+    this.isEditorImmortality = false;
+    this.infiniteLives = this.isCheatActive;
+
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
+
+    this.activeCheckpoint = null;
+    this.activatedCheckpointIndices.clear();
+
+    const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+    const topScore = getTopScore();
+    this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.runInitialHighScore = topScore;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.lastSavedRank = null;
+
+    const firstLevel = createSingleplayerLevel(this.singleplayerWorld, this.singleplayerStage);
+    this.stats = {
+      score: 0,
+      coins: 0,
+      world: firstLevel.name,
+      time: firstLevel.timeLimit,
+      lives: this.infiniteLives ? 99 : initialLives,
+      highScore: topScore,
+      difficulty: this.difficulty,
+      isNewHighScore: false,
+    };
+
+    this.isPaused = false;
+    this.isGameStarted = true;
+    this.endlessStage = 0;
+    this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
+    this.marioStarTimer = 0;
+    this.loadLevel(firstLevel, true, false);
+  }
+
   public restartGame() {
     if (this.level?.isCustom && this.customLevelTemplate) {
       this.playCustomLevel(this.customLevelTemplate, this.isEditorImmortality);
       return;
     }
 
+    if (this.gameMode === 'singleplayer') {
+      this.startSingleplayerCampaign(1, 1);
+      return;
+    }
+
+    this.isCampaignVictory = false;
     this.isEditorImmortality = false;
     this.infiniteLives = this.isCheatActive;
 
@@ -3349,6 +3790,10 @@ export class GameEngine {
 
   public exitToMainMenu() {
     this.customLevelTemplate = null;
+    this.gameMode = 'classic';
+    this.isCampaignVictory = false;
+    this.castleToodleActive = false;
+    this.castlePrincessActive = false;
     this.isEditorImmortality = false;
     this.infiniteLives = this.isCheatActive;
     this.isPaused = false;
@@ -3435,7 +3880,9 @@ export class GameEngine {
       type === 'coral' ||
       type === 'sea_ground' ||
       type === 'bridge' ||
-      type === 'castle_stone'
+      type === 'castle_stone' ||
+      type === 'ghost_floor' ||
+      type === 'ghost_brick'
     );
   }
 
@@ -3526,8 +3973,9 @@ export class GameEngine {
     // 2. Background Scenery (Clouds, Hills, Bushes, Seaweed & Water Surface)
     this.renderScenery(ctx);
 
-    // 3. Tilemap
+    // 3. Tilemap & Floating Platforms
     this.renderTiles(ctx);
+    this.renderFloatingPlatforms(ctx);
 
     // 4. Flagpole & Flag
     this.renderFlagpole(ctx);
@@ -3544,8 +3992,9 @@ export class GameEngine {
     // 8. Remote Players (Multiplayer by IP)
     this.renderRemotePlayers(ctx);
 
-    // 9. Toodle (Castle Victory Chamber)
+    // 9. Toodle / Princesa Femboy (Castle Victory Chamber)
     this.renderCastleToodle(ctx);
+    this.renderCastlePrincess(ctx);
 
     // 10. Mario / WazzimaGiygg (Local Player)
     this.renderMario(ctx);
@@ -3555,8 +4004,9 @@ export class GameEngine {
 
     ctx.restore();
 
-    // 12. Toodle Castle Dialogue Overlay + In-Canvas Pixel HUD
+    // 12. Castle Dialogue Overlays + In-Canvas Pixel HUD
     this.renderCastleToodleDialogue(ctx);
+    this.renderCastlePrincessDialogue(ctx);
     this.renderInCanvasHUD(ctx);
   }
 
@@ -3678,6 +4128,69 @@ export class GameEngine {
       return;
     }
 
+    if (this.level.theme === 'ghost_house') {
+      const flicker = Math.floor(Date.now() / 140) % 2;
+      const mistShift = Math.sin(Date.now() / 900) * 6;
+      this.sceneries.forEach(s => {
+        const sx = Math.round(s.x - camX);
+        if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+
+        if (s.type === 'ghost_window') {
+          // Moonlit Gothic Arched Window
+          ctx.fillStyle = '#24143c';
+          ctx.fillRect(sx - 2, s.y + 8, 28, 38);
+          ctx.beginPath();
+          ctx.arc(sx + 12, s.y + 10, 14, Math.PI, 0);
+          ctx.fill();
+          ctx.fillStyle = '#1f2858';
+          ctx.fillRect(sx + 1, s.y + 10, 22, 33);
+          ctx.beginPath();
+          ctx.arc(sx + 12, s.y + 10, 11, Math.PI, 0);
+          ctx.fill();
+          // Pale moon glow
+          ctx.fillStyle = '#c8d4ff';
+          ctx.beginPath();
+          ctx.arc(sx + 15, s.y + 12, 4, 0, Math.PI * 2);
+          ctx.fill();
+          // Window mullions
+          ctx.fillStyle = '#140822';
+          ctx.fillRect(sx + 11, s.y, 2, 44);
+          ctx.fillRect(sx + 1, s.y + 24, 22, 2);
+        } else if (s.type === 'ghost_chandelier') {
+          // Hanging Candle Chandelier
+          ctx.fillStyle = '#3c2a58';
+          ctx.fillRect(sx + 10, s.y, 2, 10);
+          ctx.fillRect(sx + 2, s.y + 10, 18, 3);
+          ctx.fillRect(sx + 2, s.y + 6, 2, 5);
+          ctx.fillRect(sx + 10, s.y + 4, 2, 7);
+          ctx.fillRect(sx + 18, s.y + 6, 2, 5);
+          // Flickering candle flames
+          ctx.fillStyle = '#f8d850';
+          ctx.fillRect(sx + 2, s.y + 3 + flicker, 2, 3);
+          ctx.fillRect(sx + 10, s.y + 1 + (1 - flicker), 2, 3);
+          ctx.fillRect(sx + 18, s.y + 3 + flicker, 2, 3);
+          ctx.fillStyle = 'rgba(248, 216, 80, 0.14)';
+          ctx.fillRect(sx - 2, s.y, 26, 16);
+        } else if (s.type === 'ghost_portrait') {
+          // Haunted Framed Painting
+          ctx.fillStyle = '#4a3260';
+          ctx.fillRect(sx, s.y, 20, 24);
+          ctx.fillStyle = '#1c102e';
+          ctx.fillRect(sx + 2, s.y + 2, 16, 20);
+          ctx.fillStyle = '#7868a0';
+          ctx.fillRect(sx + 6, s.y + 6, 8, 8);
+          ctx.fillStyle = '#f888b8';
+          ctx.fillRect(sx + 8, s.y + 9, 1, 1);
+          ctx.fillRect(sx + 11, s.y + 9, 1, 1);
+        } else if (s.type === 'ghost_mist') {
+          ctx.fillStyle = 'rgba(130, 88, 190, 0.18)';
+          ctx.fillRect(Math.round(sx + mistShift), s.y, 44, 12);
+          ctx.fillRect(Math.round(sx + 10 + mistShift), s.y - 4, 26, 6);
+        }
+      });
+      return;
+    }
+
     if (this.level.theme !== 'overworld') return;
 
     this.sceneries.forEach(s => {
@@ -3780,6 +4293,12 @@ export class GameEngine {
           case 'sea_ground':
             ctx.drawImage(this.atlas.tileSeaGround, screenX, screenY);
             break;
+          case 'ghost_floor':
+            ctx.drawImage(this.atlas.tileGhostFloor, screenX, screenY);
+            break;
+          case 'ghost_brick':
+            ctx.drawImage(this.atlas.tileGhostBrick, screenX, screenY);
+            break;
           case 'question':
             ctx.drawImage(this.atlas.tileQuestionFrames[qFrame], screenX, screenY);
             break;
@@ -3834,6 +4353,42 @@ export class GameEngine {
           }
         }
       }
+    }
+  }
+
+  private renderFloatingPlatforms(ctx: CanvasRenderingContext2D) {
+    if (this.floatingPlatforms.length === 0) return;
+    const camX = this.camera.renderX;
+    const pulse = (Math.sin(Date.now() / 180) + 1) * 0.5;
+
+    for (const plat of this.floatingPlatforms) {
+      const sx = Math.round(plat.x - camX);
+      const sy = Math.round(plat.y);
+      if (sx + plat.width < -16 || sx > GameEngine.NES_WIDTH + 16) continue;
+
+      // Spectral purple aura beneath platform
+      ctx.fillStyle = `rgba(168, 120, 255, ${(0.18 + pulse * 0.14).toFixed(2)})`;
+      ctx.fillRect(sx + 2, sy + plat.height, plat.width - 4, 4);
+      ctx.fillRect(sx + 6, sy + plat.height + 4, plat.width - 12, 2);
+
+      // Dark wood/stone haunted platform body
+      ctx.fillStyle = '#180c28';
+      ctx.fillRect(sx, sy, plat.width, plat.height);
+      ctx.fillStyle = '#483068';
+      ctx.fillRect(sx + 1, sy + 1, plat.width - 2, plat.height - 2);
+
+      // Top plank highlight
+      ctx.fillStyle = '#9070c8';
+      ctx.fillRect(sx + 1, sy + 1, plat.width - 2, 2);
+
+      // Plank seams & glowing rivets
+      ctx.fillStyle = '#241438';
+      for (let px = 12; px < plat.width - 4; px += 12) {
+        ctx.fillRect(sx + px, sy + 1, 1, plat.height - 2);
+      }
+      ctx.fillStyle = '#e8c8ff';
+      ctx.fillRect(sx + 3, sy + 4, 2, 2);
+      ctx.fillRect(sx + plat.width - 5, sy + 4, 2, 2);
     }
   }
 
@@ -3987,6 +4542,30 @@ export class GameEngine {
           const frame = e.animFrame === 0 ? this.atlas.bowser1 : this.atlas.bowser2;
           if (e.facing === 'right') {
             ctx.translate(ex + 24, e.y);
+            ctx.scale(-1, 1);
+            ctx.drawImage(frame, 0, 0);
+          } else {
+            ctx.drawImage(frame, ex, e.y);
+          }
+        }
+      } else if (e.type === 'boo') {
+        ctx.globalAlpha = 0.92;
+        const frame = e.animFrame === 1 ? this.atlas.booShy : this.atlas.booChase;
+        if (e.facing === 'right') {
+          ctx.translate(ex + 16, e.y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(frame, 0, 0);
+        } else {
+          ctx.drawImage(frame, ex, e.y);
+        }
+      } else if (e.type === 'dry_bones') {
+        if (e.state === 'shell_idle') {
+          const shakeX = e.stateTimer < 45 && Math.floor(e.stateTimer / 3) % 2 === 0 ? 1 : 0;
+          ctx.drawImage(this.atlas.dryBonesCrumbled, ex + shakeX, e.y + 8);
+        } else {
+          const frame = e.animFrame === 0 ? this.atlas.dryBonesWalk1 : this.atlas.dryBonesWalk2;
+          if (e.facing === 'right') {
+            ctx.translate(ex + 16, e.y);
             ctx.scale(-1, 1);
             ctx.drawImage(frame, 0, 0);
           } else {
@@ -4152,9 +4731,108 @@ export class GameEngine {
     ctx.restore();
   }
 
+  private renderCastlePrincess(ctx: CanvasRenderingContext2D) {
+    if (!this.castlePrincessActive) return;
+
+    const px = Math.round(this.castlePrincessX - this.camera.renderX);
+    if (px < -24 || px > GameEngine.NES_WIDTH + 24) return;
+
+    const isTalking = this.marioState === 'castle_entered';
+    const cheerStep = isTalking ? Math.floor(this.castlePrincessDialogueTimer / 14) % 2 : 0;
+    const bounceY = cheerStep === 1 ? -2 : 0;
+    const py = Math.round(this.castlePrincessY + bounceY);
+
+    const sprite = cheerStep === 1 ? this.atlas.princessFemboyHappySprite : this.atlas.princessFemboySprite;
+    ctx.drawImage(sprite, px, py);
+  }
+
+  private renderCastlePrincessDialogue(ctx: CanvasRenderingContext2D) {
+    if (!this.castlePrincessActive || this.marioState !== 'castle_entered') return;
+
+    const boxX = 10;
+    const boxY = 60;
+    const boxW = GameEngine.NES_WIDTH - 20; // 236px
+    const boxH = 62;
+
+    const princessScreenX = Math.round(this.castlePrincessX - this.camera.renderX) + 8;
+    const pointerX = Math.max(boxX + 16, Math.min(boxX + boxW - 24, princessScreenX));
+
+    ctx.save();
+
+    // NES double-bordered dialogue panel with pastel pink royal accent
+    ctx.fillStyle = 'rgba(20, 6, 26, 0.95)';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
+
+    ctx.strokeStyle = '#ff66b8';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 3, boxY + 3, boxW - 6, boxH - 6);
+
+    // Speech tail pointing toward Princesa Femboy
+    ctx.fillStyle = 'rgba(20, 6, 26, 0.95)';
+    ctx.beginPath();
+    ctx.moveTo(pointerX - 6, boxY + boxH - 1);
+    ctx.lineTo(pointerX + 6, boxY + boxH - 1);
+    ctx.lineTo(pointerX, boxY + boxH + 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pointerX - 6, boxY + boxH);
+    ctx.lineTo(pointerX, boxY + boxH + 8);
+    ctx.lineTo(pointerX + 6, boxY + boxH);
+    ctx.stroke();
+
+    // Speaker badge: PRINCESA FEMBOY
+    ctx.fillStyle = '#d82878';
+    ctx.fillRect(boxX + 10, boxY - 6, 118, 11);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 10, boxY - 6, 118, 11);
+    ctx.font = '7px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffd6ee';
+    ctx.textAlign = 'left';
+    ctx.fillText('PRINCESA FEMBOY', boxX + 15, boxY + 2);
+
+    const heroName = this.playerCharacter === 'wazzima' ? 'WAZZIMAGIYGG' : 'MARIO';
+    const line1 = `OBRIGADO, ${heroName}!`;
+    const line2 = 'VOCÊ VENCEU OS 7 MUNDOS!';
+    const line3 = 'BEM-VINDO AO CASTELO FINAL!';
+    const fullChars = line1.length + line2.length + line3.length;
+    const revealedChars = Math.min(fullChars, Math.floor(this.castlePrincessDialogueTimer * 1.5));
+
+    const vis1 = line1.slice(0, revealedChars);
+    const rem1 = Math.max(0, revealedChars - line1.length);
+    const vis2 = line2.slice(0, rem1);
+    const rem2 = Math.max(0, rem1 - line2.length);
+    const vis3 = line3.slice(0, rem2);
+
+    ctx.font = '7px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    const centerX = GameEngine.NES_WIDTH / 2;
+
+    const drawTextLine = (text: string, y: number, color: string) => {
+      if (!text) return;
+      ctx.fillStyle = '#000000';
+      ctx.fillText(text, centerX + 1, y + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(text, centerX, y);
+    };
+
+    drawTextLine(vis1, boxY + 22, '#ff99d6');
+    drawTextLine(vis2, boxY + 37, '#fce078');
+    drawTextLine(vis3, boxY + 52, '#ffffff');
+
+    ctx.restore();
+  }
+
   private renderMario(ctx: CanvasRenderingContext2D) {
-    // Mario has entered the castle door - hidden from view inside (unless standing with Toodle in castle end)
-    if (this.marioState === 'castle_entered' && !this.castleToodleActive) {
+    // Mario has entered the castle door - hidden from view inside (unless standing with Toodle or Princesa Femboy)
+    if (this.marioState === 'castle_entered' && !this.castleToodleActive && !this.castlePrincessActive) {
       return;
     }
 

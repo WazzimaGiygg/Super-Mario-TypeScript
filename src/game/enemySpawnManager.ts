@@ -81,6 +81,8 @@ export class EnemySpawnManager {
       if (cycleNumber >= 2 || safeStage >= 3) {
         unlockedTypes.push('fast_cheep');
       }
+    } else if (theme === 'ghost_house') {
+      unlockedTypes.push('boo', 'dry_bones');
     } else {
       unlockedTypes.push('goomba', 'koopa', 'paratroopa');
       if (cycleNumber >= 2 || safeStage >= 3) {
@@ -141,6 +143,12 @@ export class EnemySpawnManager {
       case 'bowser':
         baseSpeed = 0.45;
         break;
+      case 'boo':
+        baseSpeed = 0.78;
+        break;
+      case 'dry_bones':
+        baseSpeed = 0.75;
+        break;
       default:
         baseSpeed = 0.7;
         break;
@@ -166,6 +174,10 @@ export class EnemySpawnManager {
       if (r < fastCheepWeight) return 'fast_cheep';
       if (r < fastCheepWeight + blooperWeight) return 'blooper';
       return 'cheep_cheep';
+    }
+
+    if (theme === 'ghost_house') {
+      return allowAerial && rand() < 0.55 ? 'boo' : 'dry_bones';
     }
 
     const r = rand();
@@ -226,7 +238,22 @@ export class EnemySpawnManager {
       };
     }
 
-    if (type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' || type === 'hammer_bro') {
+    if (type === 'boo') {
+      const floatRow = Math.max(3, Math.min(9, tyTile - 3 - Math.floor(rand() * 4)));
+      return {
+        type,
+        x: tx * 16,
+        y: floatRow * 16,
+      };
+    }
+
+    if (
+      type === 'koopa' ||
+      type === 'red_koopa' ||
+      type === 'paratroopa' ||
+      type === 'hammer_bro' ||
+      type === 'dry_bones'
+    ) {
       return {
         type,
         x: tx * 16,
@@ -357,7 +384,13 @@ export class EnemySpawnManager {
 
     const width = 16;
     const height =
-      type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' || type === 'hammer_bro' ? 24 : 16;
+      type === 'koopa' ||
+      type === 'red_koopa' ||
+      type === 'paratroopa' ||
+      type === 'hammer_bro' ||
+      type === 'dry_bones'
+        ? 24
+        : 16;
     const vx = EnemySpawnManager.getInitialVelocity(type, speedMult, -1);
 
     if (type === 'cheep_cheep' || type === 'fast_cheep' || type === 'blooper') {
@@ -384,7 +417,7 @@ export class EnemySpawnManager {
       };
     }
 
-    if (type === 'bullet_bill') {
+    if (type === 'bullet_bill' || type === 'boo') {
       const targetY = Math.max(56, Math.min(11 * tileSize, Math.round(marioY - 4 + (Math.random() - 0.5) * 28)));
       return {
         id: nextId(),
