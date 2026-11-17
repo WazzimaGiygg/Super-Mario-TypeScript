@@ -746,6 +746,15 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           case 'question_empty':
             sprite = atlas.tileQuestionEmpty;
             break;
+          case 'exclam_yellow':
+            sprite = atlas.tileExclamYellowActive;
+            break;
+          case 'yellow_switch':
+            sprite = atlas.tileYellowSwitch;
+            break;
+          case 'yellow_switch_pressed':
+            sprite = atlas.tileYellowSwitchPressed;
+            break;
           case 'hard_block':
             sprite = atlas.tileHardBlock;
             break;

@@ -2347,6 +2347,9 @@ const VALID_TILE_TYPES = new Set<TileType>([
   'axe',
   'ghost_floor',
   'ghost_brick',
+  'exclam_yellow',
+  'yellow_switch',
+  'yellow_switch_pressed',
 ]);
 
 const VALID_ITEM_CONTENTS = new Set<ItemContent>([

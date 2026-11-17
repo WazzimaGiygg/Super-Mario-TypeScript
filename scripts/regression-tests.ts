@@ -69,7 +69,18 @@ import {
   createEndlessLevel,
   createSingleplayerLevel,
 } from '../src/game/levels.ts';
-import { createSmwWikiWorldStage } from '../src/game/smwWorldMap.ts';
+import {
+  SMW_WIKIWORLD_NODES,
+  createSmwWikiWorldStage,
+  findSmwMapPath,
+  isSmwNodeUnlocked,
+  type SmwBetaProgress,
+} from '../src/game/smwWorldMap.ts';
+import {
+  isSmartTvUserAgent,
+  resolveTvRemoteAction,
+  findBestSpatialCandidateIndex,
+} from '../src/game/smartTv.ts';
 import type { Enemy, Item } from '../src/game/types.ts';
 
 function stepEngine(engine: GameEngine, frames: number, deltaMs = 16.67) {
@@ -668,14 +679,190 @@ async function runMultiplayerCompatibilityTests() {
   }
 }
 
+async function runSmartTvAdaptationTests() {
+  console.log('\n[7/7] Adaptação para Smart TV & Controle Remoto (R0.15.0.6L.4)');
+
+  await test('Detecção de navegador Smart TV (Tizen, WebOS, Android TV, Fire TV, Roku) sem falsos positivos', () => {
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36'), true);
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36'), true);
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (Linux; Android 11; SHIELD Android TV) AppleWebKit/537.36'), true);
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (Linux; Android 9; AFTMM) AppleWebKit/537.36'), true);
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'), false);
+    assert.equal(isSmartTvUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'), false);
+  });
+
+  await test('Mapeamento de teclas de controle remoto de TV preservando teclado clássico no PC', () => {
+    // OK / Select / DPAD_CENTER / ColorF0Red -> Jump + Confirm
+    assert.ok(resolveTvRemoteAction({ code: 'Select', key: 'Select' }, { smartTvMode: true }).actions.includes('jump'));
+    assert.ok(resolveTvRemoteAction({ keyCode: 23 }, { smartTvMode: true }).actions.includes('jump'));
+    assert.ok(resolveTvRemoteAction({ keyCode: 403, key: 'ColorF0Red' }, { smartTvMode: true }).actions.includes('jump'));
+
+    // Run / Fire -> Blue/Green/Yellow/ChannelUp/Digit0
+    assert.ok(resolveTvRemoteAction({ keyCode: 406, key: 'ColorF3Blue' }, { smartTvMode: true }).actions.includes('run'));
+    assert.ok(resolveTvRemoteAction({ keyCode: 404, key: 'ColorF1Green' }, { smartTvMode: true }).actions.includes('run'));
+    assert.ok(resolveTvRemoteAction({ code: 'ChannelUp' }, { smartTvMode: true }).actions.includes('run'));
+    assert.ok(resolveTvRemoteAction({ code: 'Digit0' }, { smartTvMode: true }).actions.includes('run'));
+
+    // Back / Return (LG 461, Samsung 10009, BrowserBack) & Play/Pause (10252)
+    assert.equal(resolveTvRemoteAction({ keyCode: 461 }, { smartTvMode: true }).isBack, true);
+    assert.equal(resolveTvRemoteAction({ keyCode: 10009 }, { smartTvMode: true }).isBack, true);
+    assert.equal(resolveTvRemoteAction({ key: 'BrowserBack' }, { smartTvMode: true }).isBack, true);
+    assert.equal(resolveTvRemoteAction({ keyCode: 10252, key: 'MediaPlayPause' }, { smartTvMode: true }).isPause, true);
+
+    // ArrowUp jumps ONLY when Smart TV mode + jumpWithUp are active (preserves PC ArrowUp)
+    assert.equal(
+      resolveTvRemoteAction({ code: 'ArrowUp' }, { smartTvMode: false, jumpWithUp: true }).actions.includes('jump'),
+      false
+    );
+    assert.equal(
+      resolveTvRemoteAction({ code: 'ArrowUp' }, { smartTvMode: true, jumpWithUp: true }).actions.includes('jump'),
+      true
+    );
+  });
+
+  await test('Navegação espacial D-Pad entre botões de menu e overlays', () => {
+    const boxes = [
+      { id: 0, cx: 100, cy: 100, width: 120, height: 40 }, // Top-left
+      { id: 1, cx: 260, cy: 100, width: 120, height: 40 }, // Top-right
+      { id: 2, cx: 100, cy: 180, width: 120, height: 40 }, // Bottom-left
+      { id: 3, cx: 260, cy: 180, width: 120, height: 40 }, // Bottom-right
+    ];
+    assert.equal(findBestSpatialCandidateIndex(boxes[0], boxes, 'right'), 1);
+    assert.equal(findBestSpatialCandidateIndex(boxes[0], boxes, 'down'), 2);
+    assert.equal(findBestSpatialCandidateIndex(boxes[3], boxes, 'left'), 2);
+    assert.equal(findBestSpatialCandidateIndex(boxes[3], boxes, 'up'), 1);
+  });
+}
+
+async function runYellowSwitchPalaceTests() {
+  console.log('\n[8/8] Palácio Interruptor Amarelo & Blocos [!] Amarelos (RW0.15.0.1DM.4)');
+
+  await test('Ilha WikiWorldWeb possui Palácio Interruptor Amarelo ramificado e blocos [!] em W-1..W-5', () => {
+    const switchNode = SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-switch-yellow');
+    assert.ok(switchNode && switchNode.isSwitchPalace && switchNode.switchColor === 'yellow');
+
+    const baseProgress: SmwBetaProgress = {
+      clearedNodeIds: [],
+      selectedNodeId: 'wiki-1-overworld',
+      storySeen: true,
+      betaUnlockAll: false,
+      yellowSwitchUnlocked: false,
+    };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', baseProgress), false);
+
+    const afterW1: SmwBetaProgress = { ...baseProgress, clearedNodeIds: ['wiki-1-overworld'] };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', afterW1), true);
+    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', afterW1), true);
+
+    const branchWalk = findSmwMapPath('wiki-2-caverna', 'wiki-switch-yellow');
+    assert.equal(branchWalk.length, 2);
+
+    const switchStage = createSmwWikiWorldStage('wiki-switch-yellow');
+    const hasSwitchTile = switchStage.tiles.some(row => row.some(t => t?.type === 'yellow_switch'));
+    assert.equal(hasSwitchTile, true, 'Palácio Amarelo deve conter um tile yellow_switch');
+
+    for (const id of ['wiki-1-overworld', 'wiki-2-caverna', 'wiki-3-agua', 'wiki-4-mansao', 'wiki-5-castelo']) {
+      const stage = createSmwWikiWorldStage(id);
+      const count = stage.tiles.reduce(
+        (acc, row) => acc + row.filter(t => t?.type === 'exclam_yellow').length,
+        0
+      );
+      assert.ok(count >= 2, `${id} deve conter ao menos 2 blocos exclam_yellow (encontrados ${count})`);
+    }
+  });
+
+  await test('Bloco [!] Amarelo é intangível antes do Switch e sólido liberando Cogumelo após ativado', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+
+    // Coloca um bloco exclam_yellow no nível atual em (5, 9) acima do chão em row 13
+    const tx = 5;
+    const ty = 9;
+    engine.level.tiles[ty][tx] = { type: 'exclam_yellow', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+
+    // 1. Antes do interruptor: bloco não é sólido (Mario cai através dele)
+    engine.yellowSwitchUnlocked = false;
+    engine.marioX = tx * 16;
+    engine.marioY = (ty - 1) * 16 - 2;
+    engine.marioVy = 2.0;
+    engine.marioGrounded = false;
+    stepEngine(engine, 12);
+    assert.ok(engine.marioY > ty * 16, `Mario deve atravessar exclam_yellow bloqueado (y=${engine.marioY})`);
+    assert.equal(engine.level.tiles[ty][tx]?.type, 'exclam_yellow');
+
+    // 2. Após o interruptor: bloco é sólido e libera Super Cogumelo mesmo se Mario for Super/Fire
+    engine.yellowSwitchUnlocked = true;
+    engine.marioPower = 'fire';
+    engine.marioX = tx * 16;
+    engine.marioY = (ty + 1) * 16 + 2;
+    engine.marioVy = -5.0;
+    engine.marioGrounded = false;
+    engine.items = [];
+    engine.update(16.67);
+
+    assert.equal(engine.level.tiles[ty][tx]?.type, 'question_empty');
+    const spawnedMushroom = engine.items.find(it => it.type === 'mushroom');
+    assert.ok(spawnedMushroom, 'Bloco [!] Amarelo deve gerar um Super Cogumelo ao ser atingido');
+  });
+
+  await test('Pisar no Interruptor Amarelo achata o botão, libera blocos [!] e conclui o Palácio', () => {
+    const engine = createFreshEngine();
+    let activatedHook = false;
+    let completedNode = '';
+    engine.yellowSwitchUnlocked = false;
+    engine.onSmwYellowSwitchActivated = () => {
+      activatedHook = true;
+    };
+    engine.onSmwStageCompleted = nodeId => {
+      completedNode = nodeId;
+    };
+
+    const switchStage = createSmwWikiWorldStage('wiki-switch-yellow');
+    engine.startSmwStage(switchStage, false);
+    engine.intermissionTimer = 0;
+
+    // Localiza tile yellow_switch e posiciona Mario caindo sobre ele
+    let sx = -1;
+    let sy = -1;
+    for (let y = 0; y < engine.level.height; y++) {
+      for (let x = 0; x < engine.level.width; x++) {
+        if (engine.level.tiles[y][x]?.type === 'yellow_switch') {
+          sx = x;
+          sy = y;
+        }
+      }
+    }
+    assert.ok(sx >= 0 && sy >= 0);
+
+    engine.marioX = sx * 16;
+    engine.marioY = (sy - 1) * 16 - 2;
+    engine.marioVy = 4.0;
+    engine.marioGrounded = false;
+    engine.update(16.67);
+
+    assert.equal(engine.level.tiles[sy][sx]?.type, 'yellow_switch_pressed');
+    assert.equal(engine.yellowSwitchUnlocked, true);
+    assert.equal(engine.switchPalaceActivated, true);
+    assert.equal(activatedHook, true);
+    assert.equal(engine.isStageClear, true);
+
+    // Avança contagem de tempo até disparar onSmwStageCompleted('wiki-switch-yellow')
+    engine.stats.time = 0;
+    stepEngine(engine, 110);
+    assert.equal(completedNode, 'wiki-switch-yellow');
+  });
+}
+
 async function main() {
-  console.log('=== Super Mario TypeScript — Suíte de Testes de Regressão (R0.15.6J.3) ===');
+  console.log('=== Super Mario TypeScript — Suíte de Testes de Regressão (R0.15.6J.3 + R0.15.0.6L.4 + RW0.15.0.1DM.4) ===');
   await runPhysicsTests();
   await runPowerUpTests();
   await runScoringLivesAndGuardsTests();
   await runModesAndLevelsTests();
   await runFirebaseAndPolicyIntegrityTests();
   await runMultiplayerCompatibilityTests();
+  await runSmartTvAdaptationTests();
+  await runYellowSwitchPalaceTests();
   console.log(`\nResultado final: ${passed} testes aprovados, 0 falhas.`);
 }
 

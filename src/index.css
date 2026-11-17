@@ -18,3 +18,15 @@
 .font-arcade {
   font-family: 'Press Start 2P', monospace, sans-serif;
 }
+
+/* Clear 10-foot TV focus indicator for D-Pad / keyboard remote navigation */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(251, 191, 36, 0.28);
+}
+

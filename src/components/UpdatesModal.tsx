@@ -20,6 +20,26 @@ interface UpdateEntry {
 
 const GAME_UPDATES: UpdateEntry[] = [
   {
+    version: 'RW0.15.0.1DM.4',
+    label: 'World · Switch',
+    title: 'Palácio do Interruptor Amarelo & Blocos [!] Amarelos (Ilha WikiWorldWeb)',
+    items: [
+      'Adicionada a fase Palácio Interruptor Amarelo conectada à Ilha WikiWorldWeb após W-1 (Overworld), com santuário próprio no mapa do Overworld.',
+      'Pisar no Interruptor Amarelo gigante no final do Palácio ativa permanentemente todos os Blocos [!] Amarelos nas fases da ilha.',
+      'Antes da ativação, os Blocos [!] aparecem como contornos pontilhados intangíveis; após ativar o interruptor, tornam-se blocos dourados sólidos que liberam Super Cogumelos ao serem atingidos.',
+    ],
+  },
+  {
+    version: 'R0.15.0.6L.4',
+    label: 'Smart TV',
+    title: 'Adaptação de Jogabilidade para Controles Remotos de Smart TV',
+    items: [
+      'Novo Modo Smart TV (detecção automática em navegadores de TV ou ativação manual na Tela Inicial e em Configurações) com margem anti-corte (overscan) e destaque visual de foco.',
+      'Suporte completo às teclas de controles remotos (Setas / 4·6·2·8, OK / Enter / Select / DPAD_CENTER, Voltar / Return Tizen e WebOS, Botões Coloridos Vermelho/Verde/Amarelo/Azul, Canal +/- e Play/Pause).',
+      'Navegação espacial D-Pad pelos menus (Tela Inicial, Pausa, Fim de Jogo, Overworld e Modais) e opção de Pular com Seta ▲ ou Corrida Automática na TV para controles simples de 5 botões.',
+    ],
+  },
+  {
     version: 'R0.15.6J.3',
     label: 'Compatibilidade',
     title: 'Política de Preservação, Segurança Firebase & Suíte de Regressão',

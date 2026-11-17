@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LevelData } from './types.ts';
+import { BlockTile, LevelData } from './types.ts';
 import {
   createSingleplayerLevel,
   createWorldGhostHouse,
@@ -26,6 +26,9 @@ export interface SmwMapNode {
   mapX: number;
   mapY: number;
   isCastle?: boolean;
+  isSwitchPalace?: boolean;
+  switchColor?: 'yellow';
+  unlocksAfterNodeId?: string;
 }
 
 export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
@@ -48,6 +51,7 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     theme: 'underground',
     mapX: 34,
     mapY: 41,
+    unlocksAfterNodeId: 'wiki-1-overworld',
   },
   {
     id: 'wiki-3-agua',
@@ -58,6 +62,7 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     theme: 'underwater',
     mapX: 51,
     mapY: 66,
+    unlocksAfterNodeId: 'wiki-2-caverna',
   },
   {
     id: 'wiki-4-mansao',
@@ -68,6 +73,7 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     theme: 'ghost_house',
     mapX: 68,
     mapY: 38,
+    unlocksAfterNodeId: 'wiki-3-agua',
   },
   {
     id: 'wiki-5-castelo',
@@ -79,10 +85,26 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     mapX: 85,
     mapY: 53,
     isCastle: true,
+    unlocksAfterNodeId: 'wiki-4-mansao',
+  },
+  {
+    id: 'wiki-switch-yellow',
+    order: 5,
+    code: 'PA',
+    title: 'Palácio Interruptor Amarelo',
+    subtitle: 'Ative o interruptor amarelo para liberar blocos [!] com cogumelos',
+    theme: 'underground',
+    mapX: 29,
+    mapY: 72,
+    isSwitchPalace: true,
+    switchColor: 'yellow',
+    unlocksAfterNodeId: 'wiki-1-overworld',
   },
 ];
 
 export interface SmwPathSegment {
+  fromId: string;
+  toId: string;
   fromOrder: number;
   toOrder: number;
   p0: [number, number];
@@ -93,6 +115,8 @@ export interface SmwPathSegment {
 
 export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
   {
+    fromId: 'wiki-1-overworld',
+    toId: 'wiki-2-caverna',
     fromOrder: 0,
     toOrder: 1,
     p0: [16, 64],
@@ -101,6 +125,8 @@ export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
     p1: [34, 41],
   },
   {
+    fromId: 'wiki-2-caverna',
+    toId: 'wiki-3-agua',
     fromOrder: 1,
     toOrder: 2,
     p0: [34, 41],
@@ -109,6 +135,8 @@ export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
     p1: [51, 66],
   },
   {
+    fromId: 'wiki-3-agua',
+    toId: 'wiki-4-mansao',
     fromOrder: 2,
     toOrder: 3,
     p0: [51, 66],
@@ -117,12 +145,24 @@ export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
     p1: [68, 38],
   },
   {
+    fromId: 'wiki-4-mansao',
+    toId: 'wiki-5-castelo',
     fromOrder: 3,
     toOrder: 4,
     p0: [68, 38],
     c1: [77, 36],
     c2: [77, 54],
     p1: [85, 53],
+  },
+  {
+    fromId: 'wiki-1-overworld',
+    toId: 'wiki-switch-yellow',
+    fromOrder: 0,
+    toOrder: 5,
+    p0: [16, 64],
+    c1: [19, 71],
+    c2: [24, 73],
+    p1: [29, 72],
   },
 ];
 
@@ -159,10 +199,213 @@ export function evaluateSmwPathSegment(
   return { x, y, dx, dy };
 }
 
+export interface SmwWalkStep {
+  seg: SmwPathSegment;
+  reverse: boolean;
+}
+
+export function findSmwMapPath(fromNodeId: string, toNodeId: string): SmwWalkStep[] {
+  if (fromNodeId === toNodeId) return [];
+
+  const queue: { nodeId: string; steps: SmwWalkStep[] }[] = [{ nodeId: fromNodeId, steps: [] }];
+  const visited = new Set<string>([fromNodeId]);
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    for (const seg of SMW_PATH_SEGMENTS) {
+      let nextId: string | null = null;
+      let reverse = false;
+      if (seg.fromId === curr.nodeId) {
+        nextId = seg.toId;
+        reverse = false;
+      } else if (seg.toId === curr.nodeId) {
+        nextId = seg.fromId;
+        reverse = true;
+      }
+      if (!nextId || visited.has(nextId)) continue;
+      const nextSteps = [...curr.steps, { seg, reverse }];
+      if (nextId === toNodeId) return nextSteps;
+      visited.add(nextId);
+      queue.push({ nodeId: nextId, steps: nextSteps });
+    }
+  }
+
+  return [];
+}
+
+function makeTile(type: BlockTile['type'], content: BlockTile['content'] = 'none'): BlockTile {
+  return {
+    type,
+    content,
+    bumpOffset: 0,
+    bumpVel: 0,
+  };
+}
+
+function placeYellowExclamBlocks(level: LevelData, targetCols: number[], preferredY: number = 9): LevelData {
+  const maxSafeCol = level.width - 14;
+  for (const col of targetCols) {
+    let placed = false;
+    const colOffsets = [0, 1, -1, 2, -2, 3, -3, 4, -4];
+    const rowCandidates = [preferredY, 9, 10, 8];
+
+    for (const y of rowCandidates) {
+      if (placed) break;
+      if (y < 4 || y > 10) continue;
+      for (const dx of colOffsets) {
+        const x = col + dx;
+        if (x < 4 || x >= maxSafeCol) continue;
+        const curr = level.tiles[y]?.[x];
+        const above = level.tiles[y - 1]?.[x];
+        const below1 = level.tiles[y + 1]?.[x];
+        const below2 = level.tiles[y + 2]?.[x];
+        const hasFloorSupport = Boolean(
+          level.tiles[13]?.[x] || level.tiles[14]?.[x] || level.tiles[12]?.[x]
+        );
+        if (
+          curr === null &&
+          above === null &&
+          below1 === null &&
+          below2 === null &&
+          hasFloorSupport
+        ) {
+          level.tiles[y][x] = makeTile('exclam_yellow', 'mushroom');
+          placed = true;
+          break;
+        }
+      }
+    }
+  }
+  return level;
+}
+
+export function createYellowSwitchPalaceStage(): LevelData {
+  const width = 90;
+  const height = 15;
+  const tiles: (BlockTile | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
+
+  // Enclosed golden palace ceiling & solid stone/gold floor
+  for (let x = 0; x < width; x++) {
+    tiles[0][x] = makeTile('hard_block');
+    tiles[1][x] = makeTile('hard_block');
+    const isLavaPool = (x >= 44 && x <= 45) || (x >= 58 && x <= 59);
+    if (isLavaPool) {
+      tiles[13][x] = makeTile('lava');
+      tiles[14][x] = makeTile('lava');
+    } else {
+      tiles[13][x] = makeTile('hard_block');
+      tiles[14][x] = makeTile('hard_block');
+    }
+  }
+
+  // Left and right palace chamber walls
+  for (let y = 2; y <= 12; y++) {
+    tiles[y][0] = makeTile('hard_block');
+    tiles[y][1] = makeTile('hard_block');
+    tiles[y][width - 3] = makeTile('hard_block');
+    tiles[y][width - 2] = makeTile('hard_block');
+    tiles[y][width - 1] = makeTile('hard_block');
+  }
+
+  // Section 1: Welcome showcase (locked Yellow [!] outline + Mushroom Question block)
+  tiles[9][9] = makeTile('exclam_yellow', 'mushroom');
+  tiles[9][13] = makeTile('question', 'mushroom');
+  tiles[9][14] = makeTile('brick');
+  tiles[9][15] = makeTile('brick');
+
+  // Section 2: Iconic SMW Switch Palace Coin & Brick platform room
+  for (let x = 22; x <= 36; x++) {
+    tiles[10][x] = makeTile('hard_block');
+  }
+  tiles[6][29] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 5 };
+  tiles[6][28] = makeTile('brick');
+  tiles[6][30] = makeTile('brick');
+
+  // Section 3: Golden bridges & stepped blocks over two small lava pools
+  tiles[10][44] = makeTile('brick');
+  tiles[10][45] = makeTile('brick');
+  tiles[9][50] = makeTile('exclam_yellow', 'mushroom');
+
+  tiles[11][54] = makeTile('hard_block');
+  tiles[11][55] = makeTile('hard_block');
+  tiles[10][56] = makeTile('hard_block');
+  tiles[10][57] = makeTile('hard_block');
+  tiles[11][60] = makeTile('hard_block');
+  tiles[11][61] = makeTile('hard_block');
+
+  // Section 4: Grand Altar of the Giant Yellow Switch
+  tiles[12][68] = makeTile('hard_block');
+  tiles[12][69] = makeTile('hard_block');
+  tiles[11][70] = makeTile('hard_block');
+  for (let x = 71; x <= 82; x++) {
+    tiles[11][x] = makeTile('hard_block');
+    tiles[12][x] = makeTile('hard_block');
+  }
+  // Pillars framing the Yellow Switch dais
+  for (let y = 3; y <= 10; y++) {
+    tiles[y][83] = makeTile('hard_block');
+  }
+  // Giant Yellow Switch Button atop the altar!
+  tiles[10][77] = makeTile('yellow_switch');
+
+  // Decorative floating coins across the Switch Palace (classic SMW coin shower feel)
+  const coins: { x: number; y: number }[] = [];
+  for (let x = 5; x <= 8; x++) {
+    coins.push({ x: x * 16, y: 11 * 16 });
+  }
+  for (let x = 24; x <= 34; x++) {
+    if (x >= 28 && x <= 30) continue;
+    coins.push({ x: x * 16, y: 7 * 16 });
+    coins.push({ x: x * 16, y: 8 * 16 });
+  }
+  coins.push({ x: 44 * 16, y: 8 * 16 }, { x: 45 * 16, y: 8 * 16 });
+  coins.push({ x: 58 * 16, y: 8 * 16 }, { x: 59 * 16, y: 8 * 16 });
+  // Celebratory crown of coins above the Yellow Switch
+  coins.push(
+    { x: 75 * 16, y: 8 * 16 },
+    { x: 76 * 16, y: 7 * 16 },
+    { x: 77 * 16, y: 6 * 16 },
+    { x: 78 * 16, y: 7 * 16 },
+    { x: 79 * 16, y: 8 * 16 }
+  );
+
+  return {
+    id: 'smw-wiki-switch-yellow',
+    name: 'PA',
+    theme: 'underground',
+    width,
+    height,
+    tiles,
+    enemies: [
+      { type: 'goomba', x: 18 * 16, y: 12 * 16 },
+      { type: 'koopa', x: 25 * 16, y: 11 * 16 },
+      { type: 'koopa', x: 33 * 16, y: 11 * 16 },
+      { type: 'goomba', x: 39 * 16, y: 12 * 16 },
+      { type: 'paratroopa', x: 52 * 16, y: 8 * 16 },
+    ],
+    coins,
+    marioStart: { x: 3 * 16, y: 11 * 16 },
+    flagX: 999999,
+    castleX: 999999,
+    bgColor: '#241804',
+    timeLimit: 200,
+    biomeLabel: 'WIKIWORLDWEB · PALÁCIO AMARELO',
+    checkpoints: [{ x: 41 * 16, respawnPos: { x: 41 * 16, y: 11 * 16 } }],
+    smwNodeId: 'wiki-switch-yellow',
+    smwWorldName: SMW_WORLD_ISLAND_NAME,
+    isFinalCastle: false,
+  };
+}
+
 export function createSmwWikiWorldStage(nodeId: string): LevelData {
   switch (nodeId) {
-    case 'wiki-2-caverna':
-      return createSingleplayerLevel(2, 2, {
+    case 'wiki-switch-yellow':
+      return createYellowSwitchPalaceStage();
+
+    case 'wiki-2-caverna': {
+      const level = createSingleplayerLevel(2, 2, {
         seedOverride: 90202,
         id: 'smw-wiki-2',
         name: 'W-2',
@@ -171,9 +414,11 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      return placeYellowExclamBlocks(level, [22, 54, 92, 134], 9);
+    }
 
-    case 'wiki-3-agua':
-      return createSingleplayerLevel(2, 3, {
+    case 'wiki-3-agua': {
+      const level = createSingleplayerLevel(2, 3, {
         seedOverride: 90303,
         id: 'smw-wiki-3',
         name: 'W-3',
@@ -182,10 +427,12 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      return placeYellowExclamBlocks(level, [20, 52, 88, 122], 9);
+    }
 
     case 'wiki-4-mansao': {
       const ghostBase = cloneLevelData(createWorldGhostHouse());
-      return {
+      const level: LevelData = {
         ...ghostBase,
         id: 'smw-wiki-4',
         name: 'W-4',
@@ -194,10 +441,11 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       };
+      return placeYellowExclamBlocks(level, [22, 48, 78, 104], 9);
     }
 
-    case 'wiki-5-castelo':
-      return createSingleplayerLevel(3, 5, {
+    case 'wiki-5-castelo': {
+      const level = createSingleplayerLevel(3, 5, {
         seedOverride: 90505,
         id: 'smw-wiki-5',
         name: 'W-5',
@@ -206,10 +454,12 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      return placeYellowExclamBlocks(level, [20, 50, 82, 114], 9);
+    }
 
     case 'wiki-1-overworld':
-    default:
-      return createSingleplayerLevel(1, 1, {
+    default: {
+      const level = createSingleplayerLevel(1, 1, {
         seedOverride: 90101,
         id: 'smw-wiki-1',
         name: 'W-1',
@@ -218,6 +468,8 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      return placeYellowExclamBlocks(level, [18, 46, 84, 128], 9);
+    }
   }
 }
 
@@ -226,6 +478,7 @@ export interface SmwBetaProgress {
   selectedNodeId: string;
   storySeen: boolean;
   betaUnlockAll: boolean;
+  yellowSwitchUnlocked: boolean;
 }
 
 const SMW_PROGRESS_STORAGE_KEY = 'smb_smw_beta_v09_progress';
@@ -235,6 +488,7 @@ const DEFAULT_SMW_PROGRESS: SmwBetaProgress = {
   selectedNodeId: 'wiki-1-overworld',
   storySeen: false,
   betaUnlockAll: false,
+  yellowSwitchUnlocked: false,
 };
 
 export function loadSmwBetaProgress(): SmwBetaProgress {
@@ -255,6 +509,9 @@ export function loadSmwBetaProgress(): SmwBetaProgress {
       selectedNodeId,
       storySeen: Boolean(parsed.storySeen),
       betaUnlockAll: Boolean(parsed.betaUnlockAll),
+      yellowSwitchUnlocked: Boolean(
+        parsed.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
+      ),
     };
   } catch {
     return { ...DEFAULT_SMW_PROGRESS };
@@ -269,8 +526,17 @@ export function saveSmwBetaProgress(progress: SmwBetaProgress): void {
   }
 }
 
-export function isSmwNodeUnlocked(nodeOrder: number, progress: SmwBetaProgress): boolean {
-  if (progress.betaUnlockAll || nodeOrder === 0) return true;
-  const prevNode = SMW_WIKIWORLD_NODES[nodeOrder - 1];
-  return prevNode ? progress.clearedNodeIds.includes(prevNode.id) : true;
+export function isSmwNodeUnlocked(
+  nodeIdOrOrder: string | number,
+  progress: SmwBetaProgress
+): boolean {
+  if (progress.betaUnlockAll) return true;
+  const node =
+    typeof nodeIdOrOrder === 'string'
+      ? SMW_WIKIWORLD_NODES.find(n => n.id === nodeIdOrOrder)
+      : SMW_WIKIWORLD_NODES.find(n => n.order === nodeIdOrOrder) || SMW_WIKIWORLD_NODES[nodeIdOrOrder];
+  if (!node) return false;
+  if (node.order === 0 || !node.unlocksAfterNodeId) return true;
+  return progress.clearedNodeIds.includes(node.unlocksAfterNodeId);
 }
+

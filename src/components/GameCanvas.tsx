@@ -26,7 +26,8 @@ import {
   isSmwNodeUnlocked,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { isSmartTvUserAgent, moveFocusWithDpad, resolveTvRemoteAction } from '../game/smartTv.ts';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -77,12 +78,42 @@ export const GameCanvas: React.FC = () => {
   const wasNativeFullscreenRef = useRef(false);
   const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
+    const isTvUa = isSmartTvUserAgent();
     return (
       window.matchMedia('(pointer: coarse)').matches ||
-      navigator.maxTouchPoints > 0 ||
-      window.innerWidth < 768
+      (!isTvUa && (navigator.maxTouchPoints > 0 || window.innerWidth < 768))
     );
   });
+  const [smartTvMode, setSmartTvMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('smb_smart_tv_mode');
+      if (saved !== null) return saved === 'true';
+    } catch {
+      // ignore
+    }
+    return isSmartTvUserAgent();
+  });
+  const [smartTvJumpWithUp, setSmartTvJumpWithUp] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('smb_smart_tv_jump_up');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [smartTvAutoRun, setSmartTvAutoRun] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('smb_smart_tv_autorun') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const manualRunHeldRef = useRef(false);
+  const splashOverlayRef = useRef<HTMLDivElement | null>(null);
+  const pauseOverlayRef = useRef<HTMLDivElement | null>(null);
+  const gameOverOverlayRef = useRef<HTMLDivElement | null>(null);
+  const victoryOverlayRef = useRef<HTMLDivElement | null>(null);
+  const multiplayerOverOverlayRef = useRef<HTMLDivElement | null>(null);
   const [touchOverlayOnCanvas, setTouchOverlayOnCanvas] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('smb_touch_overlay_mode');
@@ -156,10 +187,10 @@ export const GameCanvas: React.FC = () => {
   // Keep mobile/touch device detection reactive across resize & orientation changes
   useEffect(() => {
     const checkMobile = () => {
+      const isTvUa = isSmartTvUserAgent();
       setIsMobileDevice(
         window.matchMedia('(pointer: coarse)').matches ||
-          navigator.maxTouchPoints > 0 ||
-          window.innerWidth < 768
+          (!isTvUa && (navigator.maxTouchPoints > 0 || window.innerWidth < 768))
       );
     };
     window.addEventListener('resize', checkMobile);
@@ -182,17 +213,74 @@ export const GameCanvas: React.FC = () => {
     });
   }, []);
 
+  const toggleSmartTvMode = useCallback(() => {
+    setSmartTvMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smb_smart_tv_mode', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSmartTvJumpWithUp = useCallback(() => {
+    setSmartTvJumpWithUp(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smb_smart_tv_jump_up', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSmartTvAutoRun = useCallback(() => {
+    setSmartTvAutoRun(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smb_smart_tv_autorun', String(next));
+      } catch {
+        // ignore
+      }
+      if (!next && engineRef.current && !manualRunHeldRef.current) {
+        engineRef.current.controls.run = false;
+        setControls(c => ({ ...c, run: false }));
+      }
+      return next;
+    });
+  }, []);
+
   // Initialize engine once
   useEffect(() => {
     const engine = new GameEngine();
     engine.stats.highScore = getTopScore();
+    engine.yellowSwitchUnlocked = loadSmwBetaProgress().yellowSwitchUnlocked;
+    engine.onSmwYellowSwitchActivated = () => {
+      setSmwProgress(prev => {
+        if (prev.yellowSwitchUnlocked) return prev;
+        const updated: SmwBetaProgress = {
+          ...prev,
+          yellowSwitchUnlocked: true,
+        };
+        saveSmwBetaProgress(updated);
+        return updated;
+      });
+    };
     engine.onSmwStageCompleted = (nodeId: string) => {
       setSmwProgress(prev => {
         const nextCleared = prev.clearedNodeIds.includes(nodeId)
           ? prev.clearedNodeIds
           : [...prev.clearedNodeIds, nodeId];
         const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
-        const nextNode = currNode ? SMW_WIKIWORLD_NODES[currNode.order + 1] : undefined;
+        const nextNode =
+          nodeId === 'wiki-switch-yellow'
+            ? SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-2-caverna')
+            : currNode && currNode.order < 4
+            ? SMW_WIKIWORLD_NODES[currNode.order + 1]
+            : undefined;
         const nextSelected =
           nextNode && !nextCleared.includes(nextNode.id)
             ? nextNode.id
@@ -201,6 +289,8 @@ export const GameCanvas: React.FC = () => {
           ...prev,
           clearedNodeIds: nextCleared,
           selectedNodeId: nextSelected,
+          yellowSwitchUnlocked:
+            prev.yellowSwitchUnlocked || nodeId === 'wiki-switch-yellow',
         };
         saveSmwBetaProgress(updated);
         return updated;
@@ -218,6 +308,7 @@ export const GameCanvas: React.FC = () => {
 
     return () => {
       engine.onSmwStageCompleted = undefined;
+      engine.onSmwYellowSwitchActivated = undefined;
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
@@ -341,42 +432,157 @@ export const GameCanvas: React.FC = () => {
     }
   }, [hasStarted]);
 
-  // Keyboard Event Listeners
+  // Auto-focus primary menu button for 10-foot Smart TV D-Pad navigation
   useEffect(() => {
+    if (!smartTvMode) return;
+    const timer = window.setTimeout(() => {
+      if (isSettingsOpen || isLeaderboardOpen || isCheatMenuOpen || isMultiplayerOpen || isUpdatesOpen || isLevelEditorOpen) {
+        const dialog = document.querySelector<HTMLElement>('.fixed.inset-0.z-50');
+        const firstBtn = dialog?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+        return;
+      }
+      if (!hasStarted) {
+        const firstBtn = splashOverlayRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+      } else if (isPaused) {
+        const firstBtn = pauseOverlayRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+      } else if (isMultiplayerMatchOver) {
+        const firstBtn = multiplayerOverOverlayRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+      } else if (isGameOver) {
+        const firstBtn = gameOverOverlayRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+      } else if (isCampaignVictory) {
+        const firstBtn = victoryOverlayRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+        firstBtn?.focus();
+      }
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [
+    smartTvMode,
+    hasStarted,
+    isPaused,
+    isGameOver,
+    isCampaignVictory,
+    isMultiplayerMatchOver,
+    isSettingsOpen,
+    isLeaderboardOpen,
+    isCheatMenuOpen,
+    isMultiplayerOpen,
+    isUpdatesOpen,
+    isLevelEditorOpen,
+  ]);
+
+  // Keyboard & Smart TV Remote Event Listeners
+  useEffect(() => {
+    const clearAllInputs = () => {
+      manualRunHeldRef.current = false;
+      const engine = engineRef.current;
+      if (engine) {
+        engine.controls.left = false;
+        engine.controls.right = false;
+        engine.controls.up = false;
+        engine.controls.down = false;
+        engine.controls.jump = false;
+        engine.controls.run = false;
+      }
+      setControls({
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      });
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (
+      const inputType = target?.tagName === 'INPUT' ? (target as HTMLInputElement).type.toLowerCase() : '';
+      const isTextEntry = Boolean(
         target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
-      ) {
+          ((target.tagName === 'INPUT' &&
+            !['button', 'submit', 'reset', 'checkbox', 'radio', 'range'].includes(inputType)) ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable)
+      );
+      const isRangeInput = Boolean(target && target.tagName === 'INPUT' && inputType === 'range');
+
+      const tv = resolveTvRemoteAction(
+        { code: e.code, key: e.key, keyCode: e.keyCode },
+        { smartTvMode, jumpWithUp: smartTvJumpWithUp, autoRun: smartTvAutoRun }
+      );
+
+      // Inside text fields: only intercept dedicated non-Backspace Back keys (Esc / TV Return 461 / 10009)
+      if (isTextEntry) {
+        if (tv.isBack && e.code !== 'Backspace' && e.key !== 'Backspace' && e.keyCode !== 8) {
+          e.preventDefault();
+          target?.blur();
+          if (isCheatMenuOpen) setIsCheatMenuOpen(false);
+          else if (isUpdatesOpen) setIsUpdatesOpen(false);
+          else if (isLeaderboardOpen) setIsLeaderboardOpen(false);
+          else if (isSettingsOpen) setIsSettingsOpen(false);
+          else if (isMultiplayerOpen) setIsMultiplayerOpen(false);
+          else if (isLevelEditorOpen) setIsLevelEditorOpen(false);
+        }
         return;
       }
 
-      if (
+      const anyModalOpen =
         isMultiplayerOpen ||
         isSettingsOpen ||
         isLeaderboardOpen ||
         isLevelEditorOpen ||
         isUpdatesOpen ||
-        isSmwMapOpen
-      ) {
-        return;
-      }
+        isCheatMenuOpen;
 
-      // Pause / Unpause on Escape or P (without starting splash screen or flickering on key repeat)
-      if (e.code === 'Escape' || e.code === 'KeyP') {
-        if (isCheatMenuOpen) {
-          if (e.code === 'Escape') {
+      if (anyModalOpen) {
+        if (tv.isBack && !e.repeat) {
+          e.preventDefault();
+          if (isCheatMenuOpen) setIsCheatMenuOpen(false);
+          else if (isUpdatesOpen) setIsUpdatesOpen(false);
+          else if (isLeaderboardOpen) setIsLeaderboardOpen(false);
+          else if (isSettingsOpen) setIsSettingsOpen(false);
+          else if (isMultiplayerOpen) setIsMultiplayerOpen(false);
+          else if (isLevelEditorOpen) setIsLevelEditorOpen(false);
+          return;
+        }
+
+        if (tv.isDirection) {
+          const modalEl = document.querySelector<HTMLElement>('.fixed.inset-0.z-50');
+          const dir = tv.actions.includes('up')
+            ? 'up'
+            : tv.actions.includes('down')
+            ? 'down'
+            : tv.actions.includes('left')
+            ? 'left'
+            : 'right';
+          if (isRangeInput && (dir === 'left' || dir === 'right')) {
+            return; // Let left/right adjust volume or sync rate sliders natively
+          }
+          if (modalEl && moveFocusWithDpad(modalEl, dir)) {
             e.preventDefault();
-            setIsCheatMenuOpen(false);
           }
           return;
         }
-        if (!hasStarted || isGameOver || isMultiplayerMatchOver) return;
-        if (e.repeat) return;
-        e.preventDefault();
-        SoundEngine.get().resume();
-        togglePauseGame();
+
+        if (
+          tv.isConfirm &&
+          target &&
+          (target.tagName === 'BUTTON' || (target.tagName === 'INPUT' && inputType === 'checkbox')) &&
+          (e.code === 'Select' || e.key === 'Select' || e.key === 'OK' || e.keyCode === 23)
+        ) {
+          e.preventDefault();
+          target.click();
+        }
+        return;
+      }
+
+      if (isSmwMapOpen) {
         return;
       }
 
@@ -388,98 +594,184 @@ export const GameCanvas: React.FC = () => {
         }
       }
 
-      // Prevent browser scrolling on game keys
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      // TV Info / Menu key opens Settings cleanly
+      if (tv.isInfo && !e.repeat) {
         e.preventDefault();
+        if (engineRef.current && hasStarted && !engineRef.current.isPaused && !isGameOver && !isMultiplayerMatchOver) {
+          togglePauseGame();
+        }
+        setIsSettingsOpen(true);
+        return;
       }
 
-      // Resume Web Audio on first keypress
-      SoundEngine.get().resume();
+      // Menu / Overlay State: Splash, Pause, Game Over, Victory, Multiplayer Match Over
+      const inMenuOverlay =
+        !hasStarted || isPaused || isGameOver || isCampaignVictory || isMultiplayerMatchOver;
 
-      if (!hasStarted) {
-        setHasStarted(true);
-        if (engineRef.current && !engineRef.current.isGameStarted) {
-          if (multiplayerStatus.connected) {
-            engineRef.current.isGameStarted = true;
-          } else {
-            engineRef.current.restartGame();
+      if (inMenuOverlay) {
+        if (isPaused && hasStarted && !isGameOver && !isMultiplayerMatchOver && (tv.isPause || tv.isBack)) {
+          if (e.repeat) return;
+          e.preventDefault();
+          SoundEngine.get().resume();
+          togglePauseGame();
+          return;
+        }
+
+        const activeOverlayEl = !hasStarted
+          ? splashOverlayRef.current
+          : isPaused
+          ? pauseOverlayRef.current
+          : isMultiplayerMatchOver
+          ? multiplayerOverOverlayRef.current
+          : isGameOver
+          ? gameOverOverlayRef.current
+          : victoryOverlayRef.current;
+
+        if (tv.isDirection && activeOverlayEl) {
+          const dir = tv.actions.includes('up')
+            ? 'up'
+            : tv.actions.includes('down')
+            ? 'down'
+            : tv.actions.includes('left')
+            ? 'left'
+            : 'right';
+          if (moveFocusWithDpad(activeOverlayEl, dir)) {
+            e.preventDefault();
+          }
+          return;
+        }
+
+        if (tv.isConfirm || tv.actions.includes('jump')) {
+          if (target && target.tagName === 'BUTTON' && activeOverlayEl?.contains(target)) {
+            e.preventDefault();
+            target.click();
+            return;
+          }
+          if (!hasStarted) {
+            e.preventDefault();
+            handleStartGame();
+            return;
+          }
+          if (isPaused && !isGameOver && !isMultiplayerMatchOver) {
+            e.preventDefault();
+            SoundEngine.get().resume();
+            togglePauseGame();
+            return;
           }
         }
-      }
 
-      const engine = engineRef.current;
-      if (!engine || engine.isPaused) return;
-
-      switch (e.code) {
-        case 'ArrowLeft':
-        case 'KeyA':
-          engine.controls.left = true;
-          setControls(c => ({ ...c, left: true }));
-          break;
-        case 'ArrowRight':
-        case 'KeyD':
-          engine.controls.right = true;
-          setControls(c => ({ ...c, right: true }));
-          break;
-        case 'ArrowUp':
-        case 'KeyW':
-          engine.controls.up = true;
-          setControls(c => ({ ...c, up: true }));
-          break;
-        case 'ArrowDown':
-        case 'KeyS':
-          engine.controls.down = true;
-          setControls(c => ({ ...c, down: true }));
-          break;
-        case 'Space':
-        case 'KeyZ':
-          engine.controls.jump = true;
-          setControls(c => ({ ...c, jump: true }));
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-        case 'KeyX':
-        case 'KeyK':
-          engine.controls.run = true;
-          setControls(c => ({ ...c, run: true }));
-          break;
-        case 'KeyB':
-        case 'KeyE':
-          if (!e.repeat && engine.isDebugMode) {
-            e.preventDefault();
-            engine.toggleDebugPlacementCursor();
-            setIsDebugPlacementActive(engine.isDebugPlacementActive);
-            setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
-          }
-          break;
-        case 'BracketLeft':
-          if (engine.isDebugMode) {
-            e.preventDefault();
-            const spec = engine.cycleDebugPlaceable(-1);
-            setDebugSelectedLabel(spec.label);
-          }
-          break;
-        case 'BracketRight':
-          if (engine.isDebugMode) {
-            e.preventDefault();
-            const spec = engine.cycleDebugPlaceable(1);
-            setDebugSelectedLabel(spec.label);
-          }
-          break;
-        case 'KeyR':
-          if (e.ctrlKey || e.metaKey) return;
+        if (tv.actions.includes('restart') && !e.ctrlKey && !e.metaKey && hasStarted && engineRef.current) {
           if (multiplayerStatus.connected) {
             if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
               multiplayerClient.startMultiplayerRematch();
               setIsGameOver(false);
               setIsStageClear(false);
+              setIsPaused(false);
             }
           } else {
-            engine.restartGame();
+            engineRef.current.restartGame();
+            setIsGameOver(false);
+            setIsStageClear(false);
+            setIsPaused(false);
+          }
+        }
+        return;
+      }
+
+      // --- ACTIVE GAMEPLAY CONTROLS ---
+      // Pause / Unpause on Escape, P, Media Play/Pause, or TV Back/Return
+      if (tv.isPause || tv.isBack) {
+        if (e.repeat) return;
+        e.preventDefault();
+        SoundEngine.get().resume();
+        togglePauseGame();
+        return;
+      }
+
+      // Prevent Enter/Space from accidentally clicking a focused HUD/toolbar button mid-jump
+      if (target && target.tagName === 'BUTTON') {
+        target.blur();
+      }
+
+      if (tv.shouldPreventDefault) {
+        e.preventDefault();
+      }
+
+      SoundEngine.get().resume();
+
+      const engine = engineRef.current;
+      if (!engine || engine.isPaused) return;
+
+      for (const action of tv.actions) {
+        switch (action) {
+          case 'left':
+            engine.controls.left = true;
+            if (smartTvMode && smartTvAutoRun) engine.controls.run = true;
+            setControls(c => ({ ...c, left: true, ...(smartTvMode && smartTvAutoRun ? { run: true } : {}) }));
+            break;
+          case 'right':
+            engine.controls.right = true;
+            if (smartTvMode && smartTvAutoRun) engine.controls.run = true;
+            setControls(c => ({ ...c, right: true, ...(smartTvMode && smartTvAutoRun ? { run: true } : {}) }));
+            break;
+          case 'up':
+            engine.controls.up = true;
+            setControls(c => ({ ...c, up: true }));
+            break;
+          case 'down':
+            engine.controls.down = true;
+            setControls(c => ({ ...c, down: true }));
+            break;
+          case 'jump':
+            engine.controls.jump = true;
+            setControls(c => ({ ...c, jump: true }));
+            break;
+          case 'run':
+            manualRunHeldRef.current = true;
+            if (smartTvMode && smartTvAutoRun && engine.controls.run && !e.repeat) {
+              // Pulse rising edge so Fireball / Tail Whip triggers even while TV Auto-Run is active
+              engine.controls.run = false;
+              requestAnimationFrame(() => {
+                if (engineRef.current && !engineRef.current.isPaused) {
+                  engineRef.current.controls.run = true;
+                }
+              });
+            } else {
+              engine.controls.run = true;
+            }
+            setControls(c => ({ ...c, run: true }));
+            break;
+        }
+      }
+
+      // Preserve Debug Mode & Quick Restart keys
+      if (e.code === 'KeyB' || e.code === 'KeyE') {
+        if (!e.repeat && engine.isDebugMode) {
+          e.preventDefault();
+          engine.toggleDebugPlacementCursor();
+          setIsDebugPlacementActive(engine.isDebugPlacementActive);
+          setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+        }
+      } else if (e.code === 'BracketLeft' && engine.isDebugMode) {
+        e.preventDefault();
+        const spec = engine.cycleDebugPlaceable(-1);
+        setDebugSelectedLabel(spec.label);
+      } else if (e.code === 'BracketRight' && engine.isDebugMode) {
+        e.preventDefault();
+        const spec = engine.cycleDebugPlaceable(1);
+        setDebugSelectedLabel(spec.label);
+      } else if (tv.actions.includes('restart') && !e.ctrlKey && !e.metaKey) {
+        if (multiplayerStatus.connected) {
+          if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
+            multiplayerClient.startMultiplayerRematch();
             setIsGameOver(false);
             setIsStageClear(false);
           }
-          break;
+        } else {
+          engine.restartGame();
+          setIsGameOver(false);
+          setIsStageClear(false);
+        }
       }
     };
 
@@ -487,50 +779,91 @@ export const GameCanvas: React.FC = () => {
       const engine = engineRef.current;
       if (!engine) return;
 
-      switch (e.code) {
-        case 'ArrowLeft':
-        case 'KeyA':
-          engine.controls.left = false;
-          setControls(c => ({ ...c, left: false }));
-          break;
-        case 'ArrowRight':
-        case 'KeyD':
-          engine.controls.right = false;
-          setControls(c => ({ ...c, right: false }));
-          break;
-        case 'ArrowUp':
-        case 'KeyW':
-          engine.controls.up = false;
-          setControls(c => ({ ...c, up: false }));
-          break;
-        case 'ArrowDown':
-        case 'KeyS':
-          engine.controls.down = false;
-          setControls(c => ({ ...c, down: false }));
-          break;
-        case 'Space':
-        case 'KeyZ':
-          engine.controls.jump = false;
-          setControls(c => ({ ...c, jump: false }));
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-        case 'KeyX':
-        case 'KeyK':
-          engine.controls.run = false;
-          setControls(c => ({ ...c, run: false }));
-          break;
+      const tv = resolveTvRemoteAction(
+        { code: e.code, key: e.key, keyCode: e.keyCode },
+        { smartTvMode, jumpWithUp: smartTvJumpWithUp, autoRun: smartTvAutoRun }
+      );
+
+      for (const action of tv.actions) {
+        switch (action) {
+          case 'left':
+            engine.controls.left = false;
+            if (smartTvMode && smartTvAutoRun && !engine.controls.right && !manualRunHeldRef.current) {
+              engine.controls.run = false;
+              setControls(c => ({ ...c, left: false, run: false }));
+            } else {
+              setControls(c => ({ ...c, left: false }));
+            }
+            break;
+          case 'right':
+            engine.controls.right = false;
+            if (smartTvMode && smartTvAutoRun && !engine.controls.left && !manualRunHeldRef.current) {
+              engine.controls.run = false;
+              setControls(c => ({ ...c, right: false, run: false }));
+            } else {
+              setControls(c => ({ ...c, right: false }));
+            }
+            break;
+          case 'up':
+            engine.controls.up = false;
+            setControls(c => ({ ...c, up: false }));
+            break;
+          case 'down':
+            engine.controls.down = false;
+            setControls(c => ({ ...c, down: false }));
+            break;
+          case 'jump':
+            engine.controls.jump = false;
+            setControls(c => ({ ...c, jump: false }));
+            break;
+          case 'run':
+            manualRunHeldRef.current = false;
+            if (!(smartTvMode && smartTvAutoRun && (engine.controls.left || engine.controls.right))) {
+              engine.controls.run = false;
+              setControls(c => ({ ...c, run: false }));
+            }
+            break;
+        }
       }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) clearAllInputs();
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', clearAllInputs);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', clearAllInputs);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [hasStarted, isGameOver, isMultiplayerMatchOver, isCheatMenuOpen, isMultiplayerOpen, isSettingsOpen, isLeaderboardOpen, isLevelEditorOpen, isUpdatesOpen, isSmwMapOpen, multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, activateCheat, togglePauseGame]);
+  }, [
+    hasStarted,
+    isPaused,
+    isGameOver,
+    isCampaignVictory,
+    isMultiplayerMatchOver,
+    isCheatMenuOpen,
+    isMultiplayerOpen,
+    isSettingsOpen,
+    isLeaderboardOpen,
+    isLevelEditorOpen,
+    isUpdatesOpen,
+    isSmwMapOpen,
+    smartTvMode,
+    smartTvJumpWithUp,
+    smartTvAutoRun,
+    multiplayerStatus.connected,
+    multiplayerStatus.isHost,
+    multiplayerStatus.transport,
+    activateCheat,
+    togglePauseGame,
+  ]);
 
   // Gamepad API Polling
   const pollGamepad = useCallback(() => {
@@ -919,7 +1252,7 @@ export const GameCanvas: React.FC = () => {
   const handleEnterSmwStage = useCallback(
     (nodeId: string) => {
       const node = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
-      if (!node || !isSmwNodeUnlocked(node.order, smwProgress)) return;
+      if (!node || !isSmwNodeUnlocked(node.id, smwProgress)) return;
 
       const updated: SmwBetaProgress = {
         ...smwProgress,
@@ -936,6 +1269,7 @@ export const GameCanvas: React.FC = () => {
       setHasStarted(true);
       setIsCustomLevelActive(false);
       if (engineRef.current) {
+        engineRef.current.yellowSwitchUnlocked = updated.yellowSwitchUnlocked;
         engineRef.current.startSmwStage(createSmwWikiWorldStage(nodeId), false);
         setIsPaused(false);
         setIsGameOver(false);
@@ -977,8 +1311,12 @@ export const GameCanvas: React.FC = () => {
       }
       className={
         isFullscreen
-          ? 'fixed inset-0 z-40 flex flex-col items-center justify-between w-screen h-[100dvh] bg-black select-none overflow-hidden'
-          : 'relative flex flex-col items-center justify-start w-full min-h-screen bg-stone-950 select-none overflow-x-hidden'
+          ? `fixed inset-0 z-40 flex flex-col items-center justify-between w-screen h-[100dvh] bg-black select-none overflow-hidden ${
+              smartTvMode ? 'p-3 sm:p-4' : ''
+            }`
+          : `relative flex flex-col items-center justify-start w-full min-h-screen bg-stone-950 select-none overflow-x-hidden ${
+              smartTvMode ? 'px-4 py-2 sm:px-6 sm:py-3' : ''
+            }`
       }
     >
       {/* Top HUD (Placar & Vidas) */}
@@ -1134,8 +1472,8 @@ export const GameCanvas: React.FC = () => {
             />
           )}
 
-          {/* Translucent On-Screen D-Pad & Action Buttons (A, B) Overlay on Canvas for Mobile Devices */}
-          {isMobileDevice && touchOverlayOnCanvas && hasStarted && !isSmwMapOpen && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
+          {/* Translucent On-Screen D-Pad & Action Buttons (A, B) Overlay on Canvas for Mobile Devices (hidden in Smart TV mode) */}
+          {!smartTvMode && isMobileDevice && touchOverlayOnCanvas && hasStarted && !isSmwMapOpen && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
             <TouchControls
               variant="canvas-overlay"
               controls={controls}
@@ -1155,7 +1493,10 @@ export const GameCanvas: React.FC = () => {
 
           {/* Start Screen Splash (Initial User Interaction) */}
           {!hasStarted && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-start sm:justify-center bg-black/85 p-4 sm:p-6 text-center animate-in fade-in overflow-y-auto">
+            <div
+              ref={splashOverlayRef}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-start sm:justify-center bg-black/85 p-4 sm:p-6 text-center animate-in fade-in overflow-y-auto"
+            >
               <div className="mb-2.5 sm:mb-3">
                 <span className="block text-amber-400 font-['Press_Start_2P',monospace] text-lg sm:text-3xl font-extrabold tracking-wider drop-shadow-md">
                   SUPER MARIO BROS.
@@ -1187,7 +1528,9 @@ export const GameCanvas: React.FC = () => {
                   Renderização pura em Canvas a 60 FPS com sintetizador Web Audio 8-bit, física original, Goombas, Koopas e canos secretos!
                 </p>
                 <div className="pt-1 text-[10px] sm:text-[11px] text-amber-300 font-mono">
-                  [Espaço / Z] Pular • [Shift / X] Correr / Bola de Fogo
+                  {smartTvMode
+                    ? '[◀▶▼] Mover • [OK / Enter / ▲ / Vermelho] Pular • [Azul / Verde / Ch+ / 0] Correr/Fogo • [Voltar] Pausar'
+                    : '[Espaço / Z] Pular • [Shift / X] Correr / Bola de Fogo • [Smart TV: Setas + OK/Voltar]'}
                 </div>
               </div>
 
@@ -1267,6 +1610,19 @@ export const GameCanvas: React.FC = () => {
                   {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                   {isFullscreen ? 'SAIR TELA CHEIA' : 'TELA CHEIA'}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={toggleSmartTvMode}
+                  className={`px-5 py-3 rounded-xl border-2 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                    smartTvMode
+                      ? 'bg-sky-900/90 hover:bg-sky-800 border-sky-400 text-sky-100'
+                      : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600 text-stone-300'
+                  }`}
+                >
+                  <Tv className="w-4 h-4 text-sky-400" />
+                  {smartTvMode ? 'SMART TV: ON' : 'SMART TV: OFF'}
+                </button>
               </div>
 
               <p className="mt-3 max-w-lg text-[10px] sm:text-[11px] text-stone-400 font-mono leading-relaxed px-3 py-1.5 rounded-lg bg-stone-950/75 border border-stone-800/90">
@@ -1306,6 +1662,7 @@ export const GameCanvas: React.FC = () => {
           {/* Pause Overlay */}
           {isPaused && hasStarted && (
             <div
+              ref={pauseOverlayRef}
               role="dialog"
               aria-label="PAUSED"
               className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-xs p-4 text-center"
@@ -1314,8 +1671,18 @@ export const GameCanvas: React.FC = () => {
                 PAUSED
               </h2>
               <p className="text-stone-300 font-mono text-xs mb-6">
-                Pressione <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">ESC</kbd> ou{' '}
-                <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">P</kbd> para continuar
+                {smartTvMode ? (
+                  <>
+                    Use as <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">SETAS</kbd> +{' '}
+                    <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">OK</kbd> ou{' '}
+                    <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">VOLTAR</kbd> para continuar
+                  </>
+                ) : (
+                  <>
+                    Pressione <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">ESC</kbd> ou{' '}
+                    <kbd className="px-1.5 py-0.5 bg-stone-800 border border-stone-600 rounded text-amber-300">P</kbd> para continuar
+                  </>
+                )}
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 <button
@@ -1431,7 +1798,11 @@ export const GameCanvas: React.FC = () => {
                 selectedNodeId: 'wiki-1-overworld',
                 storySeen: true,
                 betaUnlockAll: false,
+                yellowSwitchUnlocked: false,
               };
+              if (engineRef.current) {
+                engineRef.current.yellowSwitchUnlocked = false;
+              }
               setSmwProgress(reset);
               setSmwJustClearedNodeId(null);
               saveSmwBetaProgress(reset);
@@ -1441,7 +1812,10 @@ export const GameCanvas: React.FC = () => {
 
           {/* Multiplayer Winner Overlay (when any player loses all lives) */}
           {isMultiplayerMatchOver && multiplayerMatchResult && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-4 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto">
+            <div
+              ref={multiplayerOverOverlayRef}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-4 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto"
+            >
               <div className="flex items-center gap-2 mb-1.5">
                 <Crown className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 fill-amber-400 animate-bounce" />
                 <h2 className="font-['Press_Start_2P',monospace] text-lg sm:text-2xl text-amber-400 tracking-wider drop-shadow-lg">
@@ -1572,7 +1946,10 @@ export const GameCanvas: React.FC = () => {
 
           {/* Solo Game Over Overlay */}
           {isGameOver && !isMultiplayerMatchOver && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in zoom-in-95">
+            <div
+              ref={gameOverOverlayRef}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in zoom-in-95"
+            >
               <h2 className="font-['Press_Start_2P',monospace] text-3xl sm:text-5xl text-red-600 mb-3 tracking-widest drop-shadow-lg">
                 GAME OVER
               </h2>
@@ -1629,7 +2006,10 @@ export const GameCanvas: React.FC = () => {
 
           {/* Final 7-World Singleplayer Victory Overlay (Princesa Femboy Rescued!) */}
           {isCampaignVictory && !isGameOver && !isMultiplayerMatchOver && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-5 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto">
+            <div
+              ref={victoryOverlayRef}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/92 p-5 sm:p-6 text-center animate-in zoom-in-95 overflow-y-auto"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <Crown className="w-7 h-7 text-amber-400 fill-amber-400" />
                 <Heart className="w-6 h-6 text-pink-400 fill-pink-500" />
@@ -1842,6 +2222,21 @@ export const GameCanvas: React.FC = () => {
             <span className="hidden sm:inline text-[11px]">Menu</span>
           </button>
 
+          {/* Smart TV Mode Quick Button */}
+          <button
+            type="button"
+            onClick={toggleSmartTvMode}
+            title="Modo Smart TV (Controle Remoto)"
+            className={`p-2 rounded-lg border transition flex items-center gap-1.5 cursor-pointer ${
+              smartTvMode
+                ? 'bg-sky-950/90 border-sky-400 text-sky-200'
+                : 'bg-stone-900 hover:bg-stone-800 border-stone-800 text-stone-300 hover:text-white'
+            }`}
+          >
+            <Tv className="w-4 h-4 text-sky-400" />
+            <span className="hidden sm:inline text-[11px]">TV</span>
+          </button>
+
           {/* Fullscreen */}
           <button
             type="button"
@@ -1855,8 +2250,26 @@ export const GameCanvas: React.FC = () => {
         </div>
       )}
 
-      {/* Docked Touch Controls (Shown when mobile overlay is disabled or on desktop touch mode) */}
-      {(!isMobileDevice || !touchOverlayOnCanvas) && (
+      {/* Smart TV Compact Remote Control Legend Strip */}
+      {smartTvMode && !isFullscreen && (
+        <div className="w-full max-w-4xl px-4 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-sky-950/45 border border-sky-700/50 text-[11px] font-mono text-sky-100">
+            <span className="flex items-center gap-1.5 font-bold text-sky-300">
+              <Tv className="w-3.5 h-3.5 text-sky-400" />
+              MODO SMART TV
+            </span>
+            <span className="text-stone-300">
+              <strong className="text-amber-300">◀▶▼</strong> Mover/Cano •{' '}
+              <strong className="text-amber-300">OK/Vermelho{smartTvJumpWithUp ? '/▲' : ''}</strong> Pular •{' '}
+              <strong className="text-amber-300">Azul/Verde/Ch+/0</strong> Correr/Fogo •{' '}
+              <strong className="text-amber-300">Voltar/Play-Pause</strong> Pausar
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Docked Touch Controls (Shown when mobile overlay is disabled or on desktop touch mode, hidden in Smart TV mode) */}
+      {!smartTvMode && (!isMobileDevice || !touchOverlayOnCanvas) && (
         <TouchControls
           variant="docked"
           controls={controls}
@@ -1909,6 +2322,12 @@ export const GameCanvas: React.FC = () => {
         onStartSmwWorldMap={handleOpenSmwWorldMap}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
+        smartTvMode={smartTvMode}
+        onToggleSmartTvMode={toggleSmartTvMode}
+        smartTvJumpWithUp={smartTvJumpWithUp}
+        onToggleSmartTvJumpWithUp={toggleSmartTvJumpWithUp}
+        smartTvAutoRun={smartTvAutoRun}
+        onToggleSmartTvAutoRun={toggleSmartTvAutoRun}
       />
 
       {/* Leaderboard / Placar Modal */}

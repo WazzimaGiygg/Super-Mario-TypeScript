@@ -18,6 +18,7 @@ import {
   Trees,
   Crown,
   RotateCcw,
+  Zap,
 } from 'lucide-react';
 import {
   SMW_BETA_VERSION,
@@ -27,11 +28,14 @@ import {
   SMW_PATH_SEGMENTS,
   SmwBetaProgress,
   SmwMapNode,
+  SmwWalkStep,
   evaluateSmwPathSegment,
+  findSmwMapPath,
   isSmwNodeUnlocked,
 } from '../game/smwWorldMap.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 import { PlayerCharacter } from '../game/types.ts';
+import { findBestSpatialCandidateIndex, resolveTvRemoteAction } from '../game/smartTv.ts';
 
 interface SmwOverworldMapProps {
   isOpen: boolean;
@@ -112,21 +116,42 @@ interface MapWalkState {
   ambientTick: number;
 }
 
-function getNodePos(order: number): { x: number; y: number } {
-  const node = SMW_WIKIWORLD_NODES[Math.max(0, Math.min(SMW_WIKIWORLD_NODES.length - 1, order))];
+function getNodePosById(nodeId: string): { x: number; y: number } {
+  const node = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId) || SMW_WIKIWORLD_NODES[0];
   return { x: node.mapX, y: node.mapY };
 }
 
-function sampleRoutePosition(progressVal: number): { x: number; y: number; dx: number; dy: number } {
-  const maxOrder = SMW_WIKIWORLD_NODES.length - 1;
-  const clamped = Math.max(0, Math.min(maxOrder, progressVal));
-  if (clamped >= maxOrder) {
-    const lastSeg = SMW_PATH_SEGMENTS[SMW_PATH_SEGMENTS.length - 1];
-    return evaluateSmwPathSegment(lastSeg, 1);
+function sampleWalkSteps(
+  steps: SmwWalkStep[],
+  fallbackNodeId: string,
+  progressVal: number
+): { x: number; y: number; dx: number; dy: number } {
+  if (steps.length === 0) {
+    const pos = getNodePosById(fallbackNodeId);
+    return { x: pos.x, y: pos.y, dx: 1, dy: 0 };
   }
-  const segIdx = Math.min(SMW_PATH_SEGMENTS.length - 1, Math.floor(clamped));
-  const localT = clamped - segIdx;
-  return evaluateSmwPathSegment(SMW_PATH_SEGMENTS[segIdx], localT);
+  const clamped = Math.max(0, Math.min(steps.length, progressVal));
+  if (clamped >= steps.length) {
+    const last = steps[steps.length - 1];
+    const s = evaluateSmwPathSegment(last.seg, last.reverse ? 0 : 1);
+    return {
+      x: s.x,
+      y: s.y,
+      dx: last.reverse ? -s.dx : s.dx,
+      dy: last.reverse ? -s.dy : s.dy,
+    };
+  }
+  const idx = Math.min(steps.length - 1, Math.floor(clamped));
+  const step = steps[idx];
+  const localT = clamped - idx;
+  const evalT = step.reverse ? 1 - localT : localT;
+  const s = evaluateSmwPathSegment(step.seg, evalT);
+  return {
+    x: s.x,
+    y: s.y,
+    dx: step.reverse ? -s.dx : s.dx,
+    dy: step.reverse ? -s.dy : s.dy,
+  };
 }
 
 export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
@@ -157,7 +182,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
     );
   }, [progress.selectedNodeId]);
 
-  const selectedUnlocked = isSmwNodeUnlocked(selectedNode.order, progress);
+  const selectedUnlocked = isSmwNodeUnlocked(selectedNode.id, progress);
   const selectedCleared = progress.clearedNodeIds.includes(selectedNode.id);
   const islandCompleted = progress.clearedNodeIds.includes('wiki-5-castelo');
   const clearedCount = progress.clearedNodeIds.length;
@@ -165,14 +190,15 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   const companionCharacter: PlayerCharacter =
     playerCharacter === 'wazzima' ? 'mario' : 'wazzima';
 
-  // Continuous walking state along SMW_PATH_SEGMENTS [0 .. 4]
-  const routeProgressRef = useRef<number>(selectedNode.order);
-  const targetOrderRef = useRef<number>(selectedNode.order);
+  // Continuous branching graph walking state across SMW_PATH_SEGMENTS
+  const walkStepsRef = useRef<SmwWalkStep[]>([]);
+  const walkProgressRef = useRef<number>(0);
+  const currentNodeIdRef = useRef<string>(selectedNode.id);
   const wasOpenRef = useRef<boolean>(false);
   const lastFacingRef = useRef<'left' | 'right'>('right');
 
   const [walkState, setWalkState] = useState<MapWalkState>(() => {
-    const pos = getNodePos(selectedNode.order);
+    const pos = getNodePosById(selectedNode.id);
     return {
       leadX: pos.x,
       leadY: pos.y,
@@ -201,12 +227,20 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
       const clearedNode = justClearedNodeId
         ? SMW_WIKIWORLD_NODES.find(n => n.id === justClearedNodeId)
         : undefined;
-      const startOrder = clearedNode ? clearedNode.order : selectedNode.order;
-      routeProgressRef.current = startOrder;
+      const startId = clearedNode ? clearedNode.id : selectedNode.id;
+      walkStepsRef.current = findSmwMapPath(startId, selectedNode.id);
+      walkProgressRef.current = 0;
+      currentNodeIdRef.current = selectedNode.id;
+      return;
     }
 
-    targetOrderRef.current = selectedNode.order;
-  }, [isOpen, selectedNode.order, justClearedNodeId]);
+    if (currentNodeIdRef.current !== selectedNode.id) {
+      const originId = currentNodeIdRef.current;
+      walkStepsRef.current = findSmwMapPath(originId, selectedNode.id);
+      walkProgressRef.current = 0;
+      currentNodeIdRef.current = selectedNode.id;
+    }
+  }, [isOpen, selectedNode.id, justClearedNodeId]);
 
   // Smooth RAF loop for hero duo walking along curved paths + biome creatures patrolling
   useEffect(() => {
@@ -224,56 +258,51 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
 
-      const target = targetOrderRef.current;
-      let current = routeProgressRef.current;
-      const diff = target - current;
+      const steps = walkStepsRef.current;
+      const totalSteps = steps.length;
+      let current = walkProgressRef.current;
       let isWalking = false;
 
-      if (prefersReducedMotion) {
-        current = target;
-        routeProgressRef.current = current;
-      } else if (Math.abs(diff) > 0.004) {
+      if (prefersReducedMotion || totalSteps === 0) {
+        current = totalSteps;
+        walkProgressRef.current = current;
+      } else if (current < totalSteps - 0.004) {
         isWalking = true;
         const speedSegmentsPerSec = 2.05;
-        const step = Math.sign(diff) * Math.min(Math.abs(diff), speedSegmentsPerSec * dt);
-        current += step;
-        if (Math.abs(target - current) <= 0.004) {
-          current = target;
+        current = Math.min(totalSteps, current + speedSegmentsPerSec * dt);
+        if (totalSteps - current <= 0.004) {
+          current = totalSteps;
           isWalking = false;
         }
-        routeProgressRef.current = current;
+        walkProgressRef.current = current;
       } else {
-        current = target;
-        routeProgressRef.current = current;
+        current = totalSteps;
+        walkProgressRef.current = current;
       }
 
       // Limit React state updates to ~30fps when idle (for ambient march) or ~60fps when walking
       const minIntervalMs = isWalking ? 16 : 90;
       if (now - lastRenderSync >= minIntervalMs) {
         lastRenderSync = now;
-        const leadSample = sampleRoutePosition(current);
-        const dirSign = Math.abs(diff) > 0.004 ? Math.sign(diff) : 0;
+        const leadSample = sampleWalkSteps(steps, currentNodeIdRef.current, current);
 
         let leadFacing = lastFacingRef.current;
-        if (dirSign !== 0) {
-          const travelDx = leadSample.dx * dirSign;
-          if (Math.abs(travelDx) > 0.05) {
-            leadFacing = travelDx >= 0 ? 'right' : 'left';
-            lastFacingRef.current = leadFacing;
-          }
+        if (isWalking && Math.abs(leadSample.dx) > 0.05) {
+          leadFacing = leadSample.dx >= 0 ? 'right' : 'left';
+          lastFacingRef.current = leadFacing;
         }
 
         let companionX: number;
         let companionY: number;
         let companionFacing: 'left' | 'right';
 
-        if (isWalking && dirSign !== 0) {
-          const trailProgress = Math.max(0, Math.min(4, current - dirSign * 0.16));
-          const trailSample = sampleRoutePosition(trailProgress);
+        if (isWalking && current > 0.04) {
+          const trailProgress = Math.max(0, current - 0.16);
+          const trailSample = sampleWalkSteps(steps, currentNodeIdRef.current, trailProgress);
           companionX = trailSample.x;
           companionY = trailSample.y;
-          const trailDx = trailSample.dx * dirSign;
-          companionFacing = Math.abs(trailDx) > 0.05 ? (trailDx >= 0 ? 'right' : 'left') : leadFacing;
+          companionFacing =
+            Math.abs(trailSample.dx) > 0.05 ? (trailSample.dx >= 0 ? 'right' : 'left') : leadFacing;
         } else {
           companionX = leadSample.x - 2.6;
           companionY = leadSample.y + 0.5;
@@ -322,14 +351,20 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [isOpen, selectedNode.order]);
+  }, [isOpen, selectedNode.id]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tv = resolveTvRemoteAction(
+        { code: e.code, key: e.key, keyCode: e.keyCode },
+        { smartTvMode: true, jumpWithUp: false }
+      );
+
       if (showStory) {
-        if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') {
+        if (tv.isConfirm || tv.isBack || tv.actions.includes('jump')) {
           e.preventDefault();
           setShowStory(false);
           onDismissStory();
@@ -337,28 +372,57 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
         return;
       }
 
-      if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      if (tv.isBack) {
         e.preventDefault();
-        const nextIdx = Math.min(SMW_WIKIWORLD_NODES.length - 1, selectedNode.order + 1);
-        const target = SMW_WIKIWORLD_NODES[nextIdx];
-        if (target && isSmwNodeUnlocked(target.order, progress)) {
-          onSelectNode(target.id);
-        }
-      } else if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'ArrowDown' || e.code === 'KeyS') {
+        onBackToMainMenu();
+        return;
+      }
+
+      // Let focused top-bar buttons (História, Liberar Fases, Menu, Zerar Ilha) work on OK/Enter
+      if (
+        target &&
+        target.tagName === 'BUTTON' &&
+        !target.dataset.smwNodeBtn &&
+        (tv.isConfirm || tv.actions.includes('jump'))
+      ) {
         e.preventDefault();
-        const prevIdx = Math.max(0, selectedNode.order - 1);
-        const target = SMW_WIKIWORLD_NODES[prevIdx];
-        if (target && isSmwNodeUnlocked(target.order, progress)) {
-          onSelectNode(target.id);
+        target.click();
+        return;
+      }
+
+      const dir =
+        tv.actions.includes('right')
+          ? 'right'
+          : tv.actions.includes('left')
+          ? 'left'
+          : tv.actions.includes('up')
+          ? 'up'
+          : tv.actions.includes('down')
+          ? 'down'
+          : null;
+
+      if (dir) {
+        e.preventDefault();
+        const unlockedNodes = SMW_WIKIWORLD_NODES.filter(n => isSmwNodeUnlocked(n.id, progress));
+        const currIdx = unlockedNodes.findIndex(n => n.id === selectedNode.id);
+        if (currIdx >= 0 && unlockedNodes.length > 1) {
+          const boxes = unlockedNodes.map((n, idx) => ({
+            id: idx,
+            cx: n.mapX,
+            cy: n.mapY,
+            width: 10,
+            height: 10,
+          }));
+          const bestIdx = findBestSpatialCandidateIndex(boxes[currIdx], boxes, dir);
+          if (bestIdx >= 0 && unlockedNodes[bestIdx]) {
+            onSelectNode(unlockedNodes[bestIdx].id);
+          }
         }
-      } else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyZ') {
+      } else if (tv.isConfirm || tv.actions.includes('jump')) {
         e.preventDefault();
         if (selectedUnlocked) {
           onEnterStage(selectedNode.id);
         }
-      } else if (e.code === 'Escape') {
-        e.preventDefault();
-        onBackToMainMenu();
       }
     };
 
@@ -378,8 +442,11 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
   if (!isOpen) return null;
 
-  const getThemeIcon = (theme: SmwMapNode['theme']) => {
-    switch (theme) {
+  const getNodeIcon = (node: SmwMapNode) => {
+    if (node.isSwitchPalace) {
+      return <Zap className="w-4 h-4 text-yellow-200 fill-yellow-300" />;
+    }
+    switch (node.theme) {
       case 'overworld':
         return <Trees className="w-4 h-4 text-emerald-100" />;
       case 'underground':
@@ -757,13 +824,63 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             <line x1="852" y1="286" x2="852" y2="312" stroke="#52525b" strokeWidth="1.5" />
           </g>
 
+          {/* Switch Palace Landmark: Palácio Interruptor Amarelo (29%, 72% -> 290, 432) */}
+          <g>
+            {/* Sunny Golden Terrace */}
+            <ellipse
+              cx="290"
+              cy="436"
+              rx="42"
+              ry="24"
+              fill={progress.yellowSwitchUnlocked ? '#fef08a' : '#ca8a04'}
+              fillOpacity={progress.yellowSwitchUnlocked ? 0.35 : 0.22}
+              stroke="#eab308"
+              strokeWidth="2"
+            />
+            {/* SMW Dome Shrine */}
+            <rect
+              x="266"
+              y="404"
+              width="48"
+              height="26"
+              rx="4"
+              fill={progress.yellowSwitchUnlocked ? '#eab308' : '#854d0e'}
+              stroke="#451a03"
+              strokeWidth="2.5"
+            />
+            <path
+              d="M 262 406 C 264 382, 316 382, 318 406 Z"
+              fill={progress.yellowSwitchUnlocked ? '#fde047' : '#ca8a04'}
+              stroke="#451a03"
+              strokeWidth="2.5"
+            />
+            {/* Doorway */}
+            <path
+              d="M 284 430 L 284 416 C 284 411, 296 411, 296 416 L 296 430 Z"
+              fill="#292524"
+            />
+            {/* Iconic [!] Badge on Dome */}
+            <rect
+              x="283"
+              y="390"
+              width="14"
+              height="12"
+              rx="2"
+              fill="#fef9c3"
+              stroke="#451a03"
+              strokeWidth="1.5"
+            />
+            <rect x="289" y="392" width="2.5" height="5" fill="#451a03" />
+            <rect x="289" y="398.5" width="2.5" height="2" fill="#451a03" />
+          </g>
+
           {/* Curved Winding SMW Stage Roads Connecting Nodes */}
           {SMW_PATH_SEGMENTS.map(seg => {
-            const nextNode = SMW_WIKIWORLD_NODES[seg.toOrder];
-            const pathUnlocked = nextNode ? isSmwNodeUnlocked(nextNode.order, progress) : false;
+            const nextNode = SMW_WIKIWORLD_NODES.find(n => n.id === seg.toId);
+            const pathUnlocked = nextNode ? isSmwNodeUnlocked(nextNode.id, progress) : false;
             const d = `M ${seg.p0[0] * 10} ${seg.p0[1] * 6} C ${seg.c1[0] * 10} ${seg.c1[1] * 6}, ${seg.c2[0] * 10} ${seg.c2[1] * 6}, ${seg.p1[0] * 10} ${seg.p1[1] * 6}`;
             return (
-              <g key={`${seg.fromOrder}-${seg.toOrder}`}>
+              <g key={`${seg.fromId}-${seg.toId}`}>
                 {/* Dark Road Outline */}
                 <path
                   d={d}
@@ -802,12 +919,23 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           </span>
         </div>
 
-        {/* Island Name Plaque */}
-        <div className="absolute top-2.5 left-3 pointer-events-none">
+        {/* Island Name Plaque & Yellow [!] Switch Status */}
+        <div className="absolute top-2.5 left-3 flex flex-wrap items-center gap-2 pointer-events-none">
           <div className="px-2.5 py-1 rounded-md bg-stone-950/85 border border-emerald-400/60 shadow">
             <span className="font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] text-emerald-300">
               {SMW_WORLD_ISLAND_NAME.toUpperCase()}
             </span>
+          </div>
+          <div
+            className={`px-2 py-1 rounded-md border text-[9px] sm:text-[10px] font-mono font-bold shadow ${
+              progress.yellowSwitchUnlocked
+                ? 'bg-amber-950/90 border-yellow-400 text-yellow-200'
+                : 'bg-stone-950/85 border-stone-600 text-stone-400'
+            }`}
+          >
+            {progress.yellowSwitchUnlocked
+              ? 'Blocos [!] Amarelos: ATIVOS'
+              : 'Blocos [!] Amarelos: Bloqueados'}
           </div>
         </div>
 
@@ -868,7 +996,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
         {/* Interactive Stage Nodes on Ilha WikiWorldWeb */}
         {SMW_WIKIWORLD_NODES.map(node => {
-          const unlocked = isSmwNodeUnlocked(node.order, progress);
+          const unlocked = isSmwNodeUnlocked(node.id, progress);
           const cleared = progress.clearedNodeIds.includes(node.id);
           const isSelected = progress.selectedNodeId === node.id;
 
@@ -880,6 +1008,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             >
               <button
                 type="button"
+                data-smw-node-btn="true"
                 onClick={() => {
                   if (!unlocked) return;
                   if (isSelected) {
@@ -900,15 +1029,21 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                     : isSelected
                     ? node.isCastle
                       ? 'bg-red-700 border-amber-300 text-white scale-110 ring-4 ring-amber-300/65'
+                      : node.isSwitchPalace
+                      ? 'bg-yellow-400 border-white text-stone-950 scale-110 ring-4 ring-yellow-300/75'
                       : 'bg-amber-500 border-white text-stone-950 scale-110 ring-4 ring-amber-300/65'
                     : cleared
-                    ? 'bg-emerald-700 hover:bg-emerald-600 border-emerald-200 text-white hover:scale-105'
+                    ? node.isSwitchPalace
+                      ? 'bg-yellow-500 hover:bg-yellow-400 border-yellow-100 text-stone-950 hover:scale-105'
+                      : 'bg-emerald-700 hover:bg-emerald-600 border-emerald-200 text-white hover:scale-105'
                     : node.isCastle
                     ? 'bg-red-900 hover:bg-red-800 border-red-400 text-amber-200 hover:scale-105'
+                    : node.isSwitchPalace
+                    ? 'bg-yellow-700 hover:bg-yellow-600 border-yellow-300 text-yellow-100 hover:scale-105'
                     : 'bg-sky-700 hover:bg-sky-600 border-sky-200 text-white hover:scale-105'
                 }`}
               >
-                {unlocked ? getThemeIcon(node.theme) : <Lock className="w-4 h-4" />}
+                {unlocked ? getNodeIcon(node) : <Lock className="w-4 h-4" />}
                 {cleared && (
                   <span className="w-4 h-4 rounded-full bg-amber-300 text-stone-950 flex items-center justify-center shrink-0">
                     <Check className="w-3 h-3 stroke-[3]" />
@@ -1055,7 +1190,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             </p>
 
             <div className="mt-3 text-[11px] text-stone-400 leading-snug">
-              Fases da {SMW_WORLD_ISLAND_NAME}: Overworld, Caverna, Água, Mansão Fantasma e Castelo de Johannnnes89.
+              Fases da {SMW_WORLD_ISLAND_NAME}: Overworld, Palácio Interruptor Amarelo, Caverna, Água, Mansão Fantasma e Castelo de Johannnnes89.
             </div>
 
             <div className="mt-4 flex justify-end">

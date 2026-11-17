@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug, Tv } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorldGhostHouse, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -34,6 +34,12 @@ interface SettingsModalProps {
   onStartSmwWorldMap?: () => void;
   isDebugMode?: boolean;
   onToggleDebugMode?: () => void;
+  smartTvMode?: boolean;
+  onToggleSmartTvMode?: () => void;
+  smartTvJumpWithUp?: boolean;
+  onToggleSmartTvJumpWithUp?: () => void;
+  smartTvAutoRun?: boolean;
+  onToggleSmartTvAutoRun?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -62,6 +68,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onStartSmwWorldMap,
   isDebugMode = false,
   onToggleDebugMode,
+  smartTvMode = false,
+  onToggleSmartTvMode,
+  smartTvJumpWithUp = true,
+  onToggleSmartTvJumpWithUp,
+  smartTvAutoRun = false,
+  onToggleSmartTvAutoRun,
 }) => {
   if (!isOpen) return null;
 
@@ -480,6 +492,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
 
+              {/* Smart TV Mode Section */}
+              {onToggleSmartTvMode && (
+                <div className="pt-2 border-t border-stone-700/60 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-sky-300 flex items-center gap-1.5">
+                        <Tv className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <span>Modo Smart TV (Controle Remoto)</span>
+                      </div>
+                      <div className="text-[10px] text-stone-400">
+                        Margem anti-corte (overscan), foco D-Pad nos menus e teclas de controle de TV
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onToggleSmartTvMode}
+                      className={`px-3 py-1 rounded text-[11px] font-bold cursor-pointer shrink-0 ${
+                        smartTvMode ? 'bg-sky-600 text-white' : 'bg-stone-700 text-stone-300'
+                      }`}
+                    >
+                      {smartTvMode ? 'ATIVO' : 'DESATIVO'}
+                    </button>
+                  </div>
+
+                  {smartTvMode && onToggleSmartTvJumpWithUp && (
+                    <div className="flex items-center justify-between gap-3 pl-4 border-l-2 border-sky-700/60">
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-200">
+                          Pular com Seta ▲ (Controles de 5 botões)
+                        </div>
+                        <div className="text-[10px] text-stone-400">
+                          Permite pular com ▲ além do botão OK / Enter / Vermelho
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onToggleSmartTvJumpWithUp}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer shrink-0 ${
+                          smartTvJumpWithUp ? 'bg-emerald-600 text-white' : 'bg-stone-700 text-stone-300'
+                        }`}
+                      >
+                        {smartTvJumpWithUp ? 'ATIVO' : 'DESATIVO'}
+                      </button>
+                    </div>
+                  )}
+
+                  {smartTvMode && onToggleSmartTvAutoRun && (
+                    <div className="flex items-center justify-between gap-3 pl-4 border-l-2 border-sky-700/60">
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-200">
+                          Corrida Automática na TV
+                        </div>
+                        <div className="text-[10px] text-stone-400">
+                          Corre automaticamente ao andar (útil para controles sem botão extra de corrida)
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onToggleSmartTvAutoRun}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer shrink-0 ${
+                          smartTvAutoRun ? 'bg-amber-600 text-white' : 'bg-stone-700 text-stone-300'
+                        }`}
+                      >
+                        {smartTvAutoRun ? 'ATIVO' : 'DESATIVO'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Sonic-style Debug Mode Toggle */}
               {onToggleDebugMode && (
                 <div className="flex items-center justify-between pt-2 border-t border-stone-700/60 gap-3">
@@ -530,6 +612,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div>
                 <span className="font-bold text-amber-400">P / Esc</span>
                 <p className="text-[10px] text-stone-400">Pausar jogo</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Smart TV Remote Reference */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Tv className="w-4 h-4 text-sky-400" />
+              <h3 className="font-['Press_Start_2P',monospace] text-[11px] text-sky-300">
+                CONTROLE REMOTO (SMART TV)
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-stone-300 bg-sky-950/35 p-3 rounded-lg border border-sky-700/50 text-xs">
+              <div>
+                <span className="font-bold text-sky-300">Direcional (◀ ▶ ▼) ou 4/6/8</span>
+                <p className="text-[10px] text-stone-400">Andar, agachar e entrar em canos</p>
+              </div>
+              <div>
+                <span className="font-bold text-sky-300">OK / Enter / Vermelho / ▲*</span>
+                <p className="text-[10px] text-stone-400">Pular (*▲ ativo no Modo Smart TV)</p>
+              </div>
+              <div>
+                <span className="font-bold text-sky-300">Azul / Verde / Amarelo / Ch+ / 0</span>
+                <p className="text-[10px] text-stone-400">Correr, bola de fogo e cauda/capa</p>
+              </div>
+              <div>
+                <span className="font-bold text-sky-300">Voltar / Return / Play-Pause</span>
+                <p className="text-[10px] text-stone-400">Pausar, continuar ou fechar janelas</p>
               </div>
             </div>
           </div>

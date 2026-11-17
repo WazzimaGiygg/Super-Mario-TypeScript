@@ -208,6 +208,9 @@ export class GameEngine {
   public singleplayerStage: number = 1;
   public isCampaignVictory: boolean = false;
   public onSmwStageCompleted?: (nodeId: string) => void;
+  public yellowSwitchUnlocked: boolean = false;
+  public switchPalaceActivated: boolean = false;
+  public onSmwYellowSwitchActivated?: () => void;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -357,6 +360,7 @@ export class GameEngine {
     this.castlePrincessX = 0;
     this.castlePrincessY = 0;
     this.castlePrincessDialogueTimer = 0;
+    this.switchPalaceActivated = false;
     if (!isRespawn) {
       this.isCampaignVictory = false;
     }
@@ -1435,6 +1439,15 @@ export class GameEngine {
           if (this.marioState === 'jumping' || this.marioState === 'falling') {
             this.marioState = Math.abs(this.marioVx) > 0.1 ? 'running' : 'idle';
           }
+
+          const yellowSwitchTile = tilesV.find(x => x.tile.type === 'yellow_switch');
+          if (yellowSwitchTile && !this.isStageClear) {
+            this.activateYellowSwitch(
+              yellowSwitchTile.tileX,
+              yellowSwitchTile.tileY,
+              yellowSwitchTile.tile
+            );
+          }
         } else if (this.marioVy < 0) {
           // Bumping head on ceiling / block
           this.marioY = (t.tileY + 1) * GameEngine.TILE_SIZE;
@@ -1589,6 +1602,23 @@ export class GameEngine {
       return;
     }
 
+    if (block.type === 'exclam_yellow') {
+      if (!this.yellowSwitchUnlocked) return;
+      block.type = 'question_empty';
+      block.content = 'none';
+      this.spawnDirectMushroom(tx, ty);
+      this.particleSystem.add({
+        type: 'sparkle',
+        x: tx * GameEngine.TILE_SIZE + 4,
+        y: ty * GameEngine.TILE_SIZE + 4,
+        vx: 0,
+        vy: -1.4,
+        life: 0,
+        maxLife: 24,
+      });
+      return;
+    }
+
     if (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'ghost_brick') {
       if (block.coinsLeft && block.coinsLeft > 0) {
         block.coinsLeft--;
@@ -1608,6 +1638,63 @@ export class GameEngine {
         this.sound.playBump();
       }
     }
+  }
+
+  private spawnDirectMushroom(tx: number, ty: number) {
+    const x = tx * GameEngine.TILE_SIZE;
+    const y = ty * GameEngine.TILE_SIZE;
+    this.sound.playPowerUpAppear();
+    this.items.push({
+      id: this.nextEntityId++,
+      type: 'mushroom',
+      x,
+      y,
+      vx: 1.2,
+      vy: 0,
+      width: 16,
+      height: 16,
+      grounded: false,
+      collected: false,
+      emerging: true,
+      emergeY: y - 16,
+    });
+  }
+
+  private activateYellowSwitch(tx: number, ty: number, tile: BlockTile) {
+    if (this.isStageClear || tile.type !== 'yellow_switch') return;
+    tile.type = 'yellow_switch_pressed';
+    this.yellowSwitchUnlocked = true;
+    this.switchPalaceActivated = true;
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.marioGrounded = true;
+
+    const px = tx * GameEngine.TILE_SIZE;
+    const py = ty * GameEngine.TILE_SIZE;
+    this.sound.stopMusic();
+    this.sound.playPowerUpEat();
+    this.sound.playStageClear();
+    this.triggerScreenShake(4.2, 16);
+
+    for (let i = 0; i < 6; i++) {
+      this.particleSystem.add({
+        type: 'sparkle',
+        x: px + (i - 2.5) * 8,
+        y: py - 4 - (i % 2) * 8,
+        vx: (i - 2.5) * 0.45,
+        vy: -1.6 - (i % 3) * 0.35,
+        life: 0,
+        maxLife: 45,
+      });
+    }
+
+    this.addScore(1000, px, py, 'SWITCH AMARELO!');
+    this.particleSystem.emitScoreText('BLOCOS [!] LIBERADOS!', px - 36, py - 24, {
+      maxLife: 95,
+      vy: -0.45,
+    });
+    this.onSmwYellowSwitchActivated?.();
+    this.finishStage();
   }
 
   private spawnBlockContent(tx: number, ty: number, content: string) {
@@ -3906,7 +3993,14 @@ export class GameEngine {
     const hitTileY = Math.floor((this.marioY + 12) / GameEngine.TILE_SIZE);
     if (hitTileX >= 0 && hitTileX < this.level.width && hitTileY >= 0 && hitTileY < this.level.height) {
       const block = this.level.tiles[hitTileY][hitTileX];
-      if (block && (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'ghost_brick' || block.type === 'question')) {
+      if (
+        block &&
+        (block.type === 'brick' ||
+          block.type === 'underground_brick' ||
+          block.type === 'ghost_brick' ||
+          block.type === 'question' ||
+          (block.type === 'exclam_yellow' && this.yellowSwitchUnlocked))
+      ) {
         this.hitBlock(hitTileX, hitTileY, block);
         this.triggerScreenShake(2.0, 5);
       }
@@ -4527,7 +4621,10 @@ export class GameEngine {
       type === 'bridge' ||
       type === 'castle_stone' ||
       type === 'ghost_floor' ||
-      type === 'ghost_brick'
+      type === 'ghost_brick' ||
+      type === 'yellow_switch' ||
+      type === 'yellow_switch_pressed' ||
+      (type === 'exclam_yellow' && this.yellowSwitchUnlocked)
     );
   }
 
@@ -5309,6 +5406,21 @@ export class GameEngine {
           case 'question_empty':
             ctx.drawImage(this.atlas.tileQuestionEmpty, screenX, screenY);
             break;
+          case 'exclam_yellow':
+            ctx.drawImage(
+              this.yellowSwitchUnlocked
+                ? this.atlas.tileExclamYellowActive
+                : this.atlas.tileExclamYellowLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'yellow_switch':
+            ctx.drawImage(this.atlas.tileYellowSwitch, screenX, screenY);
+            break;
+          case 'yellow_switch_pressed':
+            ctx.drawImage(this.atlas.tileYellowSwitchPressed, screenX, screenY);
+            break;
           case 'hard_block':
             ctx.drawImage(this.atlas.tileHardBlock, screenX, screenY);
             break;
@@ -6031,7 +6143,12 @@ export class GameEngine {
 
   private renderMario(ctx: CanvasRenderingContext2D) {
     // Mario has entered the castle door - hidden from view inside (unless standing with Toodle or Princesa Femboy)
-    if (this.marioState === 'castle_entered' && !this.castleToodleActive && !this.castlePrincessActive) {
+    if (
+      this.marioState === 'castle_entered' &&
+      !this.castleToodleActive &&
+      !this.castlePrincessActive &&
+      !this.switchPalaceActivated
+    ) {
       return;
     }
 
@@ -6138,7 +6255,9 @@ export class GameEngine {
 
     // Get current character sprite (Mario or WazzimaGiygg)
     const effectiveState =
-      this.marioFireThrowTimer > 0 && this.marioPower === 'fire' && this.marioGrounded && Math.abs(this.marioVx) < 0.2
+      this.switchPalaceActivated && this.marioState === 'castle_entered'
+        ? 'idle'
+        : this.marioFireThrowTimer > 0 && this.marioPower === 'fire' && this.marioGrounded && Math.abs(this.marioVx) < 0.2
         ? 'running'
         : this.marioState;
     const effectiveFrame = this.marioFireThrowTimer > 0 && this.marioPower === 'fire' ? 1 : this.marioAnimFrame;

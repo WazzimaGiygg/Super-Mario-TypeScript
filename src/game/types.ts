@@ -64,7 +64,10 @@ export type TileType =
   | 'bridge'
   | 'axe'
   | 'ghost_floor'
-  | 'ghost_brick';
+  | 'ghost_brick'
+  | 'exclam_yellow'
+  | 'yellow_switch'
+  | 'yellow_switch_pressed';
 
 export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'none';
 

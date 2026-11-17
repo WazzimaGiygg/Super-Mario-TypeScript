@@ -436,6 +436,10 @@ export class SpriteAtlas {
   public tileQuestionFrames: HTMLCanvasElement[] = [];
   public tileQuestionEmpty!: HTMLCanvasElement;
   public tileHardBlock!: HTMLCanvasElement;
+  public tileExclamYellowLocked!: HTMLCanvasElement;
+  public tileExclamYellowActive!: HTMLCanvasElement;
+  public tileYellowSwitch!: HTMLCanvasElement;
+  public tileYellowSwitchPressed!: HTMLCanvasElement;
   
   // Pipes
   public pipeTopLeft!: HTMLCanvasElement;
@@ -2793,6 +2797,122 @@ export class SpriteAtlas {
     ctxHard.fillRect(2, 12, 2, 2);
     ctxHard.fillRect(12, 12, 2, 2);
     this.tileHardBlock = cHard;
+
+    // 4a-1. Yellow [!] Block - Locked / Dotted Outline (before Switch Palace)
+    const [cExclLocked, ctxExclLocked] = createOffscreen(16, 16);
+    const exclLockedPattern = [
+      '.YY..YY..YY..YY.',
+      'Y..............Y',
+      'Y..............Y',
+      '.......YY.......',
+      '......YYYY......',
+      'Y.....YYYY.....Y',
+      'Y......YY......Y',
+      '.......YY.......',
+      '.......YY.......',
+      'Y..............Y',
+      'Y..............Y',
+      '.......YY.......',
+      '.......YY.......',
+      'Y..............Y',
+      'Y..............Y',
+      '.YY..YY..YY..YY.',
+    ];
+    drawPixelGrid(ctxExclLocked, exclLockedPattern, {
+      '.': 'transparent',
+      'Y': '#fde047',
+    });
+    this.tileExclamYellowLocked = cExclLocked;
+
+    // 4a-2. Yellow [!] Block - Unlocked / Solid Golden Block (spawns Super Mushrooms)
+    const [cExclActive, ctxExclActive] = createOffscreen(16, 16);
+    const exclActivePattern = [
+      'BBBBBBBBBBBBBBBB',
+      'BLLLLLLLLLLLLLLB',
+      'BLYYYYYYYYYYYYDB',
+      'BLY..BYYYY..B.DB',
+      'BLYYYYYKKYYYYYDB',
+      'BLYYYYKKKKYYYYDB',
+      'BLYYYYKKKKYYYYDB',
+      'BLYYYYYKKYYYYYDB',
+      'BLYYYYYKKYYYYYDB',
+      'BLYYYYYKKYYYYYDB',
+      'BLYYYYYYYYYYYYDB',
+      'BLYYYYYKKYYYYYDB',
+      'BLY..BYKKY..B.DB',
+      'BLYYYYYYYYYYYYDB',
+      'BDDDDDDDDDDDDDDB',
+      'BBBBBBBBBBBBBBBB',
+    ];
+    drawPixelGrid(ctxExclActive, exclActivePattern, {
+      'B': '#000000',
+      'L': '#fef9c3',
+      'Y': '#facc15',
+      'D': '#ca8a04',
+      'K': '#451a03',
+      '.': '#eab308',
+    });
+    this.tileExclamYellowActive = cExclActive;
+
+    // 4a-3. Giant Yellow Switch Palace Button (Unpressed & Pressed)
+    const [cSwitch, ctxSwitch] = createOffscreen(16, 16);
+    const switchPattern = [
+      '...BBBBBBBBBB...',
+      '..BLLLLLLLLLLB..',
+      '.BLYYYYYYYYYYDB.',
+      '.BLYYYKKKKYYYDB.',
+      '.BLYYYKKKKYYYDB.',
+      '.BLYYYYKKYYYYDB.',
+      '.BLYYYYKKYYYYDB.',
+      '.BLYYYYYYYYYYDB.',
+      '.BLYYYYKKYYYYDB.',
+      '.BLYYYYKKYYYYDB.',
+      '.BDDDDDDDDDDDDB.',
+      'BBBBBBBBBBBBBBBB',
+      'BGGGGGGGGGGGGGGD',
+      'BGGGGGGGGGGGGGGD',
+      'BDDDDDDDDDDDDDDD',
+      'BBBBBBBBBBBBBBBB',
+    ];
+    drawPixelGrid(ctxSwitch, switchPattern, {
+      '.': 'transparent',
+      'B': '#000000',
+      'L': '#fef08a',
+      'Y': '#facc15',
+      'D': '#a16207',
+      'K': '#451a03',
+      'G': '#78716c',
+    });
+    this.tileYellowSwitch = cSwitch;
+
+    const [cSwitchPressed, ctxSwitchPressed] = createOffscreen(16, 16);
+    const switchPressedPattern = [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '..BBBBBBBBBBBB..',
+      '.BLYYYYYYYYYYDB.',
+      'BBBBBBBBBBBBBBBB',
+      'BGGGGGGGGGGGGGGD',
+      'BGGGGGGGGGGGGGGD',
+      'BDDDDDDDDDDDDDDD',
+      'BBBBBBBBBBBBBBBB',
+    ];
+    drawPixelGrid(ctxSwitchPressed, switchPressedPattern, {
+      '.': 'transparent',
+      'B': '#000000',
+      'L': '#fef08a',
+      'Y': '#eab308',
+      'D': '#854d0e',
+      'G': '#78716c',
+    });
+    this.tileYellowSwitchPressed = cSwitchPressed;
 
     // 4b. Castle Lava (2 animated 16x16 frames)
     this.tileLavaFrames = [];
