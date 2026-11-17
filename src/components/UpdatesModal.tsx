@@ -20,13 +20,63 @@ interface UpdateEntry {
 
 const GAME_UPDATES: UpdateEntry[] = [
   {
+    version: 'R0.15.6J.3',
+    label: 'Compatibilidade',
+    title: 'Política de Preservação, Segurança Firebase & Suíte de Regressão',
+    items: [
+      'Estabelecida política formal de preservação garantindo integridade da física original, efeitos dos power-ups, sistema de pontuação/vidas e funcionalidades existentes.',
+      'Autenticação Google e regras de segurança do Firebase preservadas e validadas contra o blueprint, incluindo documentação prévia de riscos de incompatibilidade.',
+      'Adicionada suíte automatizada de testes de regressão cobrindo física, power-ups, pontuação, vidas, guarda de morte e compatibilidade multiplayer entre pares da mesma versão.',
+    ],
+  },
+  {
+    version: 'R0.15.6J.2',
+    label: 'Escalabilidade',
+    title: 'Preparação Progressiva para Salas de 4 até 16 Jogadores',
+    items: [
+      'Capacidade de sala ampliada de 12 para até 16 jogadores simultâneos com bloqueio limpo quando a sala estiver lotada.',
+      'Escala adaptativa por lotação: ajusta automaticamente a frequência efetiva (15 Hz até 4 jog. → 12 Hz até 8 → 10 Hz até 12 → 8 Hz até 16), deadband espacial e janela de agrupamento de eventos para conter operações quadráticas no Firebase.',
+      'Otimização de renderização e memória para múltiplas entidades: cache de largura de crachás, descarte de partículas remotas fora de câmera, listas limitadas de IDs vistos e limpeza automática de eventos expirados.',
+    ],
+  },
+  {
+    version: 'R0.15.6J.1',
+    label: 'Multiplayer',
+    title: 'Otimização da Sincronização Multiplayer & Redução de Operações',
+    items: [
+      'Frequência configurável de envio de posição entre 10 e 20 Hz (padrão 15 Hz), mantendo física, colisões e controles locais instantâneos a 60 FPS.',
+      'Interpolação suave com predição assistida por velocidade para jogadores remotos, evitando saltos visuais entre pacotes de rede.',
+      'Sincronização apenas por deltas (campos modificados) e supressão de atualizações redundantes quando parado, enviando apenas heartbeat mínimo quando ocioso.',
+      'Agrupamento e deduplicação de eventos rápidos (moedas, blocos e inimigos) separados de transições críticas de fase e estado.',
+      'Reconexão automática com backoff exponencial no Firebase/WebSocket e validação rigorosa de identidade e mensagens recebidas.',
+    ],
+  },
+  {
+    version: 'R0.15.0.JM.4',
+    label: 'Correção',
+    title: 'Correção do HUD de Vidas & Alinhamento do Placar Externo',
+    items: [
+      'O HUD de vidas agora limita a exibição visual para até 5 corações com indicador compacto (+N) para vidas extras, evitando dezenas de ícones na barra.',
+      'Corrigido o deslocamento vertical que empurrava o HUD externo para cima quando havia muitas vidas ou quebra de linha na barra superior.',
+    ],
+  },
+  {
+    version: 'R0.15.0.OO.4',
+    label: 'Correção',
+    title: 'Correção de Jogabilidade · Easter Egg Restrito ao Modo Desenvolvedor',
+    items: [
+      'O Easter Egg "ILLEGAL INSTRUCTION" ao cair no abismo segurando corrida agora só é ativado quando o Modo Desenvolvedor estiver em uso.',
+      'Em partidas normais sem o Modo Desenvolvedor, cair no abismo segurando corrida segue o comportamento padrão de perda de vida.',
+    ],
+  },
+  {
     version: 'v1.9',
-    label: 'Mais Recente',
+    label: 'Debug & Mapa',
     title: 'Modo Debug (Estilo Sonic) & Easter Egg "ILLEGAL INSTRUCTION"',
     items: [
       'Novo Modo Debug (estilo Sonic) ativável em Configurações ou na Página do Desenvolvedor: os pontos no placar viram coordenadas X/Y em tempo real.',
       'Cursor livre de inserção manual (tecla B / E): voe pela fase, alterne entre moedas, power-ups, blocos e inimigos (Shift / X / [ ]) e insira manualmente (Espaço / Z ou clique no mapa).',
-      'Easter Egg secreto: cair no abismo segurando o botão de corrida aciona a tela bugada "ILLEGAL INSTRUCTION", que pode ser restaurada ao normal pressionando o Botão do Desenvolvedor.',
+      'Easter Egg do Modo Desenvolvedor: com o modo desenvolvedor ativo, cair no abismo segurando o botão de corrida aciona a tela bugada "ILLEGAL INSTRUCTION", que pode ser restaurada ao normal pressionando o Botão do Desenvolvedor.',
     ],
   },
   {

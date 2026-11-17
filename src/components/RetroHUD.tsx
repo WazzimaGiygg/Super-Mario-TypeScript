@@ -46,25 +46,27 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   const formattedCoins = String(stats.coins).padStart(2, '0');
   const formattedTime = String(stats.time).padStart(3, '0');
 
-  // Render lives as hearts
+  // Render lives as hearts (capped at 5 icons + overflow count to avoid HUD overflow)
   const renderLifeHearts = () => {
     if (stats.lives >= 99) {
       return (
-        <span className="text-amber-400 font-bold text-xs flex items-center gap-1">
+        <span className="text-amber-400 font-bold text-xs flex items-center gap-1 shrink-0">
           <Heart className="w-4 h-4 fill-red-500 text-red-500 animate-pulse" />
           <span>x ∞</span>
         </span>
       );
     }
 
-    const totalSlots = Math.max(3, stats.lives);
+    const MAX_VISIBLE_HEARTS = 5;
+    const clampedLives = Math.max(0, stats.lives);
+    const totalSlots = clampedLives > MAX_VISIBLE_HEARTS ? MAX_VISIBLE_HEARTS : Math.max(3, clampedLives);
     const hearts = [];
     for (let i = 0; i < totalSlots; i++) {
-      const isAlive = i < stats.lives;
+      const isAlive = i < clampedLives;
       hearts.push(
         <Heart
           key={i}
-          className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all duration-300 ${
+          className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 transition-all duration-300 ${
             isAlive
               ? 'fill-red-500 text-red-600 scale-100 drop-shadow-[0_0_4px_rgba(239,68,68,0.8)]'
               : 'fill-stone-800 text-stone-700 scale-90 opacity-40'
@@ -72,12 +74,24 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
         />
       );
     }
+
+    if (clampedLives > MAX_VISIBLE_HEARTS) {
+      hearts.push(
+        <span
+          key="overflow"
+          className="ml-0.5 px-1.5 py-0.5 rounded bg-stone-800 border border-stone-700 text-[9px] font-mono font-bold text-amber-300 tabular-nums shrink-0"
+        >
+          +{clampedLives - MAX_VISIBLE_HEARTS}
+        </span>
+      );
+    }
+
     return hearts;
   };
 
   return (
     <div
-      className={`w-full bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b border-stone-800/80 shadow-lg px-2 sm:px-6 ${
+      className={`w-full shrink-0 bg-stone-950/95 text-white font-['Press_Start_2P',monospace] select-none border-b border-stone-800/80 shadow-lg px-2 sm:px-6 ${
         isFullscreen ? 'py-1 sm:py-1.5' : 'py-1.5 sm:py-2.5'
       }`}
     >
@@ -258,13 +272,13 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
         </div>
 
         {/* Second Row: Detailed Lives & Placar Quick Actions (hidden on mobile to preserve vertical space for game controls) */}
-        <div className="hidden sm:flex items-center justify-between bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 text-[10px] sm:text-xs">
+        <div className="hidden sm:flex items-center justify-between gap-2 min-w-0 bg-stone-900/90 px-3 py-1.5 rounded-lg border border-stone-800 text-[10px] sm:text-xs">
           {/* Quantidade de Vidas (Highlighted Lives Tracker) */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 text-stone-200">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+            <div className="flex items-center gap-1.5 text-stone-200 shrink-0">
               <span className="text-red-400 font-bold">VIDAS:</span>
               <span
-                className={`px-2 py-0.5 rounded font-mono font-bold ${
+                className={`px-2 py-0.5 rounded font-mono font-bold tabular-nums ${
                   stats.lives === 1
                     ? 'bg-red-950 text-red-400 border border-red-600 animate-pulse'
                     : 'bg-emerald-950 text-emerald-400 border border-emerald-700'
@@ -275,18 +289,18 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
             </div>
 
             {/* Visual Hearts */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {renderLifeHearts()}
             </div>
 
             {/* Warning for last life or difficulty badge */}
             {stats.lives === 1 ? (
-              <span className="hidden sm:inline-block text-[9px] text-red-400 animate-bounce font-bold tracking-wider">
+              <span className="hidden lg:inline-block text-[9px] text-red-400 animate-bounce font-bold tracking-wider whitespace-nowrap">
                 ⚠️ ÚLTIMA VIDA!
               </span>
             ) : stats.difficulty ? (
               <span
-                className={`hidden md:inline-block text-[8px] font-['Press_Start_2P',monospace] px-2 py-0.5 rounded border uppercase ${
+                className={`hidden lg:inline-block text-[8px] font-['Press_Start_2P',monospace] px-2 py-0.5 rounded border uppercase whitespace-nowrap ${
                   stats.difficulty === 'easy'
                     ? 'bg-emerald-950 text-emerald-400 border-emerald-700'
                     : stats.difficulty === 'hard'
@@ -300,12 +314,12 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
           </div>
 
           {/* Leaderboard, Debug Cursor & Developer Triggers */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {isDebugMode && !isIllegalInstructionBug && onToggleDebugPlacement && (
               <button
                 type="button"
                 onClick={onToggleDebugPlacement}
-                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap shrink-0 ${
                   isDebugPlacementActive
                     ? 'bg-cyan-600/35 hover:bg-cyan-600/45 text-cyan-200 border-cyan-400'
                     : 'bg-stone-800 hover:bg-stone-700 text-cyan-300 border-cyan-600/50'
@@ -320,7 +334,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
               <button
                 type="button"
                 onClick={onOpenCheatMenu}
-                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded border transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] font-bold whitespace-nowrap shrink-0 ${
                   isIllegalInstructionBug
                     ? 'bg-emerald-600/40 hover:bg-emerald-500/50 text-emerald-200 border-emerald-400 animate-pulse shadow-[0_0_12px_rgba(52,211,153,0.45)]'
                     : 'bg-red-600/30 hover:bg-red-600/40 text-red-300 border-red-500/50 hover:border-red-400'
@@ -335,7 +349,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
               <button
                 type="button"
                 onClick={onOpenLeaderboard}
-                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-400 transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px]"
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-400 transition flex items-center gap-1.5 cursor-pointer text-[9px] sm:text-[10px] whitespace-nowrap shrink-0"
               >
                 <Trophy className="w-3 h-3 text-amber-400" />
                 <span>PLACAR DE RECORDES</span>

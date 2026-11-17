@@ -978,7 +978,7 @@ export const GameCanvas: React.FC = () => {
       className={
         isFullscreen
           ? 'fixed inset-0 z-40 flex flex-col items-center justify-between w-screen h-[100dvh] bg-black select-none overflow-hidden'
-          : 'relative flex flex-col items-center justify-center w-full min-h-screen bg-stone-950 select-none overflow-hidden'
+          : 'relative flex flex-col items-center justify-start w-full min-h-screen bg-stone-950 select-none overflow-x-hidden'
       }
     >
       {/* Top HUD (Placar & Vidas) */}

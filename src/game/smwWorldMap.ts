@@ -82,6 +82,83 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
   },
 ];
 
+export interface SmwPathSegment {
+  fromOrder: number;
+  toOrder: number;
+  p0: [number, number];
+  c1: [number, number];
+  c2: [number, number];
+  p1: [number, number];
+}
+
+export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
+  {
+    fromOrder: 0,
+    toOrder: 1,
+    p0: [16, 64],
+    c1: [24, 62],
+    c2: [25, 44],
+    p1: [34, 41],
+  },
+  {
+    fromOrder: 1,
+    toOrder: 2,
+    p0: [34, 41],
+    c1: [42, 40],
+    c2: [43, 64],
+    p1: [51, 66],
+  },
+  {
+    fromOrder: 2,
+    toOrder: 3,
+    p0: [51, 66],
+    c1: [60, 64],
+    c2: [59, 41],
+    p1: [68, 38],
+  },
+  {
+    fromOrder: 3,
+    toOrder: 4,
+    p0: [68, 38],
+    c1: [77, 36],
+    c2: [77, 54],
+    p1: [85, 53],
+  },
+];
+
+export function evaluateSmwPathSegment(
+  seg: SmwPathSegment,
+  t: number
+): { x: number; y: number; dx: number; dy: number } {
+  const u = 1 - t;
+  const tt = t * t;
+  const uu = u * u;
+  const uuu = uu * u;
+  const ttt = tt * t;
+
+  const x =
+    uuu * seg.p0[0] +
+    3 * uu * t * seg.c1[0] +
+    3 * u * tt * seg.c2[0] +
+    ttt * seg.p1[0];
+  const y =
+    uuu * seg.p0[1] +
+    3 * uu * t * seg.c1[1] +
+    3 * u * tt * seg.c2[1] +
+    ttt * seg.p1[1];
+
+  const dx =
+    3 * uu * (seg.c1[0] - seg.p0[0]) +
+    6 * u * t * (seg.c2[0] - seg.c1[0]) +
+    3 * tt * (seg.p1[0] - seg.c2[0]);
+  const dy =
+    3 * uu * (seg.c1[1] - seg.p0[1]) +
+    6 * u * t * (seg.c2[1] - seg.c1[1]) +
+    3 * tt * (seg.p1[1] - seg.c2[1]);
+
+  return { x, y, dx, dy };
+}
+
 export function createSmwWikiWorldStage(nodeId: string): LevelData {
   switch (nodeId) {
     case 'wiki-2-caverna':

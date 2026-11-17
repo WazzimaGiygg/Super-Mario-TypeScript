@@ -84,7 +84,18 @@ export class GameEngine {
   public isMultiplayerMatchOver: boolean = false;
   public multiplayerMatchResult: MultiplayerMatchResult | null = null;
   public onMultiplayerSyncNeeded?: () => void;
+  public onMultiplayerWorldEvent?: (
+    eventType: 'enemy_defeat' | 'coin_collect' | 'brick_break',
+    x: number,
+    y: number
+  ) => void;
   public remotePlayers: Map<string, RemotePlayerState> = new Map();
+  private remoteBadgeWidthCache: Map<string, number> = new Map();
+
+  private isNearCamera(worldX: number): boolean {
+    const camCenter = this.camera.renderX + GameEngine.NES_WIDTH * 0.5;
+    return Math.abs(worldX - camCenter) <= GameEngine.NES_WIDTH * 0.85;
+  }
 
   // Mario State
   public marioX: number = 40;
@@ -1284,8 +1295,9 @@ export class GameEngine {
 
     // Check Pit Fall Death (Abyss)
     if (this.marioY > GameEngine.NES_HEIGHT + 16) {
-      if (!this.isEditorImmortality && this.controls.run && !this.isStageClear) {
-        // Easter Egg: Falling into the abyss while holding Run triggers "ILLEGAL INSTRUCTION" glitched screen
+      const isDeveloperModeActive = this.isCheatActive || this.isDebugMode;
+      if (isDeveloperModeActive && !this.isEditorImmortality && this.controls.run && !this.isStageClear) {
+        // Easter Egg (Developer Mode only): Falling into the abyss while holding Run triggers "ILLEGAL INSTRUCTION" glitched screen
         this.triggerIllegalInstructionBug();
         return;
       }
@@ -1748,8 +1760,13 @@ export class GameEngine {
     });
   }
 
-  public createBrickDebris(x: number, y: number) {
-    this.particleSystem.emitBrickBreak(x, y, this.level.theme);
+  public createBrickDebris(x: number, y: number, fromRemote: boolean = false) {
+    if (!fromRemote || this.isNearCamera(x)) {
+      this.particleSystem.emitBrickBreak(x, y, this.level.theme);
+    }
+    if (!fromRemote && this.isMultiplayerConnected) {
+      this.onMultiplayerWorldEvent?.('brick_break', x, y);
+    }
   }
 
   // --- ENEMIES UPDATE ---
@@ -2603,6 +2620,7 @@ export class GameEngine {
       this.marioShrinkTimer = 24;
       this.sound.playPipe();
       this.triggerScreenShake(2.0, 6);
+      this.onMultiplayerSyncNeeded?.();
     } else if (this.marioPower === 'fire' || this.marioPower === 'super') {
       // Fire / Super Mario absorbs the hit, retains player life, and reverts to Small Mario with temporary invincibility
       this.marioTransitionFrom = this.marioPower;
@@ -2613,6 +2631,7 @@ export class GameEngine {
       this.marioShrinkTimer = 32; // Freeze frames for shrink animation
       this.sound.playPipe();
       this.triggerScreenShake(2.5, 7);
+      this.onMultiplayerSyncNeeded?.();
     } else {
       // Small Mario dies (unless infinite lives is active)
       if (this.infiniteLives) {
@@ -2640,6 +2659,7 @@ export class GameEngine {
       this.marioVy = 0; // Brief freeze before launching upward
       this.marioDeathTimer = 0;
     }
+    this.onMultiplayerSyncNeeded?.();
   }
 
   private handleLifeLost() {
@@ -2672,6 +2692,10 @@ export class GameEngine {
   // --- ITEMS UPDATE ---
   private updateItems() {
     const marioBox = this.getMarioHitbox();
+    const canCollectItems =
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting';
 
     this.items.forEach(item => {
       if (item.collected) return;
@@ -2687,7 +2711,7 @@ export class GameEngine {
 
       // Coin collected in air
       if (item.type === 'coin') {
-        if (this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
+        if (canCollectItems && this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
           item.collected = true;
           this.sound.playCoin();
           this.stats.coins++;
@@ -2752,7 +2776,7 @@ export class GameEngine {
       }
 
       // Mario touches item
-      if (this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
+      if (canCollectItems && this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
         item.collected = true;
         this.collectItem(item);
       }
@@ -2808,6 +2832,7 @@ export class GameEngine {
 
     this.addScore(1000, itemX, itemY, label);
     this.spawnPowerUpSparkles(this.marioX, this.marioY);
+    this.onMultiplayerSyncNeeded?.();
   }
 
   private collectItem(item: Item) {
@@ -2828,8 +2853,10 @@ export class GameEngine {
       this.sound.playMusic('starman');
       this.addScore(1000, item.x, item.y, 'STAR!');
       this.spawnPowerUpSparkles(this.marioX, this.marioY);
+      this.onMultiplayerSyncNeeded?.();
     } else if (item.type === '1up') {
       this.awardExtraLife(item.x, item.y);
+      this.onMultiplayerSyncNeeded?.();
     }
   }
 
@@ -3124,13 +3151,23 @@ export class GameEngine {
   }
 
   // Helper to spawn glittering sparkles on coin collection
-  public spawnCoinParticles(x: number, y: number) {
-    this.particleSystem.emitCoinSparkles(x, y);
+  public spawnCoinParticles(x: number, y: number, fromRemote: boolean = false) {
+    if (!fromRemote || this.isNearCamera(x)) {
+      this.particleSystem.emitCoinSparkles(x, y);
+    }
+    if (!fromRemote && this.isMultiplayerConnected) {
+      this.onMultiplayerWorldEvent?.('coin_collect', x, y);
+    }
   }
 
   // Helper to spawn impact stars, debris fragments, and poof clouds when defeating an enemy
-  public spawnEnemyDefeatParticles(x: number, y: number, enemyType?: EnemyType) {
-    this.particleSystem.emitEnemyDefeat(x, y, enemyType);
+  public spawnEnemyDefeatParticles(x: number, y: number, enemyType?: EnemyType, fromRemote: boolean = false) {
+    if (!fromRemote || this.isNearCamera(x)) {
+      this.particleSystem.emitEnemyDefeat(x, y, enemyType);
+    }
+    if (!fromRemote && this.isMultiplayerConnected) {
+      this.onMultiplayerWorldEvent?.('enemy_defeat', x, y);
+    }
   }
 
   private syncHighScore(persist: boolean = true) {
@@ -4670,9 +4707,9 @@ export class GameEngine {
       }
     }
 
-    // 2. MULTIPLAYER BADGE (If other players connected via IP)
+    // 2. MULTIPLAYER BADGE (Dynamic player count 2P..16P ON)
     if (this.remotePlayers.size > 0) {
-      drawShadowText('2P ON', 84, 12, '#38f838');
+      drawShadowText(`${1 + this.remotePlayers.size}P ON`, 84, 12, '#38f838');
     }
 
     // CHEAT USE / DEBUG badge if active
@@ -6160,25 +6197,34 @@ export class GameEngine {
     }
   }
 
-  // --- MULTIPLAYER REMOTE PLAYERS RENDERING ---
+  // --- MULTIPLAYER REMOTE PLAYERS RENDERING (Velocity-Assisted Dead-Reckoning & Interpolation) ---
   private renderRemotePlayers(ctx: CanvasRenderingContext2D) {
     if (this.remotePlayers.size === 0) return;
 
+    const now = Date.now();
     this.remotePlayers.forEach(rp => {
+      const elapsedMs = now - rp.lastUpdated;
       // Discard stale players (no updates in 15 seconds)
-      if (Date.now() - rp.lastUpdated > 15000) return;
+      if (elapsedMs > 15000) return;
       if (rp.state === 'castle_entered') return;
 
-      // Smooth interpolation toward latest network position
-      if (rp.renderX === undefined || Math.abs(rp.x - rp.renderX) > 96) {
+      // Velocity-assisted prediction bounded to 180ms so 8-20 Hz adaptive packets glide smoothly
+      const leadFrames = Math.max(0, Math.min(180, elapsedMs)) / 16.67;
+      const targetX = rp.x + rp.vx * leadFrames * 0.54;
+      const targetY = rp.y + rp.vy * leadFrames * 0.36;
+      rp.targetX = targetX;
+      rp.targetY = targetY;
+
+      // Smooth exponential interpolation toward predicted network target (snap on pipe warp / respawn > 96px)
+      if (rp.renderX === undefined || Math.abs(targetX - rp.renderX) > 96) {
         rp.renderX = rp.x;
       } else {
-        rp.renderX += (rp.x - rp.renderX) * 0.35;
+        rp.renderX += (targetX - rp.renderX) * 0.28;
       }
-      if (rp.renderY === undefined || Math.abs(rp.y - rp.renderY) > 96) {
+      if (rp.renderY === undefined || Math.abs(targetY - rp.renderY) > 96) {
         rp.renderY = rp.y;
       } else {
-        rp.renderY += (rp.y - rp.renderY) * 0.35;
+        rp.renderY += (targetY - rp.renderY) * 0.28;
       }
 
       const px = Math.round(rp.renderX - this.camera.renderX);
@@ -6195,16 +6241,22 @@ export class GameEngine {
       }
 
       // Blinking if invulnerable
-      if (rp.invulnerable && Math.floor(Date.now() / 80) % 2 === 0) {
+      if (rp.invulnerable && Math.floor(now / 80) % 2 === 0) {
         ctx.restore();
         return;
       }
+
+      // Interpolate walk animation frame smoothly at 60 FPS between network packets
+      const effectiveAnimFrame =
+        Math.abs(rp.vx) > 0.2 && (rp.state === 'running' || rp.state === 'idle')
+          ? (rp.animFrame + Math.floor(Math.max(0, elapsedMs) / 85)) % 3
+          : rp.animFrame;
 
       const spriteCanvas = this.atlas.getCharacterSprite(
         rp.character,
         rp.power,
         rp.state,
-        rp.animFrame,
+        effectiveAnimFrame,
         {
           isStatue: rp.isStatue,
           tailWhipTimer: rp.tailWhipTimer,
@@ -6219,7 +6271,7 @@ export class GameEngine {
 
       ctx.restore();
 
-      // Overhead player tag
+      // Overhead player tag with cached width measurement for 8-16 player efficiency
       ctx.save();
       const badgeY = py - 8;
       const isW = rp.character === 'wazzima';
@@ -6229,7 +6281,14 @@ export class GameEngine {
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
 
-      const textWidth = ctx.measureText(nameText).width;
+      let textWidth = this.remoteBadgeWidthCache.get(nameText);
+      if (textWidth === undefined) {
+        textWidth = ctx.measureText(nameText).width;
+        if (this.remoteBadgeWidthCache.size >= 64) {
+          this.remoteBadgeWidthCache.clear();
+        }
+        this.remoteBadgeWidthCache.set(nameText, textWidth);
+      }
       const bgW = Math.max(28, textWidth + 6);
       const bgX = px + 8 - bgW / 2;
 

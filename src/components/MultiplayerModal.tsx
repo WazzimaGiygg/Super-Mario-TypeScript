@@ -17,6 +17,8 @@ import {
   Plus,
   Crown,
   Clock,
+  Activity,
+  RefreshCw,
 } from 'lucide-react';
 
 interface MultiplayerModalProps {
@@ -400,6 +402,60 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
           </div>
         </div>
 
+        {/* Configurable Sync Frequency (10-20 Hz) */}
+        <div className="mb-4 p-3 rounded-lg border border-slate-700/80 bg-slate-800/50">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <label htmlFor="mp-sync-rate-slider" className="text-[11px] font-bold text-slate-200 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              FREQUÊNCIA DE SINCRONIZAÇÃO (10–20 Hz):
+            </label>
+            <span className="text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 px-2 py-0.5 rounded">
+              {status.effectiveSyncRateHz !== status.syncRateHz
+                ? `${status.syncRateHz} Hz → ${status.effectiveSyncRateHz} Hz efetivo`
+                : `${status.syncRateHz} Hz (${Math.round(1000 / status.syncRateHz)} ms)`}
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+            <input
+              id="mp-sync-rate-slider"
+              type="range"
+              min={10}
+              max={20}
+              step={1}
+              value={status.syncRateHz}
+              onChange={(e) => multiplayerClient.setConfig({ syncRateHz: Number(e.target.value) })}
+              className="flex-1 accent-emerald-500 cursor-pointer"
+            />
+            <div className="flex items-center gap-1.5 shrink-0">
+              {[10, 15, 20].map((hz) => (
+                <button
+                  key={hz}
+                  type="button"
+                  onClick={() => multiplayerClient.setConfig({ syncRateHz: hz })}
+                  className={`px-2 py-1 rounded text-[10px] font-bold border transition cursor-pointer ${
+                    status.syncRateHz === hz
+                      ? 'bg-emerald-600 border-emerald-400 text-white'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  {hz} Hz
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="mt-2.5 flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={status.adaptiveScaling}
+              onChange={(e) => multiplayerClient.setConfig({ adaptiveScaling: e.target.checked })}
+              className="accent-emerald-500 rounded cursor-pointer"
+            />
+            <span>
+              Escala adaptativa por lotação (ajusta taxa/deadband gradualmente de 4 até 16 jogadores para conter custos no Firebase)
+            </span>
+          </label>
+        </div>
+
         {/* Active Firebase Rooms List */}
         {isFirebaseMode && status.authUser && !status.connected && (
           <div className="mb-4">
@@ -459,7 +515,12 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
         >
           <div className="flex items-center justify-between mb-1">
             <span className="font-bold flex items-center gap-2">
-              {status.connected ? (
+              {status.reconnecting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
+                  RECONECTANDO AUTOMATICAMENTE ({status.reconnectAttempt})...
+                </>
+              ) : status.connected ? (
                 <>
                   <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
                   CONECTADO NA SALA [{status.roomId}]
@@ -483,14 +544,14 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
             </span>
             {status.connected && (
               <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold text-[10px]">
-                {status.playerCount} JOGADOR(ES) {status.ping > 0 ? `• ${status.ping}ms` : ''}
+                {status.playerCount}/{status.maxRoomPlayers} JOGADOR(ES) {status.ping > 0 ? `• ${status.ping}ms` : ''}
               </span>
             )}
           </div>
           {!status.networkOnline && (
             <p className="text-[11px] text-rose-300 mt-1 flex items-center gap-1.5 font-bold">
               <WifiOff className="w-3.5 h-3.5 shrink-0" />
-              Sem conexão com a internet detectada.
+              Sem conexão com a internet detectada. Reconexão automática pronta ao voltar.
             </p>
           )}
           {status.error && <p className="text-[11px] text-rose-300 mt-1">{status.error}</p>}
@@ -498,6 +559,11 @@ export const MultiplayerModal: React.FC<MultiplayerModalProps> = ({ isOpen, onCl
             <div className="mt-1 space-y-1">
               <p className="text-[11px] text-emerald-300/80">
                 Jogando como <strong className="text-white">{status.playerName}</strong> ({status.character === 'wazzima' ? 'WazzimaGiygg' : 'Mario'}) via {isFirebaseMode ? 'Firebase Firestore' : 'IP Local'}.
+              </p>
+              <p className="text-[10px] text-slate-300/90">
+                Sincronização: <strong>{status.effectiveSyncRateHz} Hz</strong> • Delta ativo •{' '}
+                {status.syncStats.updatesSkipped} redundâncias evitadas
+                {status.syncStats.eventsBatched > 0 ? ` • ${status.syncStats.eventsBatched} eventos agrupados` : ''}
               </p>
               {status.inactivityRemainingSec !== null && status.inactivityRemainingSec <= 180 && (
                 <p className="text-[10px] text-amber-300 flex items-center gap-1">

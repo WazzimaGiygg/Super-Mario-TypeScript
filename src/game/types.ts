@@ -309,6 +309,8 @@ export interface RemotePlayerState {
   character: PlayerCharacter;
   x: number;
   y: number;
+  targetX?: number;
+  targetY?: number;
   renderX?: number;
   renderY?: number;
   vx: number;
@@ -326,6 +328,7 @@ export interface RemotePlayerState {
   coins: number;
   stageCleared?: boolean;
   levelId?: string;
+  seq?: number;
   lastUpdated: number;
 }
 
@@ -355,24 +358,38 @@ export interface MultiplayerLogoffEvent {
 }
 
 export interface MultiplayerMessage {
-  type: 
+  type:
     | 'join'
     | 'room_joined'
+    | 'room_full'
     | 'player_joined'
     | 'player_left'
     | 'player_update'
     | 'world_event'
+    | 'world_events_batch'
     | 'chat'
-    | 'room_expired';
+    | 'room_expired'
+    | 'ping_probe'
+    | 'pong_probe';
   roomId: string;
   senderId: string;
+  seq?: number;
   payload?: any;
+}
+
+export interface MultiplayerSyncStats {
+  updatesSent: number;
+  updatesSkipped: number;
+  eventsBatched: number;
+  packetsRejected: number;
 }
 
 export interface MultiplayerStatus {
   transport: MultiplayerTransport;
   connected: boolean;
   connecting: boolean;
+  reconnecting: boolean;
+  reconnectAttempt: number;
   error: string | null;
   serverAddress: string;
   roomId: string;
@@ -380,11 +397,15 @@ export interface MultiplayerStatus {
   playerName: string;
   character: PlayerCharacter;
   playerCount: number;
+  maxRoomPlayers: number;
   ping: number;
+  syncRateHz: number;
+  effectiveSyncRateHz: number;
+  adaptiveScaling: boolean;
+  syncStats: MultiplayerSyncStats;
   authUser: FirebaseUserSummary | null;
   isHost: boolean;
   availableRooms: FirebaseRoomSummary[];
   networkOnline: boolean;
   inactivityRemainingSec: number | null;
 }
-
