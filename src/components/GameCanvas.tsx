@@ -12,7 +12,7 @@ import { LeaderboardModal } from './LeaderboardModal.tsx';
 import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { LevelEditorModal } from './LevelEditorModal.tsx';
-import { UpdatesModal } from './UpdatesModal.tsx';
+import { UpdatesModal, UpdatesModalFilter } from './UpdatesModal.tsx';
 import { SmwOverworldMap } from './SmwOverworldMap.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
@@ -26,8 +26,9 @@ import {
   isSmwNodeUnlocked,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
+import { sanitizeCustomLevelEntities } from '../game/levels.ts';
 import { isSmartTvUserAgent, moveFocusWithDpad, resolveTvRemoteAction } from '../game/smartTv.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv } from 'lucide-react';
+import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -127,6 +128,7 @@ export const GameCanvas: React.FC = () => {
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState(false);
   const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
   const [isUpdatesOpen, setIsUpdatesOpen] = useState(false);
+  const [updatesFilter, setUpdatesFilter] = useState<UpdatesModalFilter>('all');
   const [isSmwMapOpen, setIsSmwMapOpen] = useState(false);
   const [isSmwModeActive, setIsSmwModeActive] = useState(false);
   const [smwProgress, setSmwProgress] = useState<SmwBetaProgress>(() => loadSmwBetaProgress());
@@ -257,7 +259,22 @@ export const GameCanvas: React.FC = () => {
   useEffect(() => {
     const engine = new GameEngine();
     engine.stats.highScore = getTopScore();
-    engine.yellowSwitchUnlocked = loadSmwBetaProgress().yellowSwitchUnlocked;
+    const initialSmwProgress = loadSmwBetaProgress();
+    engine.yellowSwitchUnlocked = initialSmwProgress.yellowSwitchUnlocked;
+    engine.goalPointsWallet = initialSmwProgress.goalPointsWallet ?? 0;
+    engine.stats.goalPointsWallet = engine.goalPointsWallet;
+    engine.onSmwGoalWalletChanged = (wallet: number) => {
+      if (engine.gameMode !== 'smw_world_map') return;
+      setSmwProgress(prev => {
+        if ((prev.goalPointsWallet ?? 0) === wallet) return prev;
+        const updated: SmwBetaProgress = {
+          ...prev,
+          goalPointsWallet: wallet,
+        };
+        saveSmwBetaProgress(updated);
+        return updated;
+      });
+    };
     engine.onSmwYellowSwitchActivated = () => {
       setSmwProgress(prev => {
         if (prev.yellowSwitchUnlocked) return prev;
@@ -309,6 +326,7 @@ export const GameCanvas: React.FC = () => {
     return () => {
       engine.onSmwStageCompleted = undefined;
       engine.onSmwYellowSwitchActivated = undefined;
+      engine.onSmwGoalWalletChanged = undefined;
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
@@ -316,12 +334,66 @@ export const GameCanvas: React.FC = () => {
     };
   }, []);
 
-  // Update controls to engine
-  const handleControlChange = useCallback((key: keyof GamepadControls, active: boolean) => {
-    if (!engineRef.current) return;
-    engineRef.current.controls[key] = active;
-    setControls(prev => ({ ...prev, [key]: active }));
+  const openUpdatesModal = useCallback((filter: UpdatesModalFilter = 'all') => {
+    setUpdatesFilter(filter);
+    setIsUpdatesOpen(true);
   }, []);
+
+  // Update controls to engine (only during active gameplay; blocked in menus/overlays — R1.16.UF.4)
+  const handleControlChange = useCallback(
+    (key: keyof GamepadControls, active: boolean) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const canControlGameplay =
+        hasStarted &&
+        engine.isGameStarted &&
+        !isSmwMapOpen &&
+        !isPaused &&
+        !isGameOver &&
+        !isCampaignVictory &&
+        !isMultiplayerMatchOver &&
+        !isSettingsOpen &&
+        !isLeaderboardOpen &&
+        !isCheatMenuOpen &&
+        !isMultiplayerOpen &&
+        !isLevelEditorOpen &&
+        !isUpdatesOpen;
+      if (!canControlGameplay) {
+        engine.controls.left = false;
+        engine.controls.right = false;
+        engine.controls.up = false;
+        engine.controls.down = false;
+        engine.controls.jump = false;
+        engine.controls.run = false;
+        setControls({
+          left: false,
+          right: false,
+          up: false,
+          down: false,
+          jump: false,
+          run: false,
+          pause: false,
+        });
+        return;
+      }
+      engine.controls[key] = active;
+      setControls(prev => ({ ...prev, [key]: active }));
+    },
+    [
+      hasStarted,
+      isSmwMapOpen,
+      isPaused,
+      isGameOver,
+      isCampaignVictory,
+      isMultiplayerMatchOver,
+      isSettingsOpen,
+      isLeaderboardOpen,
+      isCheatMenuOpen,
+      isMultiplayerOpen,
+      isLevelEditorOpen,
+      isUpdatesOpen,
+    ]
+  );
 
   // Activate developer mode ("lula132026")
   const activateCheat = useCallback(() => {
@@ -348,6 +420,15 @@ export const GameCanvas: React.FC = () => {
   const handleToggleDebugMode = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
+    if (engine.isDebugLockedAtStageEnd()) {
+      engine.toggleDebugMode(false);
+      setIsDebugMode(false);
+      setIsDebugPlacementActive(false);
+      setIsCheatActive(engine.isCheatActive);
+      setCheatToast('Modo Debug bloqueado ao alcançar o final da fase!');
+      setTimeout(() => setCheatToast(''), 3800);
+      return;
+    }
     const active = engine.toggleDebugMode();
     setIsDebugMode(active);
     setIsDebugPlacementActive(engine.isDebugPlacementActive);
@@ -365,6 +446,15 @@ export const GameCanvas: React.FC = () => {
   const handleToggleDebugPlacement = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
+    if (engine.isDebugLockedAtStageEnd()) {
+      engine.toggleDebugPlacementCursor(false);
+      setIsDebugMode(engine.isDebugMode);
+      setIsDebugPlacementActive(false);
+      setIsCheatActive(engine.isCheatActive);
+      setCheatToast('Modo Debug bloqueado ao alcançar o final da fase!');
+      setTimeout(() => setCheatToast(''), 3200);
+      return;
+    }
     const placing = engine.toggleDebugPlacementCursor();
     setIsDebugMode(engine.isDebugMode);
     setIsDebugPlacementActive(placing);
@@ -374,7 +464,7 @@ export const GameCanvas: React.FC = () => {
 
   const handleCycleDebugItem = useCallback((delta: -1 | 1) => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || engine.isDebugLockedAtStageEnd()) return;
     const spec = engine.cycleDebugPlaceable(delta);
     setDebugSelectedLabel(spec.label);
   }, []);
@@ -382,6 +472,12 @@ export const GameCanvas: React.FC = () => {
   const handlePlaceDebugItem = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || !engine.isDebugMode) return;
+    if (engine.isDebugLockedAtStageEnd()) {
+      engine.placeDebugItemAt();
+      setIsDebugMode(engine.isDebugMode);
+      setIsDebugPlacementActive(engine.isDebugPlacementActive);
+      return;
+    }
     engine.placeDebugItemAt();
   }, []);
 
@@ -390,6 +486,12 @@ export const GameCanvas: React.FC = () => {
     const canvas = canvasRef.current;
     if (!engine || !canvas || !engine.isDebugMode || !engine.isDebugPlacementActive) return;
     if (engine.isPaused || engine.isGameOver || engine.isIllegalInstructionBug) return;
+    if (engine.isDebugLockedAtStageEnd()) {
+      engine.toggleDebugMode(false);
+      setIsDebugMode(false);
+      setIsDebugPlacementActive(false);
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
@@ -408,6 +510,10 @@ export const GameCanvas: React.FC = () => {
       Math.min(engine.level.width * GameEngine.TILE_SIZE - 16, Math.round(nesX + engine.camera.renderX - 8))
     );
     const worldY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 16, Math.round(nesY - 8)));
+    if (engine.isDebugPlacementBlockedAt(worldX)) {
+      engine.placeDebugItemAt(worldX, worldY);
+      return;
+    }
     engine.marioX = worldX;
     engine.marioY = worldY;
     engine.placeDebugItemAt(worldX, worldY);
@@ -746,17 +852,17 @@ export const GameCanvas: React.FC = () => {
 
       // Preserve Debug Mode & Quick Restart keys
       if (e.code === 'KeyB' || e.code === 'KeyE') {
-        if (!e.repeat && engine.isDebugMode) {
+        if (!e.repeat && engine.isDebugMode && !engine.isDebugLockedAtStageEnd()) {
           e.preventDefault();
           engine.toggleDebugPlacementCursor();
           setIsDebugPlacementActive(engine.isDebugPlacementActive);
           setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
         }
-      } else if (e.code === 'BracketLeft' && engine.isDebugMode) {
+      } else if (e.code === 'BracketLeft' && engine.isDebugMode && !engine.isDebugLockedAtStageEnd()) {
         e.preventDefault();
         const spec = engine.cycleDebugPlaceable(-1);
         setDebugSelectedLabel(spec.label);
-      } else if (e.code === 'BracketRight' && engine.isDebugMode) {
+      } else if (e.code === 'BracketRight' && engine.isDebugMode && !engine.isDebugLockedAtStageEnd()) {
         e.preventDefault();
         const spec = engine.cycleDebugPlaceable(1);
         setDebugSelectedLabel(spec.label);
@@ -865,7 +971,7 @@ export const GameCanvas: React.FC = () => {
     togglePauseGame,
   ]);
 
-  // Gamepad API Polling
+  // Gamepad API Polling (blocked while in menus/overlays — R1.16.UF.4)
   const pollGamepad = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
     const gamepads = navigator.getGamepads();
@@ -873,6 +979,49 @@ export const GameCanvas: React.FC = () => {
     if (!gp || !engineRef.current) return;
 
     const engine = engineRef.current;
+    const anyModalOpen =
+      isSettingsOpen ||
+      isLeaderboardOpen ||
+      isCheatMenuOpen ||
+      isMultiplayerOpen ||
+      isLevelEditorOpen ||
+      isUpdatesOpen;
+
+    if (
+      !hasStarted ||
+      !engine.isGameStarted ||
+      isSmwMapOpen ||
+      isGameOver ||
+      isCampaignVictory ||
+      isMultiplayerMatchOver ||
+      anyModalOpen
+    ) {
+      engine.controls.left = false;
+      engine.controls.right = false;
+      engine.controls.up = false;
+      engine.controls.down = false;
+      engine.controls.jump = false;
+      engine.controls.run = false;
+      engine.controls.pause = false;
+      return;
+    }
+
+    const btnStart = gp.buttons[9]?.pressed || false;
+    if (btnStart && !engine.controls.pause) {
+      engine.togglePause();
+      setIsPaused(engine.isPaused);
+    }
+
+    if (engine.isPaused) {
+      engine.controls.left = false;
+      engine.controls.right = false;
+      engine.controls.up = false;
+      engine.controls.down = false;
+      engine.controls.jump = false;
+      engine.controls.run = false;
+      engine.controls.pause = btnStart;
+      return;
+    }
 
     // D-Pad / Thumbstick
     const axisX = gp.axes[0] || 0;
@@ -885,7 +1034,6 @@ export const GameCanvas: React.FC = () => {
     // A button (button 0), B button (button 1 or 2), Start (button 9)
     const btnA = gp.buttons[0]?.pressed || false;
     const btnB = gp.buttons[1]?.pressed || gp.buttons[2]?.pressed || false;
-    const btnStart = gp.buttons[9]?.pressed || false;
 
     engine.controls.left = dpadLeft;
     engine.controls.right = dpadRight;
@@ -893,13 +1041,20 @@ export const GameCanvas: React.FC = () => {
     engine.controls.down = dpadDown;
     engine.controls.jump = btnA;
     engine.controls.run = btnB;
-
-    if (btnStart && !engine.controls.pause) {
-      engine.togglePause();
-      setIsPaused(engine.isPaused);
-    }
     engine.controls.pause = btnStart;
-  }, []);
+  }, [
+    hasStarted,
+    isSmwMapOpen,
+    isGameOver,
+    isCampaignVictory,
+    isMultiplayerMatchOver,
+    isSettingsOpen,
+    isLeaderboardOpen,
+    isCheatMenuOpen,
+    isMultiplayerOpen,
+    isLevelEditorOpen,
+    isUpdatesOpen,
+  ]);
 
   // Main Game Loop (60 FPS) — Freezes canvas rendering & RAF loop completely while paused
   useEffect(() => {
@@ -1024,9 +1179,20 @@ export const GameCanvas: React.FC = () => {
 
   const openLevelEditor = useCallback(() => {
     const engine = engineRef.current;
-    if (engine && hasStarted && !engine.isPaused && !engine.isGameOver && !engine.isMultiplayerMatchOver) {
-      engine.togglePause();
-      setIsPaused(true);
+    if (engine) {
+      engine.controls = {
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      };
+      if (hasStarted && !engine.isPaused && !engine.isGameOver && !engine.isMultiplayerMatchOver) {
+        engine.togglePause();
+        setIsPaused(true);
+      }
     }
     setControls({
       left: false,
@@ -1050,17 +1216,20 @@ export const GameCanvas: React.FC = () => {
         return;
       }
       const immortal = options?.immortality ?? editorImmortality;
+      const sanitizedLevel = sanitizeCustomLevelEntities(level).level;
       setEditorImmortality(immortal);
       SoundEngine.get().resume();
       setIsLevelEditorOpen(false);
       setIsSettingsOpen(false);
       setIsUpdatesOpen(false);
+      setIsCampaignVictory(false);
+      setIsMultiplayerMatchOver(false);
       setHasStarted(true);
       setIsCustomLevelActive(true);
       setIsSmwMapOpen(false);
       setIsSmwModeActive(false);
       if (engineRef.current) {
-        engineRef.current.playCustomLevel(level, immortal);
+        engineRef.current.playCustomLevel(sanitizedLevel, immortal);
         setIsPaused(false);
         setIsGameOver(false);
         setIsStageClear(false);
@@ -1085,6 +1254,16 @@ export const GameCanvas: React.FC = () => {
     setIsCampaignVictory(false);
     setHasStarted(false);
     setIsCustomLevelActive(false);
+    manualRunHeldRef.current = false;
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    });
     if (engineRef.current) {
       engineRef.current.exitToMainMenu();
       setStats({ ...engineRef.current.stats, isNewHighScore: false });
@@ -1270,6 +1449,8 @@ export const GameCanvas: React.FC = () => {
       setIsCustomLevelActive(false);
       if (engineRef.current) {
         engineRef.current.yellowSwitchUnlocked = updated.yellowSwitchUnlocked;
+        engineRef.current.goalPointsWallet = updated.goalPointsWallet ?? 0;
+        engineRef.current.stats.goalPointsWallet = engineRef.current.goalPointsWallet;
         engineRef.current.startSmwStage(createSmwWikiWorldStage(nodeId), false);
         setIsPaused(false);
         setIsGameOver(false);
@@ -1491,146 +1672,155 @@ export const GameCanvas: React.FC = () => {
             />
           )}
 
-          {/* Start Screen Splash (Initial User Interaction) */}
+          {/* Start Screen Splash — Simplified & Clean Hierarchy (R1.16.7H.4 + R1.16.EG.4) */}
           {!hasStarted && (
             <div
               ref={splashOverlayRef}
-              className="absolute inset-0 z-20 flex flex-col items-center justify-start sm:justify-center bg-black/85 p-4 sm:p-6 text-center animate-in fade-in overflow-y-auto"
+              className="absolute inset-0 z-20 flex flex-col items-center justify-between bg-black/88 p-3 sm:p-6 text-center animate-in fade-in overflow-y-auto"
             >
-              <div className="mb-2.5 sm:mb-3">
-                <span className="block text-amber-400 font-['Press_Start_2P',monospace] text-lg sm:text-3xl font-extrabold tracking-wider drop-shadow-md">
+              {/* Top Utility Strip: Compact 16+ Badge + Quick Display/TV Toggles */}
+              <div className="w-full max-w-xl flex items-center justify-between gap-2">
+                <div
+                  title="Recomendado para maiores de 16 anos (pode haver mensagens sugestivas no jogo)."
+                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-500/70 text-[10px] sm:text-xs text-amber-200"
+                >
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500 text-stone-950 font-['Press_Start_2P',monospace] text-[9px] font-extrabold">
+                    16+
+                  </span>
+                  <span className="hidden sm:inline font-medium">
+                    Recomendado 16+ · Mensagens sugestivas
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={toggleSmartTvMode}
+                    className={`px-2.5 py-1.5 rounded-lg border text-[10px] sm:text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                      smartTvMode
+                        ? 'bg-sky-900/90 border-sky-400 text-sky-100'
+                        : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-300'
+                    }`}
+                  >
+                    <Tv className="w-3.5 h-3.5 text-sky-400" />
+                    <span>{smartTvMode ? 'TV: ON' : 'TV'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    className={`px-2.5 py-1.5 rounded-lg border text-[10px] sm:text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                      isFullscreen
+                        ? 'bg-emerald-950/90 border-emerald-500 text-emerald-200'
+                        : 'bg-stone-900/90 hover:bg-stone-800 border-stone-700 text-stone-200'
+                    }`}
+                  >
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Center Hero & Focused Mode Selection */}
+              <div className="w-full max-w-xl my-auto py-3 flex flex-col items-center">
+                <span className="block text-amber-400 font-['Press_Start_2P',monospace] text-xl sm:text-3xl font-extrabold tracking-wider drop-shadow-md">
                   SUPER MARIO BROS.
                 </span>
-                <span className="inline-block mt-1.5 px-3 py-1 bg-red-800/80 text-white rounded font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] tracking-widest">
-                  TYPESCRIPT & CANVAS
-                </span>
-              </div>
-
-              {/* Aviso de Classificação Indicativa 16+ */}
-              <div className="max-w-md w-full bg-amber-950/90 border-2 border-amber-500/85 rounded-xl px-3.5 py-2.5 mb-3 text-left flex items-start gap-3 shadow-lg">
-                <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-500 text-stone-950 font-['Press_Start_2P',monospace] text-[10px] font-extrabold flex items-center justify-center border border-amber-200 shadow">
-                  16+
-                </div>
-                <div className="text-[11px] sm:text-xs font-sans leading-snug text-amber-100">
-                  <p className="font-bold text-amber-300 flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                    Recomendado para maiores de 16 anos
-                  </p>
-                  <p className="text-amber-100/90 mt-0.5">
-                    Este jogo é recomendado para públicos maiores de 16 anos, pois pode haver mensagens sugestivas no jogo.
-                  </p>
-                </div>
-              </div>
-
-              <div className="max-w-md w-full bg-stone-900/90 border-2 border-stone-700 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 text-stone-300 text-xs sm:text-sm font-sans space-y-1">
-                <p className="font-semibold text-white">Pronto para jogar no clássico NES?</p>
-                <p className="text-stone-400 text-[11px] sm:text-xs">
-                  Renderização pura em Canvas a 60 FPS com sintetizador Web Audio 8-bit, física original, Goombas, Koopas e canos secretos!
+                <p className="mt-1.5 text-[11px] sm:text-xs text-stone-400 font-mono">
+                  60 FPS Canvas · Clássico NES · Modo World · Campanha 7 Mundos
                 </p>
-                <div className="pt-1 text-[10px] sm:text-[11px] text-amber-300 font-mono">
+
+                {/* Primary Play Actions (3 focused modes) */}
+                <div className="mt-4 sm:mt-5 w-full grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleStartGame}
+                    className="px-4 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-red-950/50 transform hover:scale-[1.03] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-white shrink-0" />
+                    <span>JOGAR CLÁSSICO</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenSmwWorldMap}
+                    className="px-4 py-3.5 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-600 hover:to-teal-500 border border-amber-300/70 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-emerald-950/50 transform hover:scale-[1.03] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <MapIcon className="w-4 h-4 text-amber-300 shrink-0" />
+                    <span>MODO WORLD</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleStartSingleplayer}
+                    className="px-4 py-3.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 border border-pink-300/60 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-pink-950/50 transform hover:scale-[1.03] active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Crown className="w-4 h-4 text-amber-200 shrink-0" />
+                    <span>7 MUNDOS</span>
+                  </button>
+                </div>
+
+                {/* Secondary Utilities (Compact single row) */}
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMultiplayerOpen(true)}
+                    className="px-3 py-2 rounded-lg bg-emerald-950/85 hover:bg-emerald-900 border border-emerald-500/70 text-emerald-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Users className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Multiplayer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={openLevelEditor}
+                    className="px-3 py-2 rounded-lg bg-sky-950/85 hover:bg-sky-900 border border-sky-500/70 text-sky-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Hammer className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Editor</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsLeaderboardOpen(true)}
+                    className="px-3 py-2 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-amber-500/60 text-amber-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Ranking{stats.highScore > 0 ? ` (${stats.highScore.toLocaleString()})` : ''}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openUpdatesModal('fixes')}
+                    className="px-3 py-2 rounded-lg bg-amber-950/85 hover:bg-amber-900 border border-amber-400/80 text-amber-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Correções Recentes</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="px-3 py-2 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-stone-300" />
+                    <span>Opções</span>
+                  </button>
+                </div>
+
+                {/* Compact Controls Hint */}
+                <div className="mt-3 text-[10px] sm:text-[11px] text-amber-300/90 font-mono">
                   {smartTvMode
-                    ? '[◀▶▼] Mover • [OK / Enter / ▲ / Vermelho] Pular • [Azul / Verde / Ch+ / 0] Correr/Fogo • [Voltar] Pausar'
-                    : '[Espaço / Z] Pular • [Shift / X] Correr / Bola de Fogo • [Smart TV: Setas + OK/Voltar]'}
+                    ? '[◀▶▼] Mover • [OK / ▲ / Vermelho] Pular • [Azul / 0] Correr/Fogo • [Voltar] Pausar'
+                    : '[Setas / WASD] Mover • [Espaço / Z] Pular • [Shift / X] Correr / Fogo'}
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row flex-wrap gap-2.5 sm:gap-3 items-center justify-center">
-                <button
-                  type="button"
-                  onClick={handleStartGame}
-                  className="px-7 py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 font-['Press_Start_2P',monospace] text-white text-xs sm:text-sm font-bold shadow-xl shadow-red-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  JOGAR AGORA
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleStartSingleplayer}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 border-2 border-pink-300/70 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-pink-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Crown className="w-4 h-4 text-amber-200" />
-                  SINGLEPLAYER (7 MUNDOS)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleOpenSmwWorldMap}
-                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-600 hover:to-teal-500 border-2 border-amber-300/80 font-['Press_Start_2P',monospace] text-white text-[10px] sm:text-xs font-bold shadow-xl shadow-emerald-950/60 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <MapIcon className="w-4 h-4 text-amber-300" />
-                  SUPER MARIO WORLD (BETA V0.9)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={openLevelEditor}
-                  className="px-5 py-3 rounded-xl bg-sky-950/90 hover:bg-sky-900 border-2 border-sky-500 text-sky-200 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl shadow-sky-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
-                >
-                  <Hammer className="w-4 h-4 text-sky-400" />
-                  EDITOR DE FASES
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsMultiplayerOpen(true)}
-                  className="px-5 py-3 rounded-xl bg-emerald-950/90 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl shadow-emerald-950/50 transform hover:scale-105 active:scale-95 transition flex items-center gap-2 cursor-pointer"
-                >
-                  <Users className="w-4 h-4 text-emerald-400" />
-                  MULTIPLAYER (GOOGLE)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsLeaderboardOpen(true)}
-                  className="px-5 py-3 rounded-xl bg-stone-900/90 hover:bg-stone-800 border-2 border-amber-500/60 text-amber-300 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer"
-                >
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  RANKING {stats.highScore > 0 ? `(${stats.highScore.toLocaleString()})` : ''}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsUpdatesOpen(true)}
-                  className="px-5 py-3 rounded-xl bg-purple-950/90 hover:bg-purple-900 border-2 border-purple-500/70 text-purple-200 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <ScrollText className="w-4 h-4 text-purple-300" />
-                  NOVIDADES
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleFullscreen}
-                  className={`px-5 py-3 rounded-xl border-2 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer ${
-                    isFullscreen
-                      ? 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-500 text-emerald-300'
-                      : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600 text-stone-200'
-                  }`}
-                >
-                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                  {isFullscreen ? 'SAIR TELA CHEIA' : 'TELA CHEIA'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleSmartTvMode}
-                  className={`px-5 py-3 rounded-xl border-2 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
-                    smartTvMode
-                      ? 'bg-sky-900/90 hover:bg-sky-800 border-sky-400 text-sky-100'
-                      : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600 text-stone-300'
-                  }`}
-                >
-                  <Tv className="w-4 h-4 text-sky-400" />
-                  {smartTvMode ? 'SMART TV: ON' : 'SMART TV: OFF'}
-                </button>
-              </div>
-
-              <p className="mt-3 max-w-lg text-[10px] sm:text-[11px] text-stone-400 font-mono leading-relaxed px-3 py-1.5 rounded-lg bg-stone-950/75 border border-stone-800/90">
-                Este é um projeto não oficial, feito por fans do jogo (WazzimaGiygg). O jogo original pertence a Nintendo. Όχι, ο Χρόνος δεν είναι ο άρχοντας της γνώσης!
-              </p>
-
-              {/* Hidden Developer Mode Trigger: Invisible hot spot with keyboard fallback */}
-              <div className="mt-4 pt-1 flex flex-col items-center">
+              {/* Compact Footer Attribution + Hidden Cheat Trigger */}
+              <div className="w-full max-w-xl flex flex-col items-center">
+                <p className="text-[10px] text-stone-500 font-mono leading-snug">
+                  Projeto não oficial de fãs (WazzimaGiygg). Jogo original pertence à Nintendo. Όχι, ο Χρόνος δεν είναι ο άρχοντας της γνώσης!
+                </p>
                 <input
                   type="text"
                   tabIndex={-1}
@@ -1712,7 +1902,15 @@ export const GameCanvas: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsUpdatesOpen(true)}
+                  onClick={() => openUpdatesModal('fixes')}
+                  className="px-4 py-2.5 rounded-lg bg-amber-950 hover:bg-amber-900 border border-amber-400/70 text-amber-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                  CORREÇÕES
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openUpdatesModal('all')}
                   className="px-5 py-2.5 rounded-lg bg-purple-950 hover:bg-purple-900 border border-purple-500/60 text-purple-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <ScrollText className="w-3.5 h-3.5 text-purple-300" />
@@ -1763,7 +1961,7 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
-          {/* Super Mario World Beta V0.9 Overworld Map (Ilha WikiWorldWeb) */}
+          {/* Super Mario World Beta V0.9 Overworld Map (Ilha 1 WikiWorldWeb & Ilha 2 Terras de Chronus) */}
           <SmwOverworldMap
             isOpen={isSmwMapOpen && hasStarted && !isGameOver && !isMultiplayerMatchOver}
             progress={smwProgress}
@@ -1772,6 +1970,13 @@ export const GameCanvas: React.FC = () => {
             onSelectNode={nodeId => {
               setSmwProgress(prev => {
                 const updated = { ...prev, selectedNodeId: nodeId };
+                saveSmwBetaProgress(updated);
+                return updated;
+              });
+            }}
+            onSelectIsland={islandId => {
+              setSmwProgress(prev => {
+                const updated = { ...prev, selectedIslandId: islandId };
                 saveSmwBetaProgress(updated);
                 return updated;
               });
@@ -1785,19 +1990,12 @@ export const GameCanvas: React.FC = () => {
                 return updated;
               });
             }}
-            onToggleBetaUnlockAll={() => {
-              setSmwProgress(prev => {
-                const updated = { ...prev, betaUnlockAll: !prev.betaUnlockAll };
-                saveSmwBetaProgress(updated);
-                return updated;
-              });
-            }}
             onResetProgress={() => {
               const reset: SmwBetaProgress = {
                 clearedNodeIds: [],
                 selectedNodeId: 'wiki-1-overworld',
+                selectedIslandId: 'wikiworld',
                 storySeen: true,
-                betaUnlockAll: false,
                 yellowSwitchUnlocked: false,
               };
               if (engineRef.current) {
@@ -2200,10 +2398,21 @@ export const GameCanvas: React.FC = () => {
             <span className="hidden sm:inline text-[11px] font-bold">Editor</span>
           </button>
 
+          {/* Correções Recentes com UID */}
+          <button
+            type="button"
+            onClick={() => openUpdatesModal('fixes')}
+            title="Correções recentes com UID específica"
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-amber-500/45 text-amber-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Wrench className="w-4 h-4 text-amber-400" />
+            <span className="hidden md:inline text-[11px]">Correções</span>
+          </button>
+
           {/* Novidades / Updates */}
           <button
             type="button"
-            onClick={() => setIsUpdatesOpen(true)}
+            onClick={() => openUpdatesModal('all')}
             title="Novidades e atualizações recentes do jogo"
             className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-purple-500/40 text-purple-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
           >
@@ -2268,8 +2477,15 @@ export const GameCanvas: React.FC = () => {
         </div>
       )}
 
-      {/* Docked Touch Controls (Shown when mobile overlay is disabled or on desktop touch mode, hidden in Smart TV mode) */}
-      {!smartTvMode && (!isMobileDevice || !touchOverlayOnCanvas) && (
+      {/* Docked Touch Controls (Shown ONLY during active gameplay; blocked in menus — R1.16.UF.4) */}
+      {!smartTvMode &&
+        (!isMobileDevice || !touchOverlayOnCanvas) &&
+        hasStarted &&
+        !isSmwMapOpen &&
+        !isPaused &&
+        !isGameOver &&
+        !isCampaignVictory &&
+        !isMultiplayerMatchOver && (
         <TouchControls
           variant="docked"
           controls={controls}
@@ -2418,9 +2634,10 @@ export const GameCanvas: React.FC = () => {
         }}
       />
 
-      {/* Updates / Novidades Recentes Modal */}
+      {/* Updates / Correções Recentes Modal */}
       <UpdatesModal
         isOpen={isUpdatesOpen}
+        initialFilter={updatesFilter}
         onClose={() => setIsUpdatesOpen(false)}
       />
 

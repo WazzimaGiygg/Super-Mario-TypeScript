@@ -67,7 +67,8 @@ export type TileType =
   | 'ghost_brick'
   | 'exclam_yellow'
   | 'yellow_switch'
-  | 'yellow_switch_pressed';
+  | 'yellow_switch_pressed'
+  | 'bonus_block';
 
 export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'none';
 
@@ -271,6 +272,23 @@ export interface GameStats {
   debugSelectedItemId?: DebugPlaceableId;
   debugSelectedItemLabel?: string;
   isIllegalInstructionBug?: boolean;
+  goalPointsWallet?: number;
+  isBonusStage?: boolean;
+  bonusBlocksRemaining?: number;
+  bonusLivesWon?: number;
+}
+
+export type BonusBlockFace = '1up' | 'mushroom' | 'flower';
+
+export interface BonusStageBlock {
+  tx: number;
+  ty: number;
+  x: number;
+  y: number;
+  timer: number;
+  faceIndex: number;
+  resolved: boolean;
+  result: BonusBlockFace | null;
 }
 
 export interface GamepadControls {

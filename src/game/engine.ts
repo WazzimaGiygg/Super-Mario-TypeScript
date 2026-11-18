@@ -26,6 +26,8 @@ import {
   MultiplayerMatchResult,
   DebugPlaceableId,
   DebugPlaceableSpec,
+  BonusBlockFace,
+  BonusStageBlock,
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
@@ -44,6 +46,7 @@ import {
   SINGLEPLAYER_WORLD_COUNT,
   SINGLEPLAYER_STAGES_PER_WORLD,
   cloneLevelData,
+  sanitizeCustomLevelEntities,
 } from './levels.ts';
 import { createSmwWikiWorldStage } from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
@@ -141,13 +144,36 @@ export class GameEngine {
   public pipeClipLipY: number | null = null;
   public pipeClipLipX: number | null = null;
 
-  // Flagpole & Stage Clear State
+  // Flagpole / SMW Points Goal Gate & Stage Clear State
   public poleSlideY: number = 0;
   public flagY: number = 0;
   public castleWalkTargetX: number = 0;
   public stageClearTallyDelay: number = 0;
   public stageClearDelayTimer: number = 0;
   public timeCountTickCounter: number = 0;
+  public goalTapeY: number = 44;
+  public goalTapeDir: 1 | -1 = 1;
+  public goalTapeCut: boolean = false;
+  public goalPointsWallet: number = 0;
+  public lastGoalGatePoints: number = 0;
+  public pendingBonusStage: boolean = false;
+  public isBonusStageActive: boolean = false;
+  public bonusStageBlocks: BonusStageBlock[] = [];
+  public bonusStageLivesWon: number = 0;
+  public bonusStageFinishDelay: number = 0;
+  public bonusStageTimeFrames: number = 0;
+  public onSmwGoalWalletChanged?: (wallet: number) => void;
+  private bonusReturnLevelMeta: {
+    id: string;
+    name: string;
+    singleplayerWorld?: number;
+    singleplayerStage?: number;
+    isFinalCastle?: boolean;
+    smwNodeId?: string;
+    smwWorldName?: string;
+    endlessStage?: number;
+    isCustom?: boolean;
+  } | null = null;
 
   // Intermission & Endless Stage Tracking
   public intermissionTimer: number = 0;
@@ -228,6 +254,10 @@ export class GameEngine {
     highScore: getTopScore(),
     difficulty: 'normal',
     isNewHighScore: false,
+    goalPointsWallet: 0,
+    isBonusStage: false,
+    bonusBlocksRemaining: 0,
+    bonusLivesWon: 0,
   };
 
   // Local High Score & Ranking Run Tracking
@@ -303,8 +333,9 @@ export class GameEngine {
     let resolvedLevel = newLevel;
     if (resolvedLevel.isCustom) {
       if (!isRespawn) {
-        this.customLevelTemplate = cloneLevelData(resolvedLevel);
-        resolvedLevel = cloneLevelData(resolvedLevel);
+        const sanitized = sanitizeCustomLevelEntities(resolvedLevel).level;
+        this.customLevelTemplate = cloneLevelData(sanitized);
+        resolvedLevel = cloneLevelData(sanitized);
       } else if (this.customLevelTemplate) {
         resolvedLevel = cloneLevelData(this.customLevelTemplate);
       }
@@ -344,6 +375,21 @@ export class GameEngine {
     this.stageClearTallyDelay = 0;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    this.goalTapeY = 44;
+    this.goalTapeDir = 1;
+    this.goalTapeCut = false;
+    this.lastGoalGatePoints = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
+    this.bonusStageBlocks = [];
+    this.bonusStageLivesWon = 0;
+    this.bonusStageFinishDelay = 0;
+    this.bonusStageTimeFrames = 0;
+    this.bonusReturnLevelMeta = null;
+    this.stats.goalPointsWallet = this.goalPointsWallet;
+    this.stats.isBonusStage = false;
+    this.stats.bonusBlocksRemaining = 0;
+    this.stats.bonusLivesWon = 0;
     this.warpTimer = 0;
     this.warpTarget = null;
     this.warpDir = 'down';
@@ -390,9 +436,13 @@ export class GameEngine {
       // Fresh stage entry: clear checkpoints and start at initial position
       this.activeCheckpoint = null;
       this.activatedCheckpointIndices.clear();
-      this.marioX = newLevel.marioStart.x;
-      this.marioY = newLevel.marioStart.y - (this.getMarioHeight() - 16);
-      this.camera.snapTo(0, levelWidthPx);
+      this.marioX = resolvedLevel.marioStart.x;
+      this.marioY = resolvedLevel.marioStart.y - (this.getMarioHeight() - 16);
+      if (resolvedLevel.isCustom && resolvedLevel.marioStart.x > 160) {
+        this.camera.centerOn(resolvedLevel.marioStart.x, levelWidthPx);
+      } else {
+        this.camera.snapTo(0, levelWidthPx);
+      }
     } else {
       // Respawn after death: strip power-ups (always return as Small Mario)
       this.marioPower = 'small';
@@ -614,6 +664,22 @@ export class GameEngine {
   public update(deltaMs: number) {
     if (this.isPaused) return;
 
+    // R1.16.UF.4: Ignore any interactive/buffered controls until gameplay actually starts
+    if (!this.isGameStarted) {
+      this.controls = {
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      };
+      this.prevControls = { ...this.controls };
+      this.marioVx = 0;
+      return;
+    }
+
     // Easter Egg: Game screen is locked in "ILLEGAL INSTRUCTION" glitched state until Dev Button is pressed
     if (this.isIllegalInstructionBug) {
       this.illegalInstructionTimer++;
@@ -643,6 +709,17 @@ export class GameEngine {
       return;
     }
 
+    // R1.16.OY.4: Impede uso do modo debug se alcançar o final da fase (mesmo que ativado)
+    if (
+      this.isGameStarted &&
+      !this.isGameOver &&
+      this.marioState !== 'dead' &&
+      (this.isDebugMode || this.isDebugPlacementActive) &&
+      this.enforceStageEndDebugLock(true)
+    ) {
+      // Debug mode forced off upon reaching stage end; continue normal update
+    }
+
     // Sonic-Style Debug Mode Object Placement Cursor (free flying + manual item placement)
     if (
       this.isDebugMode &&
@@ -650,13 +727,69 @@ export class GameEngine {
       this.isGameStarted &&
       !this.isStageClear &&
       !this.isGameOver &&
-      this.marioState !== 'dead'
+      this.marioState !== 'dead' &&
+      !this.isDebugLockedAtStageEnd()
     ) {
       this.updateDebugPlacementCursor();
+      this.enforceStageEndDebugLock(true);
       this.particleSystem.update();
       this.updateCamera();
       this.prevControls = { ...this.controls };
       return;
+    }
+
+    // Bonus Stage (SMW 9-block 1-UP roulette room)
+    if (this.isBonusStageActive) {
+      if (this.bonusStageFinishDelay > 0) {
+        this.bonusStageFinishDelay--;
+        this.particleSystem.update();
+        this.updateBlocks();
+        this.updateCamera();
+        if (this.bonusStageFinishDelay <= 0) {
+          this.finishSmwBonusStage();
+        }
+        this.prevControls = { ...this.controls };
+        return;
+      }
+
+      for (const b of this.bonusStageBlocks) {
+        if (!b.resolved) {
+          b.timer++;
+          if (b.timer >= 20) {
+            b.timer = 0;
+            b.faceIndex = (b.faceIndex + 1) % 3;
+          }
+        }
+      }
+
+      if (this.bonusStageTimeFrames > 0) {
+        this.bonusStageTimeFrames--;
+        this.stats.time = Math.max(0, Math.ceil(this.bonusStageTimeFrames / 60));
+        if (this.bonusStageTimeFrames <= 0) {
+          this.finishSmwBonusStage();
+          this.prevControls = { ...this.controls };
+          return;
+        }
+      }
+
+      this.updateMario(deltaMs);
+      this.particleSystem.update();
+      this.updateBlocks();
+      this.updateCamera();
+      this.prevControls = { ...this.controls };
+      return;
+    }
+
+    // SMW Goal Gate moving crossbar tape oscillator
+    if (this.hasGoalPointsPost() && !this.goalTapeCut && !this.isStageClear) {
+      this.goalTapeY += this.goalTapeDir * 1.45;
+      if (this.goalTapeY >= 178) {
+        this.goalTapeY = 178;
+        this.goalTapeDir = -1;
+      } else if (this.goalTapeY <= 44) {
+        this.goalTapeY = 44;
+        this.goalTapeDir = 1;
+      }
     }
 
     // Timer countdown (only counts down when the player has actually started the game!)
@@ -711,6 +844,11 @@ export class GameEngine {
 
     // Update Mario
     this.updateMario(deltaMs);
+
+    // R1.16.OY.4: Bloqueia imediatamente o Modo Debug se o personagem alcançar o final da fase
+    if (this.isDebugMode || this.isDebugPlacementActive) {
+      this.enforceStageEndDebugLock(true);
+    }
 
     // Dynamic progressive enemy wave spawning (increases spawn frequency & adds faster enemies per cycle)
     if (
@@ -914,7 +1052,7 @@ export class GameEngine {
     if (this.marioState === 'castle_walk') {
       const targetFloorY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
       if (this.marioY < targetFloorY) {
-        this.marioY = Math.min(targetFloorY, this.marioY + 2.0);
+        this.marioY = Math.min(targetFloorY, this.marioY + 2.8);
       } else {
         this.marioY = targetFloorY;
       }
@@ -927,11 +1065,15 @@ export class GameEngine {
 
       // Enter castle door (or stop face-to-face in front of Toodle / Princesa Femboy on castle stages)
       const hasCastleGreeter = (this.castleToodleActive || this.castlePrincessActive) && this.level.theme === 'castle';
+      const defaultCastleStopX =
+        this.level.castleX > 0 && this.level.castleX < 99000
+          ? this.level.castleX
+          : Math.min((this.level.width - 2) * GameEngine.TILE_SIZE, this.level.flagX + 64);
       const targetStopX = this.castlePrincessActive && this.level.theme === 'castle'
         ? this.castlePrincessX - 24
         : this.castleToodleActive && this.level.theme === 'castle'
         ? this.castleToodleX - 24
-        : this.level.castleX;
+        : defaultCastleStopX;
       if (this.marioX >= targetStopX) {
         if (hasCastleGreeter) {
           this.marioX = targetStopX;
@@ -1007,7 +1149,11 @@ export class GameEngine {
       }
 
       if (this.stageClearDelayTimer <= 0) {
-        this.handleStageClearReadyToAdvance();
+        if (this.pendingBonusStage && !this.isBonusStageActive) {
+          this.startSmwBonusStage();
+        } else {
+          this.handleStageClearReadyToAdvance();
+        }
       }
       return;
     }
@@ -1619,6 +1765,11 @@ export class GameEngine {
       return;
     }
 
+    if (block.type === 'bonus_block') {
+      this.resolveBonusStageBlock(tx, ty, block);
+      return;
+    }
+
     if (block.type === 'brick' || block.type === 'underground_brick' || block.type === 'ghost_brick') {
       if (block.coinsLeft && block.coinsLeft > 0) {
         block.coinsLeft--;
@@ -1693,6 +1844,8 @@ export class GameEngine {
       maxLife: 95,
       vy: -0.45,
     });
+    this.transformStageEndEnemiesToPoints();
+    this.enforceStageEndDebugLock(false);
     this.onSmwYellowSwitchActivated?.();
     this.finishStage();
   }
@@ -3225,6 +3378,10 @@ export class GameEngine {
       }
     });
 
+    // R1.16.P4.4: Transforma outros inimigos próximos ao final do castelo em pontos multiplicados
+    this.transformStageEndEnemiesToPoints();
+    this.enforceStageEndDebugLock(false);
+
     if (bridgeTiles.length === 0) {
       this.marioState = 'castle_walk';
       this.marioFacing = 'right';
@@ -3479,8 +3636,63 @@ export class GameEngine {
     return GameEngine.DEBUG_PLACEABLES[idx];
   }
 
+  public isDebugLockedAtStageEnd(): boolean {
+    if (!this.level) return false;
+    return (
+      this.isStageClear ||
+      this.isBonusStageActive ||
+      this.bridgeCollapseQueue.length > 0 ||
+      this.marioState === 'pole_slide' ||
+      this.marioState === 'castle_walk' ||
+      this.marioState === 'castle_entered' ||
+      this.isDebugPlacementBlockedAt(this.marioX)
+    );
+  }
+
+  private enforceStageEndDebugLock(notify: boolean = true): boolean {
+    if (!this.isDebugLockedAtStageEnd()) return false;
+    if (this.isDebugMode || this.isDebugPlacementActive) {
+      this.isDebugPlacementActive = false;
+      this.isDebugMode = false;
+      this.stats.isDebugMode = false;
+      this.stats.isDebugPlacementActive = false;
+      this.marioVx = 0;
+      this.marioVy = 0;
+      if (notify) {
+        this.sound.playBump();
+        this.particleSystem.emitScoreText(
+          'DEBUG BLOQUEADO!',
+          Math.max(8, this.marioX - 28),
+          Math.max(24, this.marioY - 18),
+          {
+            maxLife: 45,
+            vy: -0.9,
+            color: '#ff6868',
+          }
+        );
+      }
+    }
+    return true;
+  }
+
   public toggleDebugMode(force?: boolean): boolean {
     const next = force !== undefined ? force : !this.isDebugMode;
+    if (next && this.isDebugLockedAtStageEnd()) {
+      this.isDebugMode = false;
+      this.isDebugPlacementActive = false;
+      this.sound.playBump();
+      this.particleSystem.emitScoreText(
+        'DEBUG BLOQUEADO!',
+        Math.max(8, this.marioX - 28),
+        Math.max(24, this.marioY - 18),
+        {
+          maxLife: 45,
+          vy: -0.9,
+          color: '#ff6868',
+        }
+      );
+      return false;
+    }
     this.isDebugMode = next;
     if (next) {
       this.isCheatActive = true;
@@ -3500,17 +3712,21 @@ export class GameEngine {
   }
 
   public toggleDebugPlacementCursor(force?: boolean): boolean {
-    if (!this.isDebugMode) {
-      this.toggleDebugMode(true);
-    }
     if (
       this.marioState === 'dead' ||
       this.isStageClear ||
       this.isGameOver ||
-      this.isIllegalInstructionBug
+      this.isIllegalInstructionBug ||
+      this.isDebugLockedAtStageEnd()
     ) {
       this.isDebugPlacementActive = false;
+      if (this.isDebugLockedAtStageEnd()) {
+        this.isDebugMode = false;
+      }
       return false;
+    }
+    if (!this.isDebugMode) {
+      this.toggleDebugMode(true);
     }
     const next = force !== undefined ? force : !this.isDebugPlacementActive;
     this.isDebugPlacementActive = next;
@@ -3525,18 +3741,91 @@ export class GameEngine {
   }
 
   public cycleDebugPlaceable(delta: 1 | -1 = 1): DebugPlaceableSpec {
+    if (!this.isDebugMode || this.isDebugLockedAtStageEnd()) {
+      return this.getCurrentDebugPlaceable();
+    }
     const total = GameEngine.DEBUG_PLACEABLES.length;
     this.debugPlaceIndex = (this.debugPlaceIndex + delta + total) % total;
     this.sound.playDebugCycle();
     return this.getCurrentDebugPlaceable();
   }
 
+  public isDebugPlacementBlockedAt(worldX: number): boolean {
+    const T = GameEngine.TILE_SIZE;
+    const proximityPx = 3 * T; // 3 blocos (48px)
+    const maxPxX = Math.max(0, this.level.width * T - T);
+    const px = Math.max(0, Math.min(maxPxX, Math.round(worldX)));
+    const tileX = Math.max(0, Math.min(this.level.width - 1, Math.floor((px + 8) / T)));
+    let hasExplicitEnd = false;
+
+    // 1. Bandeira final (flagX) e região do castelo de saída
+    if (this.level.flagX > 0 && this.level.flagX < 99000) {
+      hasExplicitEnd = true;
+      const flagTile = Math.floor(this.level.flagX / T);
+      const zoneMinX = this.level.flagX - proximityPx;
+      const zoneMaxX = Math.max(
+        this.level.flagX + proximityPx,
+        this.level.castleX > 0 && this.level.castleX < 99000
+          ? this.level.castleX + proximityPx
+          : this.level.flagX + proximityPx
+      );
+      if (px >= zoneMinX && px <= zoneMaxX) return true;
+      if (Math.abs(tileX - flagTile) <= 3) return true;
+    }
+
+    // 2. Machado do Castelo (axe) ou Interruptor Amarelo (yellow_switch / yellow_switch_pressed)
+    for (let ty = 0; ty < this.level.height; ty++) {
+      const row = this.level.tiles[ty];
+      if (!row) continue;
+      for (let tx = 0; tx < this.level.width; tx++) {
+        const type = row[tx]?.type;
+        if (type === 'axe' || type === 'yellow_switch' || type === 'yellow_switch_pressed') {
+          hasExplicitEnd = true;
+          const endPx = tx * T;
+          if (px >= endPx - proximityPx && px <= endPx + proximityPx) return true;
+          if (Math.abs(tileX - tx) <= 3) return true;
+        }
+      }
+    }
+
+    // 3. Castelo de saída quando não há bandeira explícita
+    if (this.level.castleX > 0 && this.level.castleX < 99000) {
+      hasExplicitEnd = true;
+      const castleTile = Math.floor(this.level.castleX / T);
+      if (px >= this.level.castleX - proximityPx && px <= this.level.castleX + proximityPx) {
+        return true;
+      }
+      if (Math.abs(tileX - castleTile) <= 3) return true;
+    }
+
+    // 4. Fallback caso uma fase customizada não possua marcador explícito de final
+    if (!hasExplicitEnd) {
+      const endTile = Math.max(0, this.level.width - 1);
+      if (px >= endTile * T - proximityPx || Math.abs(tileX - endTile) <= 3) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   public placeDebugItemAt(worldX?: number, worldY?: number): boolean {
-    if (!this.isDebugMode) return false;
+    if (!this.isDebugMode || this.enforceStageEndDebugLock(true)) return false;
     const spec = this.getCurrentDebugPlaceable();
     const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 16);
     const px = Math.max(0, Math.min(maxPxX, Math.round(worldX ?? this.marioX)));
     const py = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 16, Math.round(worldY ?? this.marioY)));
+
+    // R1.16.QO.4: Bloqueia inserção de objetos no modo debug em cima ou a até 3 blocos do final da fase
+    if (this.isDebugPlacementBlockedAt(px)) {
+      this.sound.playBump();
+      this.particleSystem.emitScoreText('PERTO DO FINAL!', Math.max(8, px - 24), Math.max(20, py - 14), {
+        maxLife: 40,
+        vy: -1.0,
+        color: '#ff6868',
+      });
+      return false;
+    }
 
     if (spec.category === 'item') {
       const itemType = spec.id as Item['type'];
@@ -4007,23 +4296,372 @@ export class GameEngine {
     }
   }
 
-  private checkFlagpoleCollision() {
-    if (this.isStageClear || this.marioState === 'pole_slide' || this.marioState === 'castle_walk' || this.marioState === 'castle_entered') return;
+  public hasGoalPointsPost(): boolean {
+    return Boolean(
+      this.level &&
+        this.level.theme !== 'castle' &&
+        !this.level.isFinalCastle &&
+        this.level.flagX > 0 &&
+        this.level.flagX < 99000 &&
+        !this.isBonusStageActive
+    );
+  }
 
-    if (this.marioX >= this.level.flagX - 6 && this.marioX <= this.level.flagX + 8) {
-      // Grab the flagpole!
+  public computeGoalGatePoints(marioCenterY: number, tapeY: number = this.goalTapeY): number {
+    // Height of Mario crossing the post (y ~ 58 at top -> 50 pts; y ~ 182 walking bottom -> 1 pt)
+    const marioRatio = Math.max(0, Math.min(1, (182 - marioCenterY) / (182 - 58)));
+    // Also reward direct mid-air tape hits based on tape height
+    const hitTapeDirectly = Math.abs(marioCenterY - tapeY) <= 18 && marioCenterY < 172;
+    const tapeRatio = hitTapeDirectly
+      ? Math.max(0, Math.min(1, (178 - tapeY) / (178 - 44)))
+      : 0;
+    const ratio = Math.max(marioRatio, tapeRatio);
+
+    if (ratio >= 0.86) return 50;
+    if (ratio >= 0.70) return 40;
+    if (ratio >= 0.54) return 30;
+    if (ratio >= 0.38) return 20;
+    if (ratio >= 0.24) return 10;
+    if (ratio >= 0.12) return 5;
+    return 1;
+  }
+
+  public applyGoalPointsReward(points: number, x: number, y: number) {
+    const prevWallet = Math.max(0, Math.min(99, this.goalPointsWallet));
+    const total = prevWallet + Math.max(1, Math.floor(points));
+
+    // Score bonus proportional to goal gate points (authentic SMW scoring feel)
+    this.addScore(points * 100, x, Math.max(40, y), `+${points} PTS POSTE!`);
+
+    // 50 points milestone -> +3 lives (3-UP!)
+    const earnedThreeUp = points >= 50 || (prevWallet < 50 && total >= 50);
+    if (earnedThreeUp) {
+      if (!this.infiniteLives && !this.isEditorImmortality) {
+        this.stats.lives += 3;
+      }
+      this.sound.play1Up();
+      this.particleSystem.emitScoreText('3-UP! +3 VIDAS', x - 20, Math.max(32, y - 22), {
+        maxLife: 75,
+        vy: -0.7,
+        color: '#58f898',
+      });
+    }
+
+    // 100+ accumulated points -> reset wallet to 0 and queue Bonus Stage (chance for 9 lives)
+    if (total >= 100) {
+      this.goalPointsWallet = 0;
+      this.pendingBonusStage = true;
+      this.particleSystem.emitScoreText('100 PTS! BONUS STAGE!', x - 28, Math.max(46, y - 36), {
+        maxLife: 85,
+        vy: -0.55,
+        color: '#fce078',
+      });
+    } else {
+      this.goalPointsWallet = total;
+      this.pendingBonusStage = false;
+    }
+
+    this.stats.goalPointsWallet = this.goalPointsWallet;
+    this.onSmwGoalWalletChanged?.(this.goalPointsWallet);
+  }
+
+  public startSmwBonusStage() {
+    if (this.isBonusStageActive) return;
+
+    this.bonusReturnLevelMeta = {
+      id: this.level.id,
+      name: this.level.name,
+      singleplayerWorld: this.level.singleplayerWorld,
+      singleplayerStage: this.level.singleplayerStage,
+      isFinalCastle: this.level.isFinalCastle,
+      smwNodeId: this.level.smwNodeId,
+      smwWorldName: this.level.smwWorldName,
+      endlessStage: this.level.endlessStage,
+      isCustom: this.level.isCustom,
+    };
+
+    const width = 16;
+    const height = 15;
+    const tiles: (BlockTile | null)[][] = Array.from({ length: height }, () =>
+      Array<BlockTile | null>(width).fill(null)
+    );
+
+    // Solid floor across rows 13..14
+    for (let tx = 0; tx < width; tx++) {
+      tiles[13][tx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      tiles[14][tx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    // 3x3 rotating SMW Bonus Stage blocks (9 opportunities for 1-UP lives)
+    const cols = [4, 7, 10];
+    const rows = [4, 7, 10];
+    const bonusBlocks: BonusStageBlock[] = [];
+    let idx = 0;
+    for (const ty of rows) {
+      for (const tx of cols) {
+        tiles[ty][tx] = { type: 'bonus_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        bonusBlocks.push({
+          tx,
+          ty,
+          x: tx * GameEngine.TILE_SIZE,
+          y: ty * GameEngine.TILE_SIZE,
+          timer: (idx * 7) % 20,
+          faceIndex: idx % 3,
+          resolved: false,
+          result: null,
+        });
+        idx++;
+      }
+    }
+
+    const bonusLevel: LevelData = {
+      id: 'smw-bonus-stage',
+      name: 'BONUS STAGE',
+      theme: 'overworld',
+      width,
+      height,
+      tiles,
+      enemies: [],
+      coins: [],
+      marioStart: { x: 24, y: 12 * GameEngine.TILE_SIZE },
+      flagX: 999999,
+      castleX: 999999,
+      bgColor: '#0c1230',
+      timeLimit: 60,
+      biomeLabel: 'BONUS STAGE · 9 VIDAS',
+    };
+
+    this.level = bonusLevel;
+    this.ceilingTileColumns = new Array(width).fill(false);
+    this.enemies = [];
+    this.items = [];
+    this.fireballs = [];
+    this.bossFireballs = [];
+    this.hammerProjectiles = [];
+    this.floatingPlatforms = [];
+    this.sceneries = [];
+    this.particleSystem.clear();
+
+    this.isStageClear = false;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = true;
+    this.bonusStageBlocks = bonusBlocks;
+    this.bonusStageLivesWon = 0;
+    this.bonusStageFinishDelay = 0;
+    this.bonusStageTimeFrames = 60 * 60;
+
+    this.marioX = 24;
+    this.marioY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.marioGrounded = true;
+    this.marioState = 'idle';
+    this.marioFacing = 'right';
+    this.marioStarTimer = 0;
+    this.camera.snapTo(0, width * GameEngine.TILE_SIZE);
+    this.cameraX = 0;
+
+    this.stats.world = 'BONUS';
+    this.stats.time = 60;
+    this.stats.isBonusStage = true;
+    this.stats.bonusBlocksRemaining = bonusBlocks.length;
+    this.stats.bonusLivesWon = 0;
+    this.stats.goalPointsWallet = this.goalPointsWallet;
+
+    this.sound.playPowerUpEat();
+    this.startLevelMusic('overworld');
+    this.particleSystem.emitScoreText('BONUS! BATA OS 9 BLOCOS!', 16, 48, {
+      maxLife: 80,
+      vy: -0.35,
+      color: '#fce078',
+    });
+  }
+
+  public resolveBonusStageBlock(tx: number, ty: number, block?: BlockTile): boolean {
+    const targetBlock = block ?? this.level.tiles[ty]?.[tx];
+    const entry = this.bonusStageBlocks.find(b => b.tx === tx && b.ty === ty);
+    if (!targetBlock || !entry || entry.resolved) {
+      return false;
+    }
+
+    const faces: BonusBlockFace[] = ['1up', 'mushroom', 'flower'];
+    const chosen = faces[entry.faceIndex % faces.length];
+    entry.resolved = true;
+    entry.result = chosen;
+
+    targetBlock.type = 'question_empty';
+    targetBlock.content = 'none';
+
+    if (chosen === '1up') {
+      this.bonusStageLivesWon++;
+      if (!this.infiniteLives && !this.isEditorImmortality) {
+        this.stats.lives++;
+      }
+      this.sound.play1Up();
+      this.addScore(1000, entry.x, entry.y, '+1 VIDA!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
+    } else if (chosen === 'mushroom') {
+      this.sound.playPowerUpEat();
+      this.addScore(1000, entry.x, entry.y, '+1000');
+    } else {
+      this.sound.playCoin();
+      this.addScore(500, entry.x, entry.y, '+500');
+    }
+
+    const remaining = this.bonusStageBlocks.filter(b => !b.resolved).length;
+    this.stats.bonusBlocksRemaining = remaining;
+    this.stats.bonusLivesWon = this.bonusStageLivesWon;
+
+    if (remaining === 0) {
+      this.bonusStageFinishDelay = 85;
+      this.sound.playStageClear();
+      this.particleSystem.emitScoreText(
+        `BONUS FIM! +${this.bonusStageLivesWon} VIDAS`,
+        24,
+        36,
+        { maxLife: 85, vy: -0.25, color: '#58f898' }
+      );
+    }
+
+    return true;
+  }
+
+  public finishSmwBonusStage() {
+    this.isBonusStageActive = false;
+    this.pendingBonusStage = false;
+    this.bonusStageFinishDelay = 0;
+    this.stats.isBonusStage = false;
+    this.stats.bonusBlocksRemaining = 0;
+
+    if (this.bonusReturnLevelMeta) {
+      this.level.id = this.bonusReturnLevelMeta.id;
+      this.level.name = this.bonusReturnLevelMeta.name;
+      this.level.singleplayerWorld = this.bonusReturnLevelMeta.singleplayerWorld;
+      this.level.singleplayerStage = this.bonusReturnLevelMeta.singleplayerStage;
+      this.level.isFinalCastle = this.bonusReturnLevelMeta.isFinalCastle;
+      this.level.smwNodeId = this.bonusReturnLevelMeta.smwNodeId;
+      this.level.smwWorldName = this.bonusReturnLevelMeta.smwWorldName;
+      this.level.endlessStage = this.bonusReturnLevelMeta.endlessStage;
+      this.level.isCustom = this.bonusReturnLevelMeta.isCustom;
+      this.bonusReturnLevelMeta = null;
+    }
+
+    this.handleStageClearReadyToAdvance();
+  }
+
+  public isEnemyNearStageEnd(enemyX: number, rangePx: number = 192): boolean {
+    if (!this.level) return false;
+    const T = GameEngine.TILE_SIZE;
+    let hasMarker = false;
+
+    if (this.level.flagX > 0 && this.level.flagX < 99000) {
+      hasMarker = true;
+      if (enemyX >= this.level.flagX - rangePx) return true;
+    }
+
+    if (this.level.castleX > 0 && this.level.castleX < 99000) {
+      hasMarker = true;
+      if (Math.abs(enemyX - this.level.castleX) <= rangePx) return true;
+    }
+
+    for (let ty = 0; ty < this.level.height; ty++) {
+      const row = this.level.tiles[ty];
+      if (!row) continue;
+      for (let tx = 0; tx < this.level.width; tx++) {
+        const type = row[tx]?.type;
+        if (type === 'axe' || type === 'yellow_switch' || type === 'yellow_switch_pressed') {
+          hasMarker = true;
+          const markerX = tx * T;
+          if (Math.abs(enemyX - markerX) <= rangePx) return true;
+        }
+      }
+    }
+
+    if (!hasMarker) {
+      return enemyX >= this.level.width * T - rangePx;
+    }
+    return false;
+  }
+
+  public transformStageEndEnemiesToPoints(): { count: number; totalPoints: number } {
+    const candidates = this.enemies
+      .filter(
+        e =>
+          e.alive &&
+          e.state !== 'flipped' &&
+          e.state !== 'squashed' &&
+          e.type !== 'bowser' &&
+          this.isEnemyNearStageEnd(e.x)
+      )
+      .sort((a, b) => a.x - b.x);
+
+    let totalPoints = 0;
+    candidates.forEach((e, idx) => {
+      const basePoints =
+        e.type === 'hammer_bro' || e.type === 'dry_bones' || e.type === 'boo'
+          ? 400
+          : e.type === 'red_koopa' ||
+            e.type === 'paratroopa' ||
+            e.type === 'blooper' ||
+            e.type === 'fast_cheep'
+          ? 300
+          : 200;
+      const multiplier = Math.min(8, idx + 2);
+      const pts = basePoints * multiplier;
+
+      e.alive = false;
+      e.state = 'flipped';
+      e.vx = 0;
+      e.vy = -4.5;
+      this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+      this.spawnCoinParticles(e.x, e.y);
+      this.addScore(pts, e.x, Math.max(36, e.y - 6), `${pts} (x${multiplier})`);
+      totalPoints += pts;
+    });
+
+    if (candidates.length > 0) {
+      this.hammerProjectiles = [];
+      this.bossFireballs = [];
+      this.sound.playCoin();
+    }
+
+    return { count: candidates.length, totalPoints };
+  }
+
+  private checkFlagpoleCollision() {
+    if (
+      this.isBonusStageActive ||
+      this.isStageClear ||
+      this.marioState === 'pole_slide' ||
+      this.marioState === 'castle_walk' ||
+      this.marioState === 'castle_entered' ||
+      !this.hasGoalPointsPost()
+    ) {
+      return;
+    }
+
+    if (this.marioX >= this.level.flagX - 6 && this.marioX <= this.level.flagX + 24) {
+      // Cross the SMW Points Goal Gate!
       this.marioStarTimer = 0;
       this.starComboCount = 0;
-      this.marioState = 'pole_slide';
+      this.goalTapeCut = true;
       this.marioVx = 0;
       this.marioVy = 0;
-      this.marioX = this.level.flagX - 4;
-      this.sound.playFlagpole();
+      this.marioState = 'castle_walk';
+      this.marioFacing = 'right';
 
-      // Points based on how high Mario grabbed pole
-      const heightGrabbed = 12 * GameEngine.TILE_SIZE - this.marioY;
-      const polePoints = heightGrabbed > 100 ? 5000 : heightGrabbed > 60 ? 2000 : 800;
-      this.addScore(polePoints, this.level.flagX, this.marioY);
+      const marioCenterY = this.marioY + this.getMarioHeight() * 0.5;
+      const earnedGoalPts = this.computeGoalGatePoints(marioCenterY, this.goalTapeY);
+      this.lastGoalGatePoints = earnedGoalPts;
+      this.applyGoalPointsReward(earnedGoalPts, this.level.flagX, Math.max(40, this.marioY));
+      this.transformStageEndEnemiesToPoints();
+      this.enforceStageEndDebugLock(false);
+      this.sound.playStageClear();
       this.onMultiplayerSyncNeeded?.();
     }
   }
@@ -4035,6 +4673,8 @@ export class GameEngine {
     this.stageClearTallyDelay = 40;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
+    this.transformStageEndEnemiesToPoints();
+    this.enforceStageEndDebugLock(false);
     this.syncHighScore(true);
     this.onMultiplayerSyncNeeded?.();
   }
@@ -4291,6 +4931,9 @@ export class GameEngine {
     this.hasTriggeredNewRecordBanner = false;
     this.lastSavedRank = null;
 
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
     this.stats = {
       score: 0,
       coins: 0,
@@ -4300,6 +4943,10 @@ export class GameEngine {
       highScore: topScore,
       difficulty: this.difficulty,
       isNewHighScore: false,
+      goalPointsWallet: 0,
+      isBonusStage: false,
+      bonusBlocksRemaining: 0,
+      bonusLivesWon: 0,
     };
 
     this.isGameStarted = true;
@@ -4345,6 +4992,9 @@ export class GameEngine {
     this.hasTriggeredNewRecordBanner = false;
     this.lastSavedRank = null;
 
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
     this.stats = {
       score: 0,
       coins: 0,
@@ -4354,14 +5004,22 @@ export class GameEngine {
       highScore: topScore,
       difficulty: this.difficulty,
       isNewHighScore: false,
+      goalPointsWallet: 0,
+      isBonusStage: false,
+      bonusBlocksRemaining: 0,
+      bonusLivesWon: 0,
     };
 
+    this.isCampaignVictory = false;
+    this.isGameOver = false;
+    this.isStageClear = false;
     this.isPaused = false;
     this.isGameStarted = true;
     this.endlessStage = 0;
     this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
     this.marioStarTimer = 0;
-    const prepared: LevelData = { ...cloneLevelData(customLevel), isCustom: true };
+    const sanitized = sanitizeCustomLevelEntities(customLevel).level;
+    const prepared: LevelData = { ...sanitized, isCustom: true };
     this.loadLevel(prepared, true, false);
   }
 
@@ -4395,6 +5053,9 @@ export class GameEngine {
     this.hasTriggeredNewRecordBanner = false;
     this.lastSavedRank = null;
 
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
     const firstLevel = createSingleplayerLevel(this.singleplayerWorld, this.singleplayerStage);
     this.stats = {
       score: 0,
@@ -4405,6 +5066,10 @@ export class GameEngine {
       highScore: topScore,
       difficulty: this.difficulty,
       isNewHighScore: false,
+      goalPointsWallet: 0,
+      isBonusStage: false,
+      bonusBlocksRemaining: 0,
+      bonusLivesWon: 0,
     };
 
     this.isPaused = false;
@@ -4442,6 +5107,12 @@ export class GameEngine {
       this.isNewHighScore = false;
       this.hasTriggeredNewRecordBanner = false;
       this.lastSavedRank = null;
+      if (resetSession) {
+        this.goalPointsWallet = 0;
+        this.onSmwGoalWalletChanged?.(0);
+      }
+      this.pendingBonusStage = false;
+      this.isBonusStageActive = false;
       this.stats = {
         score: 0,
         coins: 0,
@@ -4451,6 +5122,10 @@ export class GameEngine {
         highScore: topScore,
         difficulty: this.difficulty,
         isNewHighScore: false,
+        goalPointsWallet: this.goalPointsWallet,
+        isBonusStage: false,
+        bonusBlocksRemaining: 0,
+        bonusLivesWon: 0,
       };
       this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
     }
@@ -4505,6 +5180,9 @@ export class GameEngine {
     this.hasTriggeredNewRecordBanner = false;
     this.lastSavedRank = null;
 
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
     this.stats = {
       score: 0,
       coins: 0,
@@ -4514,6 +5192,10 @@ export class GameEngine {
       highScore: topScore,
       difficulty: this.difficulty,
       isNewHighScore: false,
+      goalPointsWallet: 0,
+      isBonusStage: false,
+      bonusBlocksRemaining: 0,
+      bonusLivesWon: 0,
     };
 
     this.isPaused = false;
@@ -4527,6 +5209,9 @@ export class GameEngine {
   public exitToMainMenu() {
     this.customLevelTemplate = null;
     this.gameMode = 'classic';
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
     this.isCampaignVictory = false;
     this.castleToodleActive = false;
     this.castlePrincessActive = false;
@@ -4624,6 +5309,7 @@ export class GameEngine {
       type === 'ghost_brick' ||
       type === 'yellow_switch' ||
       type === 'yellow_switch_pressed' ||
+      type === 'bonus_block' ||
       (type === 'exclam_yellow' && this.yellowSwitchUnlocked)
     );
   }
@@ -4681,6 +5367,11 @@ export class GameEngine {
       ctx.fillText(`x  ${this.stats.lives}`, iconX + 36, iconY + 12);
 
       ctx.textAlign = 'left';
+      return;
+    }
+
+    if (this.isBonusStageActive) {
+      this.renderBonusStage(ctx);
       return;
     }
 
@@ -4864,6 +5555,15 @@ export class GameEngine {
         ctx.fillStyle = this.marioStarTimer < 120 && Math.floor(this.marioStarTimer / 4) % 2 === 0 ? '#ff4444' : '#fce078';
         ctx.fillRect(95, 27, fillW, 2);
       }
+    }
+
+    // 7. SMW Goal Points Wallet badge (★XX/100)
+    ctx.font = '5px "Press Start 2P", monospace';
+    if (this.isBonusStageActive) {
+      const rem = this.bonusStageBlocks.filter(b => !b.resolved).length;
+      drawShadowText(`BONUS ${9 - rem}/9 +${this.bonusStageLivesWon}V`, 146, 30, '#58f898');
+    } else {
+      drawShadowText(`★${String(this.goalPointsWallet).padStart(2, '0')}/100`, 176, 30, '#fce078');
     }
 
     ctx.restore();
@@ -5509,11 +6209,123 @@ export class GameEngine {
   }
 
   private renderFlagpole(ctx: CanvasRenderingContext2D) {
+    if (!this.hasGoalPointsPost()) return;
     const poleScreenX = Math.round(this.level.flagX - this.camera.renderX);
-    if (poleScreenX < -32 || poleScreenX > GameEngine.NES_WIDTH + 32) return;
+    if (poleScreenX < -40 || poleScreenX > GameEngine.NES_WIDTH + 40) return;
 
-    // Draw Flag attached to pole
-    ctx.drawImage(this.atlas.flagTriangle, poleScreenX - 14, Math.round(this.flagY));
+    // Front right pillar of the SMW Goal Gate (left pillar is rendered by 'pole'/'pole_top' tiles)
+    const frontPostX = poleScreenX + 20;
+    for (let y = 3 * GameEngine.TILE_SIZE; y <= 11 * GameEngine.TILE_SIZE; y += GameEngine.TILE_SIZE) {
+      ctx.drawImage(this.atlas.flagPoleBody, frontPostX, y);
+    }
+    ctx.drawImage(this.atlas.flagPoleTop, frontPostX, 2 * GameEngine.TILE_SIZE);
+
+    // Horizontal top crossbeam connecting the dual SMW pillars
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(poleScreenX + 8, 2 * GameEngine.TILE_SIZE + 6, 20, 4);
+    ctx.fillStyle = '#d8e4f4';
+    ctx.fillRect(poleScreenX + 8, 2 * GameEngine.TILE_SIZE + 7, 20, 2);
+
+    // Subtle height point labels along the right post (50 / 30 / 10)
+    ctx.save();
+    ctx.font = '5px "Press Start 2P", monospace';
+    ctx.fillStyle = '#000000';
+    ctx.fillText('50', frontPostX + 13, 56);
+    ctx.fillText('30', frontPostX + 13, 110);
+    ctx.fillText('10', frontPostX + 13, 162);
+    ctx.fillStyle = '#fce078';
+    ctx.fillText('50', frontPostX + 12, 55);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('30', frontPostX + 12, 109);
+    ctx.fillText('10', frontPostX + 12, 161);
+    ctx.restore();
+
+    // Moving SMW Goal Tape crossbar between both pillars
+    if (!this.goalTapeCut) {
+      const tapeY = Math.round(this.goalTapeY);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(poleScreenX + 7, tapeY - 1, 18, 6);
+      ctx.fillStyle = '#f8d838';
+      ctx.fillRect(poleScreenX + 8, tapeY, 16, 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(poleScreenX + 9, tapeY + 1, 14, 2);
+    }
+  }
+
+  private renderBonusStage(ctx: CanvasRenderingContext2D) {
+    // 1. SMW Indigo Bonus Room Backdrop with subtle diamond checker pattern
+    ctx.fillStyle = '#0c1230';
+    ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    ctx.fillStyle = 'rgba(48, 84, 176, 0.2)';
+    for (let y = 32; y < 208; y += 24) {
+      for (let x = ((y / 24) % 2) * 16; x < GameEngine.NES_WIDTH; x += 32) {
+        ctx.fillRect(x + 6, y + 2, 4, 4);
+        ctx.fillRect(x + 2, y + 6, 12, 4);
+        ctx.fillRect(x + 6, y + 10, 4, 4);
+      }
+    }
+
+    // 2. Bonus Stage Banner
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '7px "Press Start 2P", monospace';
+    ctx.fillStyle = '#000000';
+    ctx.fillText('BONUS STAGE · 9 VIDAS', GameEngine.NES_WIDTH / 2 + 1, 45);
+    ctx.fillStyle = '#fce078';
+    ctx.fillText('BONUS STAGE · 9 VIDAS', GameEngine.NES_WIDTH / 2, 44);
+    const rem = this.bonusStageBlocks.filter(b => !b.resolved).length;
+    ctx.font = '5px "Press Start 2P", monospace';
+    ctx.fillStyle = '#58f898';
+    ctx.fillText(`RESTAM: ${rem}/9   VIDAS GANHAS: +${this.bonusStageLivesWon}`, GameEngine.NES_WIDTH / 2, 55);
+    ctx.restore();
+
+    // 3. Floor & spent tiles
+    this.renderTiles(ctx);
+
+    // 4. Active 3x3 rotating SMW Bonus Blocks
+    const faces: BonusBlockFace[] = ['1up', 'mushroom', 'flower'];
+    for (const b of this.bonusStageBlocks) {
+      const tile = this.level.tiles[b.ty]?.[b.tx];
+      const bump = tile ? Math.round(tile.bumpOffset) : 0;
+      const bx = b.x;
+      const by = b.y + bump;
+
+      if (b.resolved) {
+        if (b.result === '1up') {
+          ctx.save();
+          ctx.font = '5px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#58f898';
+          ctx.fillText('1UP', bx + 8, by + 11);
+          ctx.restore();
+        }
+        continue;
+      }
+
+      // Gleaming SMW roulette box
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(bx, by, 16, 16);
+      ctx.fillStyle = '#fce078';
+      ctx.fillRect(bx + 1, by + 1, 14, 14);
+      ctx.fillStyle = '#182448';
+      ctx.fillRect(bx + 2, by + 2, 12, 12);
+
+      const face = faces[b.faceIndex % faces.length];
+      const sprite =
+        face === '1up'
+          ? this.atlas.itemMushroom1Up
+          : face === 'mushroom'
+          ? this.atlas.itemMushroomSuper
+          : this.atlas.itemFireFlowerFrames[0];
+      if (sprite) {
+        ctx.drawImage(sprite, bx + 2, by + 2, 12, 12);
+      }
+    }
+
+    // 5. Mario & Particles & HUD
+    this.renderMario(ctx);
+    this.particleSystem.render(ctx, 0, GameEngine.NES_WIDTH, this.atlas);
+    this.renderInCanvasHUD(ctx);
   }
 
   private renderItems(ctx: CanvasRenderingContext2D) {

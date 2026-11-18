@@ -2178,6 +2178,81 @@ export function createSingleplayerLevel(
   };
 }
 
+export const EDITOR_MAX_ENEMIES = 60;
+export const EDITOR_MAX_COINS = 120;
+export const EDITOR_MAX_FLOATING_PLATFORMS = 16;
+export const EDITOR_MAX_TOTAL_ENTITIES = 180;
+export const EDITOR_MAX_CUSTOM_LEVELS = 10;
+
+export interface CustomLevelEntityCounts {
+  enemies: number;
+  coins: number;
+  floatingPlatforms: number;
+  total: number;
+}
+
+export function getCustomLevelEntityCounts(level: LevelData): CustomLevelEntityCounts {
+  const enemies = Array.isArray(level.enemies) ? level.enemies.length : 0;
+  const coins = Array.isArray(level.coins) ? level.coins.length : 0;
+  const floatingPlatforms = Array.isArray(level.floatingPlatforms) ? level.floatingPlatforms.length : 0;
+  return {
+    enemies,
+    coins,
+    floatingPlatforms,
+    total: enemies + coins + floatingPlatforms,
+  };
+}
+
+/**
+ * Enforces safe entity caps on custom levels so browser volatile memory
+ * and 60 FPS canvas/physics loops never overflow during editing or testing.
+ */
+export function sanitizeCustomLevelEntities(level: LevelData): {
+  level: LevelData;
+  truncated: boolean;
+} {
+  const cloned = cloneLevelData(level);
+  const rawEnemies = Array.isArray(cloned.enemies) ? cloned.enemies : [];
+  const rawCoins = Array.isArray(cloned.coins) ? cloned.coins : [];
+  const rawPlatforms = Array.isArray(cloned.floatingPlatforms) ? cloned.floatingPlatforms : [];
+
+  let truncated = false;
+
+  let floatingPlatforms = rawPlatforms.slice(0, EDITOR_MAX_FLOATING_PLATFORMS);
+  if (rawPlatforms.length > floatingPlatforms.length) truncated = true;
+
+  let enemies = rawEnemies.slice(0, EDITOR_MAX_ENEMIES);
+  if (rawEnemies.length > enemies.length) truncated = true;
+
+  let coins = rawCoins.slice(0, EDITOR_MAX_COINS);
+  if (rawCoins.length > coins.length) truncated = true;
+
+  // Enforce combined entity budget cleanly (floatingPlatforms -> enemies -> coins)
+  let remainingTotal = EDITOR_MAX_TOTAL_ENTITIES;
+  if (floatingPlatforms.length > remainingTotal) {
+    floatingPlatforms = floatingPlatforms.slice(0, remainingTotal);
+    truncated = true;
+  }
+  remainingTotal -= floatingPlatforms.length;
+
+  if (enemies.length > remainingTotal) {
+    enemies = enemies.slice(0, remainingTotal);
+    truncated = true;
+  }
+  remainingTotal -= enemies.length;
+
+  if (coins.length > remainingTotal) {
+    coins = coins.slice(0, remainingTotal);
+    truncated = true;
+  }
+
+  cloned.enemies = enemies;
+  cloned.coins = coins;
+  cloned.floatingPlatforms = floatingPlatforms.length > 0 ? floatingPlatforms : undefined;
+
+  return { level: cloned, truncated };
+}
+
 export function cloneLevelData(level: LevelData): LevelData {
   return {
     ...level,
@@ -2575,7 +2650,7 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     }
   }
 
-  return {
+  return sanitizeCustomLevelEntities({
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     name,
     theme,
@@ -2592,7 +2667,7 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     bgColor: rawBg,
     timeLimit: rawTime,
     isCustom: true,
-  };
+  }).level;
 }
 
 

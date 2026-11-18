@@ -3376,35 +3376,44 @@ export class SpriteAtlas {
     ctxDoor.fillRect(2, 6, 12, 10);
     this.castleDoor = cDoor;
 
-    // Flagpole Ball Top (16x16)
+    // SMW Goal Gate Cap Top (16x16 golden sphere finial)
     const [cBall, ctxBall] = createOffscreen(16, 16);
-    ctxBall.fillStyle = '#00a800';
+    ctxBall.fillStyle = '#000000';
     ctxBall.beginPath();
-    ctxBall.arc(8, 8, 6, 0, Math.PI * 2);
+    ctxBall.arc(8, 8, 6.5, 0, Math.PI * 2);
     ctxBall.fill();
-    ctxBall.fillStyle = '#80d010';
+    ctxBall.fillStyle = '#c88010';
     ctxBall.beginPath();
-    ctxBall.arc(6, 6, 2, 0, Math.PI * 2);
+    ctxBall.arc(8, 8, 5.5, 0, Math.PI * 2);
     ctxBall.fill();
+    ctxBall.fillStyle = '#f8d838';
+    ctxBall.beginPath();
+    ctxBall.arc(7.5, 7.5, 4, 0, Math.PI * 2);
+    ctxBall.fill();
+    ctxBall.fillStyle = '#fff8c8';
+    ctxBall.fillRect(5, 5, 2, 2);
     this.flagPoleTop = cBall;
 
-    // Flagpole Body (16x16)
+    // SMW Goal Gate Post Body (16x16 sleek metallic silver pillar)
     const [cPole, ctxPole] = createOffscreen(16, 16);
-    ctxPole.fillStyle = '#00a800';
+    ctxPole.fillStyle = '#202838';
+    ctxPole.fillRect(5, 0, 6, 16);
+    ctxPole.fillStyle = '#687890';
+    ctxPole.fillRect(6, 0, 4, 16);
+    ctxPole.fillStyle = '#d8e4f4';
     ctxPole.fillRect(7, 0, 2, 16);
     this.flagPoleBody = cPole;
 
-    // Flag (16x16 triangle green flag)
+    // SMW Goal Gate Moving Tape / Star Banner Icon (16x16)
     const [cFlag, ctxFlag] = createOffscreen(16, 16);
-    ctxFlag.fillStyle = '#00a800';
-    ctxFlag.beginPath();
-    ctxFlag.moveTo(16, 0);
-    ctxFlag.lineTo(0, 8);
-    ctxFlag.lineTo(16, 16);
-    ctxFlag.closePath();
-    ctxFlag.fill();
-    ctxFlag.fillStyle = '#80d010';
-    ctxFlag.fillRect(10, 5, 4, 6);
+    ctxFlag.fillStyle = '#000000';
+    ctxFlag.fillRect(0, 4, 16, 8);
+    ctxFlag.fillStyle = '#f8d838';
+    ctxFlag.fillRect(1, 5, 14, 6);
+    ctxFlag.fillStyle = '#ffffff';
+    ctxFlag.fillRect(2, 6, 12, 4);
+    ctxFlag.fillStyle = '#fc9838';
+    ctxFlag.fillRect(6, 6, 4, 4);
     this.flagTriangle = cFlag;
 
     // Toodle (Toad) 16x24 NES Pixel Art Sprite (Standing & Cheering frames facing left)

@@ -68,14 +68,27 @@ import {
   createWorld1_4,
   createEndlessLevel,
   createSingleplayerLevel,
+  createBlankCustomLevel,
+  createSecretVault,
+  sanitizeCustomLevelEntities,
+  parseImportedLevelFile,
+  EDITOR_MAX_ENEMIES,
+  EDITOR_MAX_COINS,
+  EDITOR_MAX_FLOATING_PLATFORMS,
+  EDITOR_MAX_TOTAL_ENTITIES,
 } from '../src/game/levels.ts';
 import {
+  SMW_ISLANDS,
+  SMW_ISLAND2_NODES,
+  SMW_ISLAND2_UNAVAILABLE_MSG,
   SMW_WIKIWORLD_NODES,
   createSmwWikiWorldStage,
   findSmwMapPath,
   isSmwNodeUnlocked,
+  resolveSmwDirectionalStep,
   type SmwBetaProgress,
 } from '../src/game/smwWorldMap.ts';
+import { GAME_UPDATES } from '../src/components/UpdatesModal.tsx';
 import {
   isSmartTvUserAgent,
   resolveTvRemoteAction,
@@ -745,7 +758,6 @@ async function runYellowSwitchPalaceTests() {
       clearedNodeIds: [],
       selectedNodeId: 'wiki-1-overworld',
       storySeen: true,
-      betaUnlockAll: false,
       yellowSwitchUnlocked: false,
     };
     assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', baseProgress), false);
@@ -853,8 +865,490 @@ async function runYellowSwitchPalaceTests() {
   });
 }
 
+async function runR116FixesTests() {
+  console.log('\n[9/9] Correções R1.16 & Segunda Ilha Beta (RW0.15.0.PW.4, R1.16.*)');
+
+  await test('R1.16.UC.4: Navegação no modo World permite andar para trás até W-1 pelas estradas', () => {
+    const allClearedProgress: SmwBetaProgress = {
+      clearedNodeIds: [
+        'wiki-1-overworld',
+        'wiki-2-caverna',
+        'wiki-3-agua',
+        'wiki-4-mansao',
+        'wiki-5-castelo',
+        'wiki-switch-yellow',
+      ],
+      selectedNodeId: 'wiki-5-castelo',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: true,
+    };
+
+    const s4 = resolveSmwDirectionalStep('wiki-5-castelo', 'left', allClearedProgress, 'wikiworld');
+    assert.equal(s4?.id, 'wiki-4-mansao');
+
+    const s3 = resolveSmwDirectionalStep('wiki-4-mansao', 'left', allClearedProgress, 'wikiworld');
+    assert.equal(s3?.id, 'wiki-3-agua');
+
+    const s2 = resolveSmwDirectionalStep('wiki-3-agua', 'left', allClearedProgress, 'wikiworld');
+    assert.equal(s2?.id, 'wiki-2-caverna');
+
+    const s1 = resolveSmwDirectionalStep('wiki-2-caverna', 'left', allClearedProgress, 'wikiworld');
+    assert.equal(s1?.id, 'wiki-1-overworld');
+
+    const fromSwitch = resolveSmwDirectionalStep('wiki-switch-yellow', 'left', allClearedProgress, 'wikiworld');
+    assert.equal(fromSwitch?.id, 'wiki-1-overworld');
+
+    const reversePath = findSmwMapPath('wiki-5-castelo', 'wiki-1-overworld');
+    assert.equal(reversePath.length, 4);
+    assert.ok(reversePath.every(step => step.reverse));
+  });
+
+  await test('RW0.15.0.PW.4: Segunda ilha existe com primeira fase exibindo mensagem Beta indisponível', () => {
+    assert.equal(SMW_ISLANDS.length, 2);
+    const island2 = SMW_ISLANDS.find(isl => isl.id === 'island2');
+    assert.ok(island2);
+    assert.equal(island2.playable, false);
+    assert.equal(SMW_ISLAND2_UNAVAILABLE_MSG, '(Versão Beta) ainda não disponível para jogar');
+
+    const firstStage = SMW_ISLAND2_NODES[0];
+    assert.ok(firstStage);
+    assert.equal(firstStage.code, '2-1');
+    assert.equal(firstStage.subtitle, '(Versão Beta) ainda não disponível para jogar');
+    assert.equal(firstStage.betaPlaceholderMessage, '(Versão Beta) ainda não disponível para jogar');
+  });
+
+  await test('R1.16.UF.4: Controles interativos no menu com isGameStarted=false não movem o personagem', () => {
+    const engine = new GameEngine();
+    assert.equal(engine.isGameStarted, false);
+    const startX = engine.marioX;
+    const startY = engine.marioY;
+    const startScore = engine.stats.score;
+
+    engine.controls.right = true;
+    engine.controls.jump = true;
+    engine.controls.run = true;
+    stepEngine(engine, 15);
+
+    assert.equal(engine.marioX, startX);
+    assert.equal(engine.marioY, startY);
+    assert.equal(engine.stats.score, startScore);
+    assert.equal(engine.controls.right, false);
+    assert.equal(engine.controls.jump, false);
+  });
+
+  await test('R1.16.EG.4 & R1.16.7H.4: Correções recentes têm UIDs exclusivas e Tela Inicial simplificada mantém recursos', () => {
+    const uids = GAME_UPDATES.map(u => u.uid);
+    const uniqueUids = new Set(uids);
+    assert.equal(uniqueUids.size, uids.length, 'Todas as UIDs de correções devem ser únicas');
+    for (const requiredUid of [
+      'R1.16.OY.4',
+      'R1.16.P4.4',
+      'R1.16.3FG.4',
+      'R1.16.1IZ.4',
+      'R1.16.116.4',
+      'R1.16.HH.4',
+      'R1.16.QO.4',
+      'RW0.15.0.PW.4',
+      'R1.16.EG.4',
+      'R1.16.UF.4',
+      'R1.16.7H.4',
+      'R1.16.UC.4',
+      'R0.15.0.RL.4',
+    ]) {
+      assert.ok(uniqueUids.has(requiredUid), `UID ausente em UpdatesModal: ${requiredUid}`);
+    }
+
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.ok(canvasSrc.includes('Correções Recentes'));
+    assert.ok(canvasSrc.includes('JOGAR CLÁSSICO'));
+    assert.ok(canvasSrc.includes('MODO WORLD'));
+    assert.ok(canvasSrc.includes('7 MUNDOS'));
+  });
+
+  await test('R1.16.116.4: Caverna (W-2) usa tema underground e Água (W-3) usa tema underwater no Modo World', () => {
+    const caverna = createSmwWikiWorldStage('wiki-2-caverna');
+    const agua = createSmwWikiWorldStage('wiki-3-agua');
+    assert.equal(caverna.theme, 'underground');
+    assert.equal(agua.theme, 'underwater');
+  });
+
+  await test('R1.16.HH.4: Opção de liberar todas as fases removida do mapa do Super Mario World', () => {
+    const mapSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SmwOverworldMap.tsx'), 'utf8');
+    assert.equal(mapSrc.includes('Liberar Fases'), false);
+    assert.equal(mapSrc.includes('Todas Liberadas'), false);
+    assert.equal(mapSrc.includes('betaUnlockAll'), false);
+
+    const freshProgress: SmwBetaProgress = {
+      clearedNodeIds: [],
+      selectedNodeId: 'wiki-1-overworld',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: false,
+    };
+    assert.equal(isSmwNodeUnlocked('wiki-1-overworld', freshProgress), true);
+    assert.equal(isSmwNodeUnlocked('wiki-5-castelo', freshProgress), false);
+  });
+
+  await test('R1.16.QO.4: Modo Debug bloqueia inserção de objetos em cima ou a até 3 blocos do final da fase', () => {
+    const engine = createFreshEngine();
+    engine.toggleDebugMode(true);
+    const itemsBefore = engine.items.length;
+
+    const flagX = engine.level.flagX;
+    assert.ok(flagX > 0 && flagX < 99000);
+
+    // Em cima da bandeira e a 3 blocos (48px) -> BLOQUEADO
+    assert.equal(engine.isDebugPlacementBlockedAt(flagX), true);
+    assert.equal(engine.isDebugPlacementBlockedAt(flagX - 48), true);
+    assert.equal(engine.isDebugPlacementBlockedAt(flagX + 48), true);
+    assert.equal(engine.placeDebugItemAt(flagX, 160), false);
+    assert.equal(engine.placeDebugItemAt(flagX - 48, 160), false);
+    assert.equal(engine.items.length, itemsBefore);
+
+    // A 4 blocos (64px) de distância -> PERMITIDO
+    assert.equal(engine.isDebugPlacementBlockedAt(flagX - 64), false);
+    assert.equal(engine.placeDebugItemAt(flagX - 64, 160), true);
+    assert.equal(engine.items.length, itemsBefore + 1);
+
+    // Fase de Castelo (machado 'axe'): bloqueado em cima e a até 3 blocos do machado
+    const castleEngine = createFreshEngine();
+    castleEngine.loadLevel(createWorld1_4(), false, false, false);
+    castleEngine.intermissionTimer = 0;
+    castleEngine.toggleDebugMode(true);
+    let axeTx = -1;
+    for (let y = 0; y < castleEngine.level.height; y++) {
+      for (let x = 0; x < castleEngine.level.width; x++) {
+        if (castleEngine.level.tiles[y]?.[x]?.type === 'axe') axeTx = x;
+      }
+    }
+    assert.ok(axeTx > 0);
+    assert.equal(castleEngine.placeDebugItemAt(axeTx * 16, 160), false);
+    assert.equal(castleEngine.placeDebugItemAt((axeTx - 3) * 16, 160), false);
+    assert.equal(castleEngine.placeDebugItemAt((axeTx - 4) * 16, 160), true);
+  });
+
+  await test('R1.16.1IZ.4: Editor aplica limite seguro de entidades, evita redesenho em hover e testa fase editada sem tela preta', () => {
+    // 1. Templates oficiais permanecem intactos dentro do limite seguro
+    for (const tpl of [
+      createWorld1_1(),
+      createWorld1_2(),
+      createWorld2_2(),
+      createWorldGhostHouse(),
+      createWorld1_4(),
+      createSecretVault(),
+    ]) {
+      const sanitized = sanitizeCustomLevelEntities(tpl);
+      assert.equal(sanitized.truncated, false, `Template ${tpl.id} não deve ser truncado`);
+    }
+
+    // 2. Excesso de entidades em fase editada ou importada é truncado com segurança
+    const custom = createBlankCustomLevel('TESTE MEMORIA', 'overworld', 100);
+    for (let i = 0; i < 150; i++) {
+      custom.enemies.push({ type: 'goomba', x: (i % 80) * 16, y: 192 });
+    }
+    for (let i = 0; i < 200; i++) {
+      custom.coins.push({ x: (i % 80) * 16 + 8, y: 144 });
+    }
+    custom.floatingPlatforms = Array.from({ length: 40 }, (_, i) => ({
+      x: i * 32,
+      y: 120,
+      width: 48,
+      axis: 'horizontal' as const,
+      range: 24,
+      speed: 0.035,
+    }));
+
+    const imported = parseImportedLevelFile(JSON.stringify(custom));
+    assert.ok(imported.enemies.length <= EDITOR_MAX_ENEMIES);
+    assert.ok(imported.coins.length <= EDITOR_MAX_COINS);
+    assert.ok((imported.floatingPlatforms?.length || 0) <= EDITOR_MAX_FLOATING_PLATFORMS);
+    const totalImported =
+      imported.enemies.length + imported.coins.length + (imported.floatingPlatforms?.length || 0);
+    assert.ok(totalImported <= EDITOR_MAX_TOTAL_ENTITIES);
+
+    // 3. Execução no motor via playCustomLevel respeita limite e inicia com câmera e estado válidos
+    const engine = new GameEngine();
+    custom.marioStart = { x: 640, y: 192 };
+    engine.playCustomLevel(custom, true);
+    assert.equal(engine.isGameStarted, true);
+    assert.equal(engine.isPaused, false);
+    assert.equal(engine.isGameOver, false);
+    assert.equal(engine.level.isCustom, true);
+    assert.ok(engine.enemies.length <= EDITOR_MAX_ENEMIES);
+    assert.ok(engine.items.length <= EDITOR_MAX_COINS);
+    assert.ok(engine.floatingPlatforms.length <= EDITOR_MAX_FLOATING_PLATFORMS);
+    assert.ok(engine.camera.x > 0, 'Câmera deve centralizar quando início customizado está além de 160px');
+
+    // 4. Editor inclui isOpen na re-renderização do canvas e mantém hover fora das dependências de redraw
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes('}, [isOpen, currentLevel, cellSize, showGrid, atlas]);'));
+    assert.ok(editorSrc.includes('EDITOR_MAX_TOTAL_ENTITIES'));
+    assert.ok(editorSrc.includes('EDITOR_MAX_ENEMIES'));
+  });
+
+  await test('R1.16.3FG.4: Poste de Pontos SMW, Carteira (50 = +3 vidas, 100 = Bonus Stage 9 vidas) e exceção nos castelos de chefe', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    assert.equal(engine.hasGoalPointsPost(), true);
+    assert.equal(engine.goalPointsWallet, 0);
+
+    // 1. Pontuação do poste varia conforme a altura (50 no topo, 1 embaixo)
+    assert.equal(engine.computeGoalGatePoints(56, 56), 50);
+    assert.equal(engine.computeGoalGatePoints(190, 178), 1);
+
+    // 2. Atingir o topo do poste (50 pts) na 1-1 -> ganha +3 vidas e acumula 50 na carteira
+    const livesStart = engine.stats.lives;
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 48;
+    engine.update(16.67);
+    assert.equal(engine.lastGoalGatePoints, 50);
+    assert.equal(engine.goalPointsWallet, 50);
+    assert.equal(engine.stats.goalPointsWallet, 50);
+    assert.equal(engine.stats.lives, livesStart + 3);
+    assert.equal(engine.pendingBonusStage, false);
+    assert.equal(engine.marioState, 'castle_walk');
+
+    // 3. Acumular mais 50 pts (total 100) zera a carteira, soma +3 vidas e entra automaticamente no Bonus Stage após contagem
+    engine.loadLevel(createWorld1_2(), false, false, false);
+    engine.intermissionTimer = 0;
+    engine.enemies = [];
+    assert.equal(engine.hasGoalPointsPost(), true);
+    const livesBeforeSecondHit = engine.stats.lives;
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 48;
+    engine.update(16.67);
+    assert.equal(engine.lastGoalGatePoints, 50);
+    assert.equal(engine.goalPointsWallet, 0);
+    assert.equal(engine.stats.goalPointsWallet, 0);
+    assert.equal(engine.stats.lives, livesBeforeSecondHit + 3);
+    assert.equal(engine.pendingBonusStage, true);
+
+    // Avançar frames até completar a caminhada e contagem de tempo -> entra no Bonus Stage automaticamente
+    for (let i = 0; i < 400 && !engine.isBonusStageActive; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.isBonusStageActive, true);
+    assert.equal(engine.bonusStageBlocks.length, 9);
+    assert.equal(engine.stats.isBonusStage, true);
+    assert.equal(engine.stats.bonusBlocksRemaining, 9);
+
+    // 4. Pegar todas as 9 vidas nos 9 blocos do Bonus Stage -> fase finaliza automaticamente ao completar as 9 possibilidades
+    const livesEnteringBonus = engine.stats.lives;
+    for (const block of engine.bonusStageBlocks) {
+      block.faceIndex = 0; // '1up'
+      const resolved = engine.resolveBonusStageBlock(block.tx, block.ty);
+      assert.equal(resolved, true);
+    }
+    assert.equal(engine.bonusStageLivesWon, 9);
+    assert.equal(engine.stats.lives, livesEnteringBonus + 9);
+    assert.equal(engine.stats.bonusBlocksRemaining, 0);
+    assert.ok(engine.bonusStageFinishDelay > 0);
+
+    // Aguardar fim do delay de celebração -> encerra Bonus Stage e avança para próxima fase (2-2)
+    stepEngine(engine, engine.bonusStageFinishDelay + 2);
+    assert.equal(engine.isBonusStageActive, false);
+    assert.equal(engine.level.id, 'world-2-2');
+
+    // 5. Castelo do chefe (world-1-4 e wiki-5-castelo) NÃO usa Poste de Pontos
+    const bossEngine = createFreshEngine();
+    bossEngine.loadLevel(createWorld1_4(), false, false, false);
+    bossEngine.intermissionTimer = 0;
+    assert.equal(bossEngine.hasGoalPointsPost(), false);
+
+    const smwBoss = createSmwWikiWorldStage('wiki-5-castelo');
+    bossEngine.startSmwStage(smwBoss, true);
+    bossEngine.intermissionTimer = 0;
+    assert.equal(bossEngine.hasGoalPointsPost(), false);
+  });
+
+  await test('R1.16.OY.4: Modo Debug é desativado e bloqueado automaticamente se o jogador alcançar o final da fase', () => {
+    // 1. Fase comum: Debug ativado antes do fim desliga e bloqueia ao entrar na zona final (flagX - 3 blocos)
+    const engine = createFreshEngine();
+    assert.equal(engine.toggleDebugMode(true), true);
+    assert.equal(engine.toggleDebugPlacementCursor(true), true);
+    assert.equal(engine.isDebugMode, true);
+    assert.equal(engine.isDebugPlacementActive, true);
+
+    engine.marioX = engine.level.flagX - 32;
+    engine.marioY = 176;
+    engine.update(16.67);
+
+    assert.equal(engine.isDebugLockedAtStageEnd(), true);
+    assert.equal(engine.isDebugMode, false);
+    assert.equal(engine.isDebugPlacementActive, false);
+    assert.equal(engine.toggleDebugMode(true), false);
+    assert.equal(engine.toggleDebugPlacementCursor(true), false);
+    assert.equal(engine.placeDebugItemAt(engine.marioX, engine.marioY), false);
+
+    // 2. Cruzando a meta / caminhando para o castelo com debug ativado mantém bloqueio total
+    const finishEngine = createFreshEngine();
+    finishEngine.enemies = [];
+    finishEngine.toggleDebugMode(true);
+    finishEngine.marioX = finishEngine.level.flagX;
+    finishEngine.marioY = 160;
+    finishEngine.update(16.67);
+
+    assert.equal(finishEngine.marioState, 'castle_walk');
+    assert.equal(finishEngine.isDebugLockedAtStageEnd(), true);
+    assert.equal(finishEngine.isDebugMode, false);
+    assert.equal(finishEngine.toggleDebugMode(true), false);
+
+    // 3. Castelo com machado ('axe'): também bloqueia e desativa Debug ao alcançar o machado
+    const castleEngine = createFreshEngine();
+    castleEngine.loadLevel(createWorld1_4(), false, false, false);
+    castleEngine.intermissionTimer = 0;
+    castleEngine.toggleDebugMode(true);
+    castleEngine.toggleDebugPlacementCursor(true);
+    let axeTx = -1;
+    for (let y = 0; y < castleEngine.level.height; y++) {
+      for (let x = 0; x < castleEngine.level.width; x++) {
+        if (castleEngine.level.tiles[y]?.[x]?.type === 'axe') axeTx = x;
+      }
+    }
+    assert.ok(axeTx > 0);
+    castleEngine.marioX = axeTx * 16 - 32;
+    castleEngine.marioY = 144;
+    castleEngine.update(16.67);
+
+    assert.equal(castleEngine.isDebugLockedAtStageEnd(), true);
+    assert.equal(castleEngine.isDebugMode, false);
+    assert.equal(castleEngine.isDebugPlacementActive, false);
+    assert.equal(castleEngine.toggleDebugMode(true), false);
+  });
+
+  await test('R1.16.P4.4: Inimigos próximos ao término da fase são transformados em pontos multiplicados', () => {
+    const engine = createFreshEngine();
+    const flagX = engine.level.flagX;
+
+    engine.enemies = [
+      {
+        id: 901,
+        type: 'goomba',
+        x: 200,
+        y: 192,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 16,
+        alive: true,
+        state: 'walk',
+        stateTimer: 0,
+        facing: 'left',
+        animFrame: 0,
+        animTimer: 0,
+      },
+      {
+        id: 902,
+        type: 'goomba',
+        x: flagX - 160,
+        y: 192,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 16,
+        alive: true,
+        state: 'walk',
+        stateTimer: 0,
+        facing: 'left',
+        animFrame: 0,
+        animTimer: 0,
+      },
+      {
+        id: 903,
+        type: 'koopa',
+        x: flagX - 96,
+        y: 184,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 24,
+        alive: true,
+        state: 'walk',
+        stateTimer: 0,
+        facing: 'left',
+        animFrame: 0,
+        animTimer: 0,
+      },
+      {
+        id: 904,
+        type: 'hammer_bro',
+        x: flagX - 48,
+        y: 184,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 24,
+        alive: true,
+        state: 'walk',
+        stateTimer: 0,
+        facing: 'left',
+        animFrame: 0,
+        animTimer: 0,
+      },
+    ];
+
+    const scoreBefore = engine.stats.score;
+    engine.marioX = flagX;
+    engine.marioY = 178; // Mario pequeno (altura 16 -> centro +8)
+    const expectedGoalBonus = engine.computeGoalGatePoints(
+      engine.marioY + 8,
+      engine.goalTapeY
+    ) * 100;
+
+    engine.update(16.67);
+
+    // 1. Inimigo distante permanece vivo; os 3 próximos ao final são convertidos
+    assert.equal(engine.enemies[0].alive, true);
+    assert.equal(engine.enemies[1].alive, false);
+    assert.equal(engine.enemies[1].state, 'flipped');
+    assert.equal(engine.enemies[2].alive, false);
+    assert.equal(engine.enemies[2].state, 'flipped');
+    assert.equal(engine.enemies[3].alive, false);
+    assert.equal(engine.enemies[3].state, 'flipped');
+
+    // 2. Pontuação: 200*2 + 200*3 + 400*4 = 400 + 600 + 1600 = 2600 + bônus do poste
+    const expectedMultiplied = 200 * 2 + 200 * 3 + 400 * 4;
+    assert.equal(engine.stats.score - scoreBefore, expectedGoalBonus + expectedMultiplied);
+
+    // 3. Castelo: inimigos comuns perto do machado também viram pontos multiplicados
+    const castleEngine = createFreshEngine();
+    castleEngine.loadLevel(createWorld1_4(), false, false, false);
+    castleEngine.intermissionTimer = 0;
+    let axeTx = -1;
+    for (let y = 0; y < castleEngine.level.height; y++) {
+      for (let x = 0; x < castleEngine.level.width; x++) {
+        if (castleEngine.level.tiles[y]?.[x]?.type === 'axe') axeTx = x;
+      }
+    }
+    assert.ok(axeTx > 0);
+    castleEngine.enemies = [
+      {
+        id: 950,
+        type: 'dry_bones',
+        x: axeTx * 16 - 64,
+        y: 144,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 24,
+        alive: true,
+        state: 'walk',
+        stateTimer: 0,
+        facing: 'left',
+        animFrame: 0,
+        animTimer: 0,
+      },
+    ];
+    const castleResult = castleEngine.transformStageEndEnemiesToPoints();
+    assert.equal(castleResult.count, 1);
+    assert.equal(castleResult.totalPoints, 400 * 2);
+    assert.equal(castleEngine.enemies[0].alive, false);
+  });
+}
+
 async function main() {
-  console.log('=== Super Mario TypeScript — Suíte de Testes de Regressão (R0.15.6J.3 + R0.15.0.6L.4 + RW0.15.0.1DM.4) ===');
+  console.log('=== Super Mario TypeScript — Suíte de Testes de Regressão (R0.15.6J.3 + R0.15.0.6L.4 + RW0.15.0.1DM.4 + RW0.15.0.PW.4 + R1.16.*) ===');
   await runPhysicsTests();
   await runPowerUpTests();
   await runScoringLivesAndGuardsTests();
@@ -863,6 +1357,7 @@ async function main() {
   await runMultiplayerCompatibilityTests();
   await runSmartTvAdaptationTests();
   await runYellowSwitchPalaceTests();
+  await runR116FixesTests();
   console.log(`\nResultado final: ${passed} testes aprovados, 0 falhas.`);
 }
 

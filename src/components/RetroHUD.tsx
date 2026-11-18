@@ -45,6 +45,7 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
   const formattedHighScore = String(stats.highScore).padStart(6, '0');
   const formattedCoins = String(stats.coins).padStart(2, '0');
   const formattedTime = String(stats.time).padStart(3, '0');
+  const formattedGoalWallet = String(Math.max(0, Math.min(99, stats.goalPointsWallet ?? 0))).padStart(2, '0');
 
   // Render lives as hearts (capped at 5 icons + overflow count to avoid HUD overflow)
   const renderLifeHearts = () => {
@@ -242,6 +243,20 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
               </button>
             )}
             {!isIllegalInstructionBug && (
+              <span
+                title="Carteira de Pontos do Poste (50 = +3 Vidas · 100 = Bonus Stage 9 Vidas)"
+                className={`px-1.5 py-0.5 rounded border font-mono font-bold whitespace-nowrap shrink-0 ${
+                  stats.isBonusStage
+                    ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                    : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                }`}
+              >
+                {stats.isBonusStage
+                  ? `BONUS ${9 - (stats.bonusBlocksRemaining ?? 0)}/9`
+                  : `★${formattedGoalWallet}/100`}
+              </span>
+            )}
+            {!isIllegalInstructionBug && (
               <span className="text-stone-400">{stats.world}</span>
             )}
             {onOpenLeaderboard && (
@@ -311,6 +326,19 @@ export const RetroHUD: React.FC<RetroHUDProps> = ({
                 {stats.difficulty === 'easy' ? 'FÁCIL' : stats.difficulty === 'hard' ? 'DIFÍCIL' : 'NORMAL'}
               </span>
             ) : null}
+            {/* SMW Goal Points Wallet Pill */}
+            <span
+              title="Carteira de Pontos do Poste SMW (50 = +3 Vidas · 100 = Bonus Stage 9 Vidas)"
+              className={`px-2 py-0.5 rounded border font-mono font-bold text-[9px] sm:text-[10px] whitespace-nowrap shrink-0 ${
+                stats.isBonusStage
+                  ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60 animate-pulse'
+                  : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+              }`}
+            >
+              {stats.isBonusStage
+                ? `BONUS ${9 - (stats.bonusBlocksRemaining ?? 0)}/9 (+${stats.bonusLivesWon ?? 0}V)`
+                : `★ ${formattedGoalWallet}/100`}
+            </span>
           </div>
 
           {/* Leaderboard, Debug Cursor & Developer Triggers */}

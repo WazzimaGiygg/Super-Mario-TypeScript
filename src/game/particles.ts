@@ -7,6 +7,7 @@ import { EnemyType, Particle } from './types.ts';
 import { SpriteAtlas } from './sprites.ts';
 
 export class ParticleSystem {
+  public static readonly MAX_ACTIVE_PARTICLES = 250;
   public particles: Particle[] = [];
   private nextId: number = 1;
 
@@ -19,6 +20,9 @@ export class ParticleSystem {
       id: this.nextId++,
       ...particle,
     };
+    if (this.particles.length >= ParticleSystem.MAX_ACTIVE_PARTICLES) {
+      this.particles.shift();
+    }
     this.particles.push(created);
     return created;
   }

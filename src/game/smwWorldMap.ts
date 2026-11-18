@@ -16,6 +16,35 @@ export const SMW_WORLD_ISLAND_NAME = 'Ilha WikiWorldWeb';
 export const SMW_INTRO_STORY =
   'Olá, seja bem vindo ao mundo fantastico de WazzimaGiygg. Parece que desta vez o problema também é o caluniador, de nome Chronus, junto com Bowser. Vamos explorar os mundos para poder salvar a princesa femboy';
 
+export type SmwIslandId = 'wikiworld' | 'island2';
+
+export const SMW_ISLAND2_UNAVAILABLE_MSG = '(Versão Beta) ainda não disponível para jogar';
+
+export interface SmwIslandInfo {
+  id: SmwIslandId;
+  number: number;
+  name: string;
+  subtitle: string;
+  playable: boolean;
+}
+
+export const SMW_ISLANDS: SmwIslandInfo[] = [
+  {
+    id: 'wikiworld',
+    number: 1,
+    name: SMW_WORLD_ISLAND_NAME,
+    subtitle: 'Ilha 1 · 6 fases jogáveis',
+    playable: true,
+  },
+  {
+    id: 'island2',
+    number: 2,
+    name: 'Ilha 2 · Terras de Chronus',
+    subtitle: SMW_ISLAND2_UNAVAILABLE_MSG,
+    playable: false,
+  },
+];
+
 export interface SmwMapNode {
   id: string;
   order: number;
@@ -29,6 +58,7 @@ export interface SmwMapNode {
   isSwitchPalace?: boolean;
   switchColor?: 'yellow';
   unlocksAfterNodeId?: string;
+  betaPlaceholderMessage?: string;
 }
 
 export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
@@ -166,6 +196,68 @@ export const SMW_PATH_SEGMENTS: SmwPathSegment[] = [
   },
 ];
 
+export const SMW_ISLAND2_NODES: SmwMapNode[] = [
+  {
+    id: 'island2-1-entrada',
+    order: 0,
+    code: '2-1',
+    title: 'Fase 2-1',
+    subtitle: SMW_ISLAND2_UNAVAILABLE_MSG,
+    theme: 'overworld',
+    mapX: 28,
+    mapY: 59,
+    betaPlaceholderMessage: SMW_ISLAND2_UNAVAILABLE_MSG,
+  },
+  {
+    id: 'island2-2-ruinas',
+    order: 1,
+    code: '2-2',
+    title: 'Fase 2-2',
+    subtitle: SMW_ISLAND2_UNAVAILABLE_MSG,
+    theme: 'underground',
+    mapX: 52,
+    mapY: 42,
+    unlocksAfterNodeId: 'island2-1-entrada',
+    betaPlaceholderMessage: SMW_ISLAND2_UNAVAILABLE_MSG,
+  },
+  {
+    id: 'island2-3-fortaleza',
+    order: 2,
+    code: '2-C',
+    title: 'Fortaleza de Chronus',
+    subtitle: SMW_ISLAND2_UNAVAILABLE_MSG,
+    theme: 'castle',
+    mapX: 75,
+    mapY: 55,
+    isCastle: true,
+    unlocksAfterNodeId: 'island2-2-ruinas',
+    betaPlaceholderMessage: SMW_ISLAND2_UNAVAILABLE_MSG,
+  },
+];
+
+export const SMW_ISLAND2_PATH_SEGMENTS: SmwPathSegment[] = [
+  {
+    fromId: 'island2-1-entrada',
+    toId: 'island2-2-ruinas',
+    fromOrder: 0,
+    toOrder: 1,
+    p0: [28, 59],
+    c1: [38, 55],
+    c2: [43, 44],
+    p1: [52, 42],
+  },
+  {
+    fromId: 'island2-2-ruinas',
+    toId: 'island2-3-fortaleza',
+    fromOrder: 1,
+    toOrder: 2,
+    p0: [52, 42],
+    c1: [62, 40],
+    c2: [66, 54],
+    p1: [75, 55],
+  },
+];
+
 export function evaluateSmwPathSegment(
   seg: SmwPathSegment,
   t: number
@@ -204,7 +296,11 @@ export interface SmwWalkStep {
   reverse: boolean;
 }
 
-export function findSmwMapPath(fromNodeId: string, toNodeId: string): SmwWalkStep[] {
+export function findSmwMapPath(
+  fromNodeId: string,
+  toNodeId: string,
+  segments: SmwPathSegment[] = SMW_PATH_SEGMENTS
+): SmwWalkStep[] {
   if (fromNodeId === toNodeId) return [];
 
   const queue: { nodeId: string; steps: SmwWalkStep[] }[] = [{ nodeId: fromNodeId, steps: [] }];
@@ -212,7 +308,7 @@ export function findSmwMapPath(fromNodeId: string, toNodeId: string): SmwWalkSte
 
   while (queue.length > 0) {
     const curr = queue.shift()!;
-    for (const seg of SMW_PATH_SEGMENTS) {
+    for (const seg of segments) {
       let nextId: string | null = null;
       let reverse = false;
       if (seg.fromId === curr.nodeId) {
@@ -231,6 +327,56 @@ export function findSmwMapPath(fromNodeId: string, toNodeId: string): SmwWalkSte
   }
 
   return [];
+}
+
+/**
+ * Resolves graph-connected neighbor movement along the World Map roads so the player
+ * can walk both forward and backward through every unlocked stage (R1.16.UC.4).
+ */
+export function resolveSmwDirectionalStep(
+  fromNodeId: string,
+  direction: 'up' | 'down' | 'left' | 'right',
+  progress: SmwBetaProgress,
+  islandId: SmwIslandId = 'wikiworld'
+): SmwMapNode | null {
+  const nodes = islandId === 'island2' ? SMW_ISLAND2_NODES : SMW_WIKIWORLD_NODES;
+  const segments = islandId === 'island2' ? SMW_ISLAND2_PATH_SEGMENTS : SMW_PATH_SEGMENTS;
+  const current = nodes.find(n => n.id === fromNodeId);
+  if (!current) return null;
+
+  const ux = direction === 'right' ? 1 : direction === 'left' ? -1 : 0;
+  const uy = direction === 'down' ? 1 : direction === 'up' ? -1 : 0;
+
+  // 1. Collect road-connected neighbors that are unlocked
+  const neighborIds = new Set<string>();
+  for (const seg of segments) {
+    if (seg.fromId === fromNodeId) neighborIds.add(seg.toId);
+    else if (seg.toId === fromNodeId) neighborIds.add(seg.fromId);
+  }
+
+  let bestNeighbor: SmwMapNode | null = null;
+  let bestScore = -Infinity;
+
+  for (const nid of neighborIds) {
+    const cand = nodes.find(n => n.id === nid);
+    if (!cand) continue;
+    const isAccessible =
+      islandId === 'island2'
+        ? cand.order === 0
+        : isSmwNodeUnlocked(cand.id, progress);
+    if (!isAccessible) continue;
+
+    const dx = cand.mapX - current.mapX;
+    const dy = cand.mapY - current.mapY;
+    const len = Math.hypot(dx, dy) || 1;
+    const dot = (dx / len) * ux + (dy / len) * uy;
+    if (dot > 0.12 && dot > bestScore) {
+      bestScore = dot;
+      bestNeighbor = cand;
+    }
+  }
+
+  return bestNeighbor;
 }
 
 function makeTile(type: BlockTile['type'], content: BlockTile['content'] = 'none'): BlockTile {
@@ -405,7 +551,7 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
       return createYellowSwitchPalaceStage();
 
     case 'wiki-2-caverna': {
-      const level = createSingleplayerLevel(2, 2, {
+      const level = createSingleplayerLevel(2, 3, {
         seedOverride: 90202,
         id: 'smw-wiki-2',
         name: 'W-2',
@@ -418,7 +564,7 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
     }
 
     case 'wiki-3-agua': {
-      const level = createSingleplayerLevel(2, 3, {
+      const level = createSingleplayerLevel(2, 2, {
         seedOverride: 90303,
         id: 'smw-wiki-3',
         name: 'W-3',
@@ -476,9 +622,10 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
 export interface SmwBetaProgress {
   clearedNodeIds: string[];
   selectedNodeId: string;
+  selectedIslandId?: SmwIslandId;
   storySeen: boolean;
-  betaUnlockAll: boolean;
   yellowSwitchUnlocked: boolean;
+  goalPointsWallet?: number;
 }
 
 const SMW_PROGRESS_STORAGE_KEY = 'smb_smw_beta_v09_progress';
@@ -486,9 +633,10 @@ const SMW_PROGRESS_STORAGE_KEY = 'smb_smw_beta_v09_progress';
 const DEFAULT_SMW_PROGRESS: SmwBetaProgress = {
   clearedNodeIds: [],
   selectedNodeId: 'wiki-1-overworld',
+  selectedIslandId: 'wikiworld',
   storySeen: false,
-  betaUnlockAll: false,
   yellowSwitchUnlocked: false,
+  goalPointsWallet: 0,
 };
 
 export function loadSmwBetaProgress(): SmwBetaProgress {
@@ -504,14 +652,21 @@ export function loadSmwBetaProgress(): SmwBetaProgress {
       typeof parsed.selectedNodeId === 'string' && validIds.has(parsed.selectedNodeId)
         ? parsed.selectedNodeId
         : 'wiki-1-overworld';
+    const selectedIslandId: SmwIslandId =
+      parsed.selectedIslandId === 'island2' ? 'island2' : 'wikiworld';
+    const rawWallet =
+      typeof parsed.goalPointsWallet === 'number' && Number.isFinite(parsed.goalPointsWallet)
+        ? Math.max(0, Math.min(99, Math.floor(parsed.goalPointsWallet)))
+        : 0;
     return {
       clearedNodeIds,
       selectedNodeId,
+      selectedIslandId,
       storySeen: Boolean(parsed.storySeen),
-      betaUnlockAll: Boolean(parsed.betaUnlockAll),
       yellowSwitchUnlocked: Boolean(
         parsed.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
       ),
+      goalPointsWallet: rawWallet,
     };
   } catch {
     return { ...DEFAULT_SMW_PROGRESS };
@@ -530,7 +685,6 @@ export function isSmwNodeUnlocked(
   nodeIdOrOrder: string | number,
   progress: SmwBetaProgress
 ): boolean {
-  if (progress.betaUnlockAll) return true;
   const node =
     typeof nodeIdOrOrder === 'string'
       ? SMW_WIKIWORLD_NODES.find(n => n.id === nodeIdOrOrder)

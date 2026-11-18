@@ -30,6 +30,11 @@ import {
 } from 'lucide-react';
 import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
+  EDITOR_MAX_COINS,
+  EDITOR_MAX_CUSTOM_LEVELS,
+  EDITOR_MAX_ENEMIES,
+  EDITOR_MAX_FLOATING_PLATFORMS,
+  EDITOR_MAX_TOTAL_ENTITIES,
   cloneLevelData,
   createBlankCustomLevel,
   createSecretVault,
@@ -38,8 +43,10 @@ import {
   createWorld1_4,
   createWorld2_2,
   createWorldGhostHouse,
+  getCustomLevelEntityCounts,
   getExportLevelFilename,
   parseImportedLevelFile,
+  sanitizeCustomLevelEntities,
   serializeLevelToFileJson,
 } from '../game/levels.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
@@ -482,7 +489,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       },
       {
         id: 'flagpole_goal',
-        label: 'Mastro + Castelo',
+        label: 'Poste Pontos SMW',
         tab: 'special',
         brush: { kind: 'flagpole_goal' },
         preview: () => atlas.flagTriangle,
@@ -516,13 +523,119 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       if (tx < 0 || tx >= currentLevel.width || ty < 0 || ty >= currentLevel.height) return;
 
       const brush: EditorBrushKind = forceErase ? { kind: 'erase' } : activeOption.brush;
+      const cellMinX = tx * 16;
+      const cellMaxX = (tx + 1) * 16;
+      const cellMinY = ty * 16;
+      const cellMaxY = (ty + 1) * 16;
+      const counts = getCustomLevelEntityCounts(currentLevel);
+
+      // Avoid unnecessary state clones & enforce safe entity limits before cloning
+      if (brush.kind === 'erase') {
+        const hasTile = currentLevel.tiles[ty]?.[tx] !== null;
+        const hasCoin = currentLevel.coins.some(
+          c => c.x >= cellMinX && c.x < cellMaxX && c.y >= cellMinY && c.y < cellMaxY
+        );
+        const hasEnemy = currentLevel.enemies.some(
+          e => e.x >= cellMinX - 4 && e.x < cellMaxX + 4 && e.y >= cellMinY - 12 && e.y < cellMaxY
+        );
+        const hasPlatform = (currentLevel.floatingPlatforms || []).some(
+          fp => cellMaxX > fp.x && cellMinX < fp.x + fp.width && cellMaxY > fp.y && cellMinY < fp.y + 16
+        );
+        if (!hasTile && !hasCoin && !hasEnemy && !hasPlatform) return;
+      }
+
+      if (brush.kind === 'coin') {
+        const exists = currentLevel.coins.some(
+          c => Math.floor(c.x / 16) === tx && Math.floor(c.y / 16) === ty
+        );
+        if (exists && currentLevel.tiles[ty]?.[tx] === null) return;
+        if (!exists) {
+          if (counts.coins >= EDITOR_MAX_COINS) {
+            notifyError(`Limite seguro de moedas (${EDITOR_MAX_COINS}) atingido!`);
+            return;
+          }
+          if (counts.total >= EDITOR_MAX_TOTAL_ENTITIES) {
+            notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+            return;
+          }
+        }
+      }
+
+      if (brush.kind === 'tile') {
+        const existingTile = currentLevel.tiles[ty]?.[tx];
+        const desiredContent = brush.tileType === 'question' ? brush.content || 'coin' : 'none';
+        const desiredInvisible = brush.invisible ? true : undefined;
+        if (
+          existingTile &&
+          existingTile.type === brush.tileType &&
+          existingTile.content === desiredContent &&
+          existingTile.invisible === desiredInvisible
+        ) {
+          return;
+        }
+      }
+
+      if (brush.kind === 'pipe') {
+        if (tx + 1 >= currentLevel.width) return;
+        if (brush.withPiranha) {
+          const remainingEnemies = currentLevel.enemies.filter(
+            e => !(e.type === 'piranha' && Math.abs(e.x - (tx * 16 + 8)) < 16)
+          ).length;
+          const netEnemyDelta = 1 - (counts.enemies - remainingEnemies);
+          if (remainingEnemies + 1 > EDITOR_MAX_ENEMIES) {
+            notifyError(`Limite seguro de inimigos (${EDITOR_MAX_ENEMIES}) atingido!`);
+            return;
+          }
+          if (counts.total + netEnemyDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+            notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+            return;
+          }
+        }
+      }
+
+      if (brush.kind === 'floating_platform') {
+        const px = Math.min((currentLevel.width - 3) * 16, tx * 16);
+        const py = ty * 16;
+        const currentPlatforms = currentLevel.floatingPlatforms || [];
+        const remainingPlatforms = currentPlatforms.filter(
+          fp => !(Math.abs(fp.x - px) < 24 && Math.abs(fp.y - py) < 16)
+        ).length;
+        const netDelta = 1 - (currentPlatforms.length - remainingPlatforms);
+        if (remainingPlatforms + 1 > EDITOR_MAX_FLOATING_PLATFORMS) {
+          notifyError(`Limite seguro de plataformas (${EDITOR_MAX_FLOATING_PLATFORMS}) atingido!`);
+          return;
+        }
+        if (counts.total + netDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+          notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+          return;
+        }
+      }
+
+      if (brush.kind === 'enemy') {
+        const isTall =
+          brush.enemyType === 'koopa' ||
+          brush.enemyType === 'red_koopa' ||
+          brush.enemyType === 'paratroopa' ||
+          brush.enemyType === 'hammer_bro' ||
+          brush.enemyType === 'dry_bones';
+        const isBoss = brush.enemyType === 'bowser';
+        const spawnX = brush.enemyType === 'piranha' ? tx * 16 + 8 : tx * 16;
+        const spawnY = isTall || isBoss ? (ty + 1) * 16 - 24 : ty * 16;
+        const remainingEnemies = currentLevel.enemies.filter(
+          e => !(Math.abs(e.x - spawnX) < 12 && Math.abs(e.y - spawnY) < 16)
+        ).length;
+        const netEnemyDelta = 1 - (counts.enemies - remainingEnemies);
+        if (remainingEnemies + 1 > EDITOR_MAX_ENEMIES) {
+          notifyError(`Limite seguro de inimigos (${EDITOR_MAX_ENEMIES}) atingido!`);
+          return;
+        }
+        if (counts.total + netEnemyDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+          notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+          return;
+        }
+      }
 
       updateCurrentLevel(draft => {
-        const cellMinX = tx * 16;
-        const cellMaxX = (tx + 1) * 16;
-        const cellMinY = ty * 16;
-        const cellMaxY = (ty + 1) * 16;
-
         const clearCoinsAndEnemiesAtCell = () => {
           draft.coins = draft.coins.filter(
             c => !(c.x >= cellMinX && c.x < cellMaxX && c.y >= cellMinY && c.y < cellMaxY)
@@ -684,11 +797,26 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         return draft;
       });
     },
-    [currentLevel, activeOption, updateCurrentLevel]
+    [currentLevel, activeOption, updateCurrentLevel, notifyError]
   );
 
-  // Render the level editor canvas whenever currentLevel, zoom, or hoverCell updates
+  // Release transient interaction state & canvas backing store when closing editor
   useEffect(() => {
+    if (!isOpen) {
+      isDrawingRef.current = false;
+      lastPaintedCellRef.current = null;
+      dragEraseModeRef.current = false;
+      setHoverCell(null);
+      if (canvasRef.current) {
+        canvasRef.current.width = 0;
+        canvasRef.current.height = 0;
+      }
+    }
+  }, [isOpen]);
+
+  // Render the level editor canvas whenever modal opens or level/zoom/grid updates (hover is CSS overlay — R1.16.1IZ.4)
+  useEffect(() => {
+    if (!isOpen) return;
     const canvas = canvasRef.current;
     if (!canvas || !currentLevel) return;
     const ctx = canvas.getContext('2d');
@@ -841,11 +969,15 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
     }
 
-    // Draw flagpole triangle preview
+    // Draw SMW Points Goal Gate preview (dual pillar + moving crossbar tape)
     if (currentLevel.flagX > 0 && currentLevel.flagX < currentLevel.width * 16) {
-      const fx = (currentLevel.flagX / 16) * cellSize - cellSize * 0.85;
-      const fy = 3 * cellSize;
-      ctx.drawImage(atlas.flagTriangle, fx, fy, cellSize, cellSize);
+      const fx = (currentLevel.flagX / 16) * cellSize;
+      const frontX = fx + cellSize * 1.25;
+      for (let py = 3; py <= 11; py++) {
+        ctx.drawImage(atlas.flagPoleBody, frontX, py * cellSize, cellSize, cellSize);
+      }
+      ctx.drawImage(atlas.flagPoleTop, frontX, 2 * cellSize, cellSize, cellSize);
+      ctx.drawImage(atlas.flagTriangle, fx + cellSize * 0.45, 4 * cellSize, cellSize, cellSize);
     }
 
     // Draw standalone coins
@@ -962,19 +1094,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
       ctx.stroke();
     }
-
-    // Hover highlight
-    if (hoverCell) {
-      ctx.strokeStyle = activeOption.id === 'erase' ? '#f87171' : '#fbbf24';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(
-        hoverCell.tx * cellSize + 1,
-        hoverCell.ty * cellSize + 1,
-        cellSize - 2,
-        cellSize - 2
-      );
-    }
-  }, [currentLevel, cellSize, showGrid, hoverCell, atlas, activeOption.id]);
+  }, [isOpen, currentLevel, cellSize, showGrid, atlas]);
 
   const getCellFromPointer = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -1017,6 +1137,10 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   const handleNewBlankLevel = () => {
+    if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+      notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      return;
+    }
     const idx = customLevels.length + 1;
     const created = createBlankCustomLevel(`MINHA FASE ${idx}`, 'overworld', 100);
     onUpdateCustomLevels([...customLevels, created], created.id);
@@ -1025,11 +1149,15 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const handleDuplicateLevel = () => {
     if (!currentLevel) return;
-    const copy = cloneLevelData(currentLevel);
-    copy.id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    copy.name = `${currentLevel.name.slice(0, 12)} 2`;
-    copy.isCustom = true;
-    onUpdateCustomLevels([...customLevels, copy], copy.id);
+    if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+      notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      return;
+    }
+    const sanitized = sanitizeCustomLevelEntities(currentLevel).level;
+    sanitized.id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    sanitized.name = `${currentLevel.name.slice(0, 12)} 2`;
+    sanitized.isCustom = true;
+    onUpdateCustomLevels([...customLevels, sanitized], sanitized.id);
     notify('Cópia criada na memória temporária!');
   };
 
@@ -1046,6 +1174,10 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   const handleImportTemplate = (sourceId: string) => {
+    if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+      notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      return;
+    }
     let base: LevelData;
     switch (sourceId) {
       case 'world-1-2':
@@ -1067,15 +1199,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         base = createWorld1_1();
         break;
     }
+    const { level: sanitized, truncated } = sanitizeCustomLevelEntities(base);
     const copy: LevelData = {
-      ...cloneLevelData(base),
+      ...sanitized,
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: `EDIT ${base.name}`.slice(0, 16),
       biomeLabel: 'FASE EDITADA',
       isCustom: true,
     };
     onUpdateCustomLevels([...customLevels, copy], copy.id);
-    notify(`${base.name} carregada na memória para edição!`);
+    notify(
+      truncated
+        ? `${base.name} carregada (entidades ajustadas ao limite seguro)!`
+        : `${base.name} carregada na memória para edição!`
+    );
   };
 
   const handleThemeChange = (theme: LevelData['theme']) => {
@@ -1156,6 +1293,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const visiblePalette = paletteOptions.filter(opt => opt.tab === activeTab);
   const levelHasGoal = hasValidStageGoal(currentLevel);
+  const entityCounts = getCustomLevelEntityCounts(currentLevel);
+  const nearEntityLimit = entityCounts.total >= Math.floor(EDITOR_MAX_TOTAL_ENTITIES * 0.85);
+  const atEntityLimit = entityCounts.total >= EDITOR_MAX_TOTAL_ENTITIES;
 
   const handleToggleImmortality = () => {
     const next = !localImmortality;
@@ -1183,6 +1323,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+        throw new Error(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      }
       if (file.size > 2 * 1024 * 1024) {
         throw new Error('Arquivo muito grande (máximo 2 MB).');
       }
@@ -1566,19 +1709,41 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             ref={scrollContainerRef}
             className="flex-1 min-h-[240px] overflow-x-auto overflow-y-auto rounded-lg border-2 border-stone-700 bg-black"
           >
-            <canvas
-              ref={canvasRef}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={() => {
-                setHoverCell(null);
-                handlePointerUp();
+            <div
+              className="relative inline-block"
+              style={{
+                width: currentLevel.width * cellSize,
+                height: currentLevel.height * cellSize,
               }}
-              onContextMenu={e => e.preventDefault()}
-              className="block cursor-crosshair touch-none"
-              style={{ imageRendering: 'pixelated' }}
-            />
+            >
+              <canvas
+                ref={canvasRef}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={() => {
+                  setHoverCell(null);
+                  handlePointerUp();
+                }}
+                onContextMenu={e => e.preventDefault()}
+                className="block cursor-crosshair touch-none"
+                style={{ imageRendering: 'pixelated' }}
+              />
+              {hoverCell && (
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute border-2 ${
+                    activeOption.id === 'erase' ? 'border-red-400' : 'border-amber-400'
+                  }`}
+                  style={{
+                    left: hoverCell.tx * cellSize,
+                    top: hoverCell.ty * cellSize,
+                    width: cellSize,
+                    height: cellSize,
+                  }}
+                />
+              )}
+            </div>
           </div>
 
           {/* Navigation Footer */}
@@ -1591,6 +1756,18 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                   {hoverCell ? ` • Célula (${hoverCell.tx}, ${hoverCell.ty})` : ' • Clique/arraste para editar • Botão direito apaga'}
                 </span>
               </div>
+              <span
+                title="Limite seguro de entidades para proteger a memória volátil do navegador"
+                className={`px-2 py-0.5 rounded border text-[10px] ${
+                  atEntityLimit
+                    ? 'bg-red-950/90 border-red-500/70 text-red-200'
+                    : nearEntityLimit
+                    ? 'bg-amber-950/90 border-amber-500/70 text-amber-200'
+                    : 'bg-stone-900 border-stone-700 text-stone-300'
+                }`}
+              >
+                Entidades: {entityCounts.total}/{EDITOR_MAX_TOTAL_ENTITIES} (Inimigos {entityCounts.enemies}/{EDITOR_MAX_ENEMIES} • Moedas {entityCounts.coins}/{EDITOR_MAX_COINS} • Plat. {entityCounts.floatingPlatforms}/{EDITOR_MAX_FLOATING_PLATFORMS})
+              </span>
               {!levelHasGoal && (
                 <span className="px-2 py-0.5 rounded bg-amber-950/90 border border-amber-500/60 text-amber-300 flex items-center gap-1 text-[10px]">
                   <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
