@@ -2203,6 +2203,96 @@ export function getCustomLevelEntityCounts(level: LevelData): CustomLevelEntityC
   };
 }
 
+export const STAGE_W_COINS_COUNT = 4;
+
+function isSolidOrHazardForWCoin(tile: BlockTile | null | undefined): boolean {
+  if (!tile) return false;
+  return tile.type !== 'pole' && tile.type !== 'pole_top';
+}
+
+/**
+ * Computes 4 well-spaced giant floating "W" Coin positions across playable stage terrain
+ * (R1.16.OV.4), safely clear of spawn, solid blocks, hazards, and stage exits.
+ */
+export function computeStageWCoins(level: LevelData): { x: number; y: number }[] {
+  if (level.wCoins && level.wCoins.length > 0) {
+    return level.wCoins.slice(0, STAGE_W_COINS_COUNT).map(c => ({ ...c }));
+  }
+
+  const width = level.width;
+  const height = level.height;
+  if (width < 28 || height < 12) return [];
+
+  let endTile = width - 10;
+  if (level.flagX > 0 && level.flagX < 99000) {
+    endTile = Math.min(endTile, Math.floor(level.flagX / 16) - 8);
+  }
+  for (let ty = 0; ty < height; ty++) {
+    for (let tx = 0; tx < width; tx++) {
+      const t = level.tiles[ty]?.[tx]?.type;
+      if (t === 'axe' || t === 'yellow_switch' || t === 'yellow_switch_pressed') {
+        endTile = Math.min(endTile, tx - 6);
+      }
+    }
+  }
+
+  const startTile = Math.max(15, Math.floor((level.marioStart?.x || 40) / 16) + 12);
+  const span = Math.max(16, endTile - startTile);
+  const ratios = [0.15, 0.4, 0.65, 0.88];
+  const rowCandidates = level.theme === 'underwater' ? [6, 7, 5, 8, 9, 4] : [8, 7, 9, 6, 10, 5];
+
+  const placed: { x: number; y: number }[] = [];
+
+  for (const ratio of ratios) {
+    const baseTx = Math.max(startTile, Math.min(endTile, Math.round(startTile + span * ratio)));
+    let chosen: { x: number; y: number } | null = null;
+
+    for (let radius = 0; radius <= 12 && !chosen; radius++) {
+      const colOffsets = radius === 0 ? [0] : [radius, -radius];
+      for (const dx of colOffsets) {
+        if (chosen) break;
+        const tx = baseTx + dx;
+        if (tx < startTile - 2 || tx > endTile + 1 || tx + 1 >= width) continue;
+        if (placed.some(p => Math.abs(p.x - tx * 16) < 48)) continue;
+
+        const hasLavaAtCol =
+          level.tiles[13]?.[tx]?.type === 'lava' ||
+          level.tiles[14]?.[tx]?.type === 'lava' ||
+          level.tiles[13]?.[tx + 1]?.type === 'lava';
+        const hasFloorSupport =
+          level.theme === 'underwater' ||
+          Boolean(
+            level.tiles[13]?.[tx] ||
+              level.tiles[14]?.[tx] ||
+              level.tiles[12]?.[tx] ||
+              level.tiles[11]?.[tx]
+          );
+        if (hasLavaAtCol || !hasFloorSupport) continue;
+
+        for (const ty of rowCandidates) {
+          if (ty < 2 || ty + 1 >= height) continue;
+          const clear2x2 =
+            !isSolidOrHazardForWCoin(level.tiles[ty]?.[tx]) &&
+            !isSolidOrHazardForWCoin(level.tiles[ty]?.[tx + 1]) &&
+            !isSolidOrHazardForWCoin(level.tiles[ty + 1]?.[tx]) &&
+            !isSolidOrHazardForWCoin(level.tiles[ty + 1]?.[tx + 1]);
+          if (clear2x2) {
+            chosen = { x: tx * 16 - 2, y: ty * 16 - 2 };
+            break;
+          }
+        }
+      }
+    }
+
+    if (!chosen) {
+      chosen = { x: baseTx * 16 - 2, y: 7 * 16 - 2 };
+    }
+    placed.push(chosen);
+  }
+
+  return placed;
+}
+
 /**
  * Enforces safe entity caps on custom levels so browser volatile memory
  * and 60 FPS canvas/physics loops never overflow during editing or testing.
@@ -2248,6 +2338,9 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
 
   cloned.enemies = enemies;
   cloned.coins = coins;
+  if (Array.isArray(cloned.wCoins)) {
+    cloned.wCoins = cloned.wCoins.slice(0, STAGE_W_COINS_COUNT);
+  }
   cloned.floatingPlatforms = floatingPlatforms.length > 0 ? floatingPlatforms : undefined;
 
   return { level: cloned, truncated };
@@ -2259,6 +2352,7 @@ export function cloneLevelData(level: LevelData): LevelData {
     tiles: level.tiles.map(row => row.map(tile => (tile ? { ...tile } : null))),
     enemies: level.enemies.map(e => ({ ...e })),
     coins: level.coins.map(c => ({ ...c })),
+    wCoins: level.wCoins ? level.wCoins.map(c => ({ ...c })) : undefined,
     marioStart: { ...level.marioStart },
     checkpoints: level.checkpoints
       ? level.checkpoints.map(cp => ({ x: cp.x, respawnPos: { ...cp.respawnPos } }))

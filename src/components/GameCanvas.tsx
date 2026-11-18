@@ -20,10 +20,16 @@ import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, Reso
 import {
   SMW_WIKIWORLD_NODES,
   SmwBetaProgress,
+  SmwSaveSlotData,
   createSmwWikiWorldStage,
   loadSmwBetaProgress,
-  saveSmwBetaProgress,
   isSmwNodeUnlocked,
+  isSmwNodeCompletedAndLocked,
+  canEnterSmwNode,
+  loadSmwSaveSlots,
+  saveSmwToSlot,
+  deleteSmwSlot,
+  applySmwSlotToProgress,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
 import { sanitizeCustomLevelEntities } from '../game/levels.ts';
@@ -133,6 +139,8 @@ export const GameCanvas: React.FC = () => {
   const [isSmwModeActive, setIsSmwModeActive] = useState(false);
   const [smwProgress, setSmwProgress] = useState<SmwBetaProgress>(() => loadSmwBetaProgress());
   const [smwJustClearedNodeId, setSmwJustClearedNodeId] = useState<string | null>(null);
+  const [smwSaveSlots, setSmwSaveSlots] = useState<(SmwSaveSlotData | null)[]>(() => loadSmwSaveSlots());
+  const [smwCastleSaveTitle, setSmwCastleSaveTitle] = useState<string | null>(null);
   const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
   const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
   const [editorImmortality, setEditorImmortality] = useState(false);
@@ -267,31 +275,27 @@ export const GameCanvas: React.FC = () => {
       if (engine.gameMode !== 'smw_world_map') return;
       setSmwProgress(prev => {
         if ((prev.goalPointsWallet ?? 0) === wallet) return prev;
-        const updated: SmwBetaProgress = {
+        return {
           ...prev,
           goalPointsWallet: wallet,
         };
-        saveSmwBetaProgress(updated);
-        return updated;
       });
     };
     engine.onSmwYellowSwitchActivated = () => {
       setSmwProgress(prev => {
         if (prev.yellowSwitchUnlocked) return prev;
-        const updated: SmwBetaProgress = {
+        return {
           ...prev,
           yellowSwitchUnlocked: true,
         };
-        saveSmwBetaProgress(updated);
-        return updated;
       });
     };
     engine.onSmwStageCompleted = (nodeId: string) => {
+      const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
       setSmwProgress(prev => {
         const nextCleared = prev.clearedNodeIds.includes(nodeId)
           ? prev.clearedNodeIds
           : [...prev.clearedNodeIds, nodeId];
-        const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
         const nextNode =
           nodeId === 'wiki-switch-yellow'
             ? SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-2-caverna')
@@ -302,16 +306,20 @@ export const GameCanvas: React.FC = () => {
           nextNode && !nextCleared.includes(nextNode.id)
             ? nextNode.id
             : nodeId;
-        const updated: SmwBetaProgress = {
+        return {
           ...prev,
           clearedNodeIds: nextCleared,
           selectedNodeId: nextSelected,
           yellowSwitchUnlocked:
             prev.yellowSwitchUnlocked || nodeId === 'wiki-switch-yellow',
         };
-        saveSmwBetaProgress(updated);
-        return updated;
       });
+      if (currNode?.isCastle) {
+        setSmwSaveSlots(loadSmwSaveSlots());
+        setSmwCastleSaveTitle(currNode.title);
+      } else {
+        setSmwCastleSaveTitle(null);
+      }
       setSmwJustClearedNodeId(nodeId);
       setIsStageClear(false);
       setIsPaused(false);
@@ -1418,6 +1426,8 @@ export const GameCanvas: React.FC = () => {
     setIsStageClear(false);
     setIsCustomLevelActive(false);
     setSmwJustClearedNodeId(null);
+    setSmwCastleSaveTitle(null);
+    setSmwSaveSlots(loadSmwSaveSlots());
     setHasStarted(true);
     setIsSmwModeActive(true);
     setIsSmwMapOpen(true);
@@ -1432,6 +1442,13 @@ export const GameCanvas: React.FC = () => {
     (nodeId: string) => {
       const node = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
       if (!node || !isSmwNodeUnlocked(node.id, smwProgress)) return;
+      if (!canEnterSmwNode(node.id, smwProgress)) {
+        if (isSmwNodeCompletedAndLocked(node.id, smwProgress)) {
+          setCheatToast('Palácio Interruptor Amarelo já concluído!');
+          setTimeout(() => setCheatToast(''), 3000);
+        }
+        return;
+      }
 
       const updated: SmwBetaProgress = {
         ...smwProgress,
@@ -1439,7 +1456,7 @@ export const GameCanvas: React.FC = () => {
         storySeen: true,
       };
       setSmwProgress(updated);
-      saveSmwBetaProgress(updated);
+      setSmwCastleSaveTitle(null);
 
       SoundEngine.get().resume();
       setIsSmwMapOpen(false);
@@ -1462,12 +1479,56 @@ export const GameCanvas: React.FC = () => {
     [smwProgress]
   );
 
+  const handleSaveSmwSlot = useCallback(
+    (slotIndex: number) => {
+      const nextSlots = saveSmwToSlot(slotIndex, smwProgress, {
+        stageName: smwCastleSaveTitle || 'Castelo de Johannnnes89',
+        lives: engineRef.current?.stats.lives ?? stats.lives,
+        score: engineRef.current?.stats.score ?? stats.score,
+      });
+      setSmwSaveSlots(nextSlots);
+      setSmwCastleSaveTitle(null);
+      setCheatToast(`Progresso salvo no Slot ${slotIndex + 1}!`);
+      setTimeout(() => setCheatToast(''), 3000);
+    },
+    [smwProgress, smwCastleSaveTitle, stats.lives, stats.score]
+  );
+
+  const handleLoadSmwSlot = useCallback((slotIndex: number) => {
+    const slots = loadSmwSaveSlots();
+    const slot = slots[slotIndex];
+    if (!slot) return;
+    const loadedProgress = applySmwSlotToProgress(slot);
+    setSmwProgress(loadedProgress);
+    setSmwSaveSlots(slots);
+    setSmwCastleSaveTitle(null);
+    setSmwJustClearedNodeId(null);
+    if (engineRef.current) {
+      engineRef.current.yellowSwitchUnlocked = loadedProgress.yellowSwitchUnlocked;
+      engineRef.current.goalPointsWallet = loadedProgress.goalPointsWallet ?? 0;
+      engineRef.current.stats.goalPointsWallet = engineRef.current.goalPointsWallet;
+      engineRef.current.stats.lives = Math.max(1, slot.lives);
+      engineRef.current.stats.score = Math.max(0, slot.score);
+      setStats({ ...engineRef.current.stats, isNewHighScore: false });
+    }
+    setCheatToast(`Slot ${slotIndex + 1} carregado!`);
+    setTimeout(() => setCheatToast(''), 3000);
+  }, []);
+
+  const handleDeleteSmwSlot = useCallback((slotIndex: number) => {
+    const nextSlots = deleteSmwSlot(slotIndex);
+    setSmwSaveSlots(nextSlots);
+    setCheatToast(`Slot ${slotIndex + 1} apagado!`);
+    setTimeout(() => setCheatToast(''), 2500);
+  }, []);
+
   const handleReturnToSmwOverworld = useCallback(() => {
     SoundEngine.get().stopMusic();
     setIsPaused(false);
     setIsGameOver(false);
     setIsStageClear(false);
     setSmwJustClearedNodeId(null);
+    setSmwCastleSaveTitle(null);
     setIsSmwModeActive(true);
     setIsSmwMapOpen(true);
     if (engineRef.current) {
@@ -1967,28 +2028,17 @@ export const GameCanvas: React.FC = () => {
             progress={smwProgress}
             playerCharacter={engineRef.current?.playerCharacter || 'mario'}
             justClearedNodeId={smwJustClearedNodeId}
+            saveSlots={smwSaveSlots}
+            castleSavePromptNodeTitle={smwCastleSaveTitle}
             onSelectNode={nodeId => {
-              setSmwProgress(prev => {
-                const updated = { ...prev, selectedNodeId: nodeId };
-                saveSmwBetaProgress(updated);
-                return updated;
-              });
+              setSmwProgress(prev => ({ ...prev, selectedNodeId: nodeId }));
             }}
             onSelectIsland={islandId => {
-              setSmwProgress(prev => {
-                const updated = { ...prev, selectedIslandId: islandId };
-                saveSmwBetaProgress(updated);
-                return updated;
-              });
+              setSmwProgress(prev => ({ ...prev, selectedIslandId: islandId }));
             }}
             onEnterStage={handleEnterSmwStage}
             onDismissStory={() => {
-              setSmwProgress(prev => {
-                if (prev.storySeen) return prev;
-                const updated = { ...prev, storySeen: true };
-                saveSmwBetaProgress(updated);
-                return updated;
-              });
+              setSmwProgress(prev => (prev.storySeen ? prev : { ...prev, storySeen: true }));
             }}
             onResetProgress={() => {
               const reset: SmwBetaProgress = {
@@ -1997,14 +2047,21 @@ export const GameCanvas: React.FC = () => {
                 selectedIslandId: 'wikiworld',
                 storySeen: true,
                 yellowSwitchUnlocked: false,
+                goalPointsWallet: 0,
               };
               if (engineRef.current) {
                 engineRef.current.yellowSwitchUnlocked = false;
+                engineRef.current.goalPointsWallet = 0;
+                engineRef.current.stats.goalPointsWallet = 0;
               }
               setSmwProgress(reset);
               setSmwJustClearedNodeId(null);
-              saveSmwBetaProgress(reset);
+              setSmwCastleSaveTitle(null);
             }}
+            onSaveToSlot={handleSaveSmwSlot}
+            onLoadFromSlot={handleLoadSmwSlot}
+            onDeleteSlot={handleDeleteSmwSlot}
+            onDismissCastleSave={() => setSmwCastleSaveTitle(null)}
             onBackToMainMenu={handleReturnToMainMenu}
           />
 

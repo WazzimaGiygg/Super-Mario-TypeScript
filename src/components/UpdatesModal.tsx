@@ -25,6 +25,70 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R02.16.PG.4',
+    version: 'R02.16.PG.4',
+    label: 'Correção · World',
+    title: 'Animação de Entrada no Castelo Estilo Super Mario World',
+    isFix: true,
+    items: [
+      'Adicionada sequência clássica de entrada no castelo ao concluir fases no modo Super Mario World: o personagem para diante do portal, adentra o arco do castelo com escala de profundidade, ergue a bandeira de vitória no topo e encerra com transição circular (iris-out) de volta ao mapa.',
+    ],
+  },
+  {
+    uid: 'R1.16.OV.4',
+    version: 'R1.16.OV.4',
+    label: 'Recurso · Fases',
+    title: '4 Moedas Gigantes Flutuantes ("W") com Vida Extra por Fase',
+    isFix: true,
+    items: [
+      'Adicionadas 4 Moedas Gigantes Flutuantes douradas com a letra "W" gravada distribuídas ao longo das fases jogáveis e indicador W:X/4 no HUD.',
+      'Coletar todas as 4 moedas "W" dentro da mesma fase concede automaticamente +1 Vida Extra (1-UP) além de bônus de pontos.',
+    ],
+  },
+  {
+    uid: 'R1.16.SW.4',
+    version: 'R1.16.SW.4',
+    label: 'Correção · Combate',
+    title: 'Inimigos Derrotados por Bola de Fogo Viram Moedas (Exceto Fantasmas e Esqueletos)',
+    isFix: true,
+    items: [
+      'Inimigos comuns eliminados por bolas de fogo (como Goombas, Koopas, Paratroopas, Hammer Bros, Cheeps e Piranhas) agora se transformam diretamente em moedas coletáveis no local do impacto.',
+      'Fantasmas (Boo) continuam imunes e Esqueletos (Dry Bones) mantêm o comportamento original sem virar moeda.',
+    ],
+  },
+  {
+    uid: 'R1.16.X6.4',
+    version: 'R1.16.X6.4',
+    label: 'Correção · World',
+    title: 'Slots de Salvamento Manual Após Castelos & Fim do Salvamento Automático',
+    isFix: true,
+    items: [
+      'Desativado completamente o salvamento automático no modo Super Mario World (partidas sempre iniciam limpas até o jogador carregar um slot salvo).',
+      'Adicionados 3 Slots de Salvamento manuais exibidos automaticamente ao vencer castelos na Ilha WikiWorldWeb, com opção de salvar, carregar ou apagar cada slot pelo mapa.',
+    ],
+  },
+  {
+    uid: 'R1.16.13U.4',
+    version: 'R1.16.13U.4',
+    label: 'Recurso · Power-UPs',
+    title: 'Carteira de Power-UPs (Reserva SMW) com Queda Automática ao Sofrer Dano',
+    isFix: true,
+    items: [
+      'Adicionada a caixa "Carteira de Power-UPs" no topo do HUD estilo Super Mario World, armazenando power-ups extras ou substituídos (Cogumelo, Flor de Fogo, Folha, Pena ou Laço).',
+      'Quando o jogador sofre dano e perde seu power-up atual, o item guardado na carteira cai automaticamente do alto da tela para ser pego e reequipado.',
+    ],
+  },
+  {
+    uid: 'R1.16.O0.4',
+    version: 'R1.16.O0.4',
+    label: 'Correção · World',
+    title: 'Bloqueio de Reentrada no Palácio do Interruptor Amarelo Após Concluído',
+    isFix: true,
+    items: [
+      'Impedido que o jogador entre ou jogue novamente o Palácio Interruptor Amarelo após já tê-lo concluído, mantendo a passagem pelas estradas do mapa intacta.',
+    ],
+  },
+  {
     uid: 'R1.16.OY.4',
     version: 'R1.16.OY.4',
     label: 'Correção · Debug',

@@ -120,9 +120,11 @@ export interface Enemy {
   shellKillStreak?: number;
 }
 
+export type ReservePowerItem = 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy';
+
 export interface Item {
   id: number;
-  type: 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'coin';
+  type: 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'coin' | 'w_coin';
   x: number;
   y: number;
   vx: number;
@@ -133,6 +135,9 @@ export interface Item {
   collected: boolean;
   emerging: boolean;
   emergeY: number;
+  fromReserveBox?: boolean;
+  reserveDropGrace?: number;
+  wCoinIndex?: number;
 }
 
 export interface Fireball {
@@ -198,6 +203,7 @@ export interface LevelData {
   tiles: (BlockTile | null)[][]; // [y][x]
   enemies: { type: EnemyType; x: number; y: number }[];
   coins: Point[];
+  wCoins?: Point[];
   marioStart: Point;
   flagX: number;
   castleX: number;
@@ -276,6 +282,9 @@ export interface GameStats {
   isBonusStage?: boolean;
   bonusBlocksRemaining?: number;
   bonusLivesWon?: number;
+  reservePowerUp?: ReservePowerItem | null;
+  wCoinsCollected?: number;
+  wCoinsTotal?: number;
 }
 
 export type BonusBlockFace = '1up' | 'mushroom' | 'flower';

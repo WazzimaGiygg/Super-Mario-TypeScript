@@ -20,6 +20,9 @@ import {
   Zap,
   Compass,
   AlertTriangle,
+  Save,
+  FolderOpen,
+  Trash2,
 } from 'lucide-react';
 import {
   SMW_BETA_VERSION,
@@ -34,9 +37,11 @@ import {
   SmwBetaProgress,
   SmwIslandId,
   SmwMapNode,
+  SmwSaveSlotData,
   SmwWalkStep,
   evaluateSmwPathSegment,
   findSmwMapPath,
+  isSmwNodeCompletedAndLocked,
   isSmwNodeUnlocked,
   resolveSmwDirectionalStep,
 } from '../game/smwWorldMap.ts';
@@ -49,11 +54,17 @@ interface SmwOverworldMapProps {
   progress: SmwBetaProgress;
   playerCharacter: PlayerCharacter;
   justClearedNodeId?: string | null;
+  saveSlots?: (SmwSaveSlotData | null)[];
+  castleSavePromptNodeTitle?: string | null;
   onSelectNode: (nodeId: string) => void;
   onSelectIsland?: (islandId: SmwIslandId) => void;
   onEnterStage: (nodeId: string) => void;
   onDismissStory: () => void;
   onResetProgress: () => void;
+  onSaveToSlot?: (slotIndex: number) => void;
+  onLoadFromSlot?: (slotIndex: number) => void;
+  onDeleteSlot?: (slotIndex: number) => void;
+  onDismissCastleSave?: () => void;
   onBackToMainMenu: () => void;
 }
 
@@ -168,19 +179,33 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   progress,
   playerCharacter,
   justClearedNodeId = null,
+  saveSlots = [null, null, null],
+  castleSavePromptNodeTitle = null,
   onSelectNode,
   onSelectIsland,
   onEnterStage,
   onDismissStory,
   onResetProgress,
+  onSaveToSlot,
+  onLoadFromSlot,
+  onDeleteSlot,
+  onDismissCastleSave,
   onBackToMainMenu,
 }) => {
   const [showStory, setShowStory] = useState<boolean>(!progress.storySeen);
+  const [showSlotsModal, setShowSlotsModal] = useState<boolean>(false);
+  const [switchLockedNotice, setSwitchLockedNotice] = useState<string>('');
   const [localIslandId, setLocalIslandId] = useState<SmwIslandId>(
     progress.selectedIslandId === 'island2' ? 'island2' : 'wikiworld'
   );
   const [island2Notice, setIsland2Notice] = useState<string>('');
   const atlas = useMemo(() => SpriteAtlas.get(), []);
+
+  useEffect(() => {
+    if (isOpen && castleSavePromptNodeTitle) {
+      setShowSlotsModal(true);
+    }
+  }, [isOpen, castleSavePromptNodeTitle]);
 
   const activeIsland: SmwIslandId = onSelectIsland
     ? progress.selectedIslandId === 'island2'
@@ -190,6 +215,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
   const switchIsland = (islandId: SmwIslandId) => {
     setIsland2Notice('');
+    setSwitchLockedNotice('');
     if (onSelectIsland) {
       onSelectIsland(islandId);
     } else {
@@ -223,8 +249,11 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
     activeIsland === 'island2' ? false : isSmwNodeUnlocked(selectedNode.id, progress);
   const selectedCleared =
     activeIsland === 'island2' ? false : progress.clearedNodeIds.includes(selectedNode.id);
+  const selectedLockedCompleted =
+    activeIsland === 'island2' ? false : isSmwNodeCompletedAndLocked(selectedNode.id, progress);
   const islandCompleted = progress.clearedNodeIds.includes('wiki-5-castelo');
   const clearedCount = progress.clearedNodeIds.length;
+  const usedSlotsCount = saveSlots.filter(Boolean).length;
 
   const companionCharacter: PlayerCharacter =
     playerCharacter === 'wazzima' ? 'mario' : 'wazzima';
@@ -448,6 +477,15 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
         { smartTvMode: true, jumpWithUp: false }
       );
 
+      if (showSlotsModal) {
+        if (tv.isBack) {
+          e.preventDefault();
+          setShowSlotsModal(false);
+          onDismissCastleSave?.();
+        }
+        return;
+      }
+
       if (showStory) {
         if (tv.isConfirm || tv.isBack || tv.actions.includes('jump')) {
           e.preventDefault();
@@ -475,7 +513,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
         return;
       }
 
-      // Let focused top-bar buttons (História, Menu, Ilha 1/2, Zerar Ilha) work on OK/Enter
+      // Let focused top-bar buttons (História, Slots, Menu, Ilha 1/2, Zerar Ilha) work on OK/Enter
       if (
         target &&
         target.tagName === 'BUTTON' &&
@@ -500,6 +538,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
       if (dir) {
         e.preventDefault();
+        setSwitchLockedNotice('');
         if (activeIsland === 'island2') {
           setIsland2Notice(SMW_ISLAND2_UNAVAILABLE_MSG);
           return;
@@ -519,6 +558,10 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           setIsland2Notice(SMW_ISLAND2_UNAVAILABLE_MSG);
           return;
         }
+        if (selectedLockedCompleted) {
+          setSwitchLockedNotice('Palácio do Interruptor Amarelo já concluído!');
+          return;
+        }
         if (selectedUnlocked) {
           onEnterStage(selectedNode.id);
         }
@@ -530,13 +573,16 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   }, [
     isOpen,
     showStory,
+    showSlotsModal,
     activeIsland,
     selectedNode,
     selectedUnlocked,
+    selectedLockedCompleted,
     progress,
     onSelectNode,
     onEnterStage,
     onDismissStory,
+    onDismissCastleSave,
     onBackToMainMenu,
   ]);
 
@@ -662,6 +708,16 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
               <span>Ilha 2 (Beta)</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowSlotsModal(true)}
+            title="Slots de Salvamento Manual (salva ao passar dos castelos)"
+            className="min-h-[34px] px-2.5 py-1.5 rounded-lg bg-amber-950/90 hover:bg-amber-900 border border-amber-500/70 text-amber-200 text-[10px] sm:text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>Slots ({usedSlotsCount}/3)</span>
+          </button>
 
           <button
             type="button"
@@ -1138,6 +1194,9 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           const isIsland2 = activeIsland === 'island2';
           const unlocked = isIsland2 ? false : isSmwNodeUnlocked(node.id, progress);
           const cleared = isIsland2 ? false : progress.clearedNodeIds.includes(node.id);
+          const lockedCompleted = isIsland2
+            ? false
+            : isSmwNodeCompletedAndLocked(node.id, progress);
           const isSelected = isIsland2
             ? node.order === 0
             : progress.selectedNodeId === node.id;
@@ -1152,12 +1211,17 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                 type="button"
                 data-smw-node-btn="true"
                 onClick={() => {
+                  setSwitchLockedNotice('');
                   if (isIsland2) {
                     setIsland2Notice(SMW_ISLAND2_UNAVAILABLE_MSG);
                     return;
                   }
                   if (!unlocked) return;
                   if (isSelected) {
+                    if (lockedCompleted) {
+                      setSwitchLockedNotice('Palácio do Interruptor Amarelo já concluído!');
+                      return;
+                    }
                     onEnterStage(node.id);
                   } else {
                     onSelectNode(node.id);
@@ -1165,10 +1229,24 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                 }}
                 onDoubleClick={() => {
                   if (isIsland2 || !unlocked) return;
+                  if (lockedCompleted) {
+                    setSwitchLockedNotice('Palácio do Interruptor Amarelo já concluído!');
+                    return;
+                  }
                   onEnterStage(node.id);
                 }}
                 disabled={!isIsland2 && !unlocked}
-                aria-label={`${node.title} (${isIsland2 ? SMW_ISLAND2_UNAVAILABLE_MSG : cleared ? 'Concluída' : unlocked ? 'Disponível' : 'Bloqueada'})`}
+                aria-label={`${node.title} (${
+                  isIsland2
+                    ? SMW_ISLAND2_UNAVAILABLE_MSG
+                    : lockedCompleted
+                    ? 'Concluído · Entrada bloqueada'
+                    : cleared
+                    ? 'Concluída'
+                    : unlocked
+                    ? 'Disponível'
+                    : 'Bloqueada'
+                })`}
                 className={`relative min-w-[44px] min-h-[44px] px-2.5 py-2 rounded-xl border-2 flex items-center justify-center gap-1 transition-transform shadow-lg ${
                   isIsland2
                     ? node.order === 0
@@ -1279,15 +1357,25 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           </div>
         )}
 
+        {/* Switch Palace Completed Lock Toast (R1.16.O0.4) */}
+        {switchLockedNotice && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-md px-3.5 py-2 rounded-lg bg-amber-950/95 border border-yellow-400 text-center shadow-xl">
+            <p className="text-[11px] sm:text-xs font-bold text-yellow-200 flex items-center justify-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+              <span>{switchLockedNotice}</span>
+            </p>
+          </div>
+        )}
+
         {/* Island 1 Victory Celebration Toast */}
-        {activeIsland === 'wikiworld' && (islandCompleted || justClearedNodeId === 'wiki-5-castelo') && (
+        {activeIsland === 'wikiworld' && !switchLockedNotice && (islandCompleted || justClearedNodeId === 'wiki-5-castelo') && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-lg px-3.5 py-2 rounded-lg bg-stone-950/92 border border-amber-400/80 text-center shadow-xl">
             <p className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5">
               <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Castelo de Johannnnes89 conquistado! Ilha WikiWorldWeb 100% salva!</span>
             </p>
             <p className="text-[10px] text-stone-300 mt-0.5">
-              Você pode revisitar qualquer fase anterior pela estrada ou conferir a prévia da Ilha 2 (Beta).
+              Salve nos Slots após o castelo ou explore a prévia da Ilha 2 (Beta).
             </p>
           </div>
         )}
@@ -1302,6 +1390,8 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             <span>
               {activeIsland === 'island2'
                 ? 'Em breve'
+                : selectedLockedCompleted
+                ? 'Concluído (entrada encerrada)'
                 : selectedCleared
                 ? 'Concluída (rejogável)'
                 : selectedUnlocked
@@ -1313,7 +1403,11 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             {selectedNode.title}
           </p>
           <p className="text-[10px] sm:text-[11px] text-amber-200/90 truncate">
-            {activeIsland === 'island2' ? SMW_ISLAND2_UNAVAILABLE_MSG : selectedNode.subtitle}
+            {activeIsland === 'island2'
+              ? SMW_ISLAND2_UNAVAILABLE_MSG
+              : selectedLockedCompleted
+              ? 'Interruptor Amarelo já ativado! Não é possível jogar novamente este palácio.'
+              : selectedNode.subtitle}
           </p>
         </div>
 
@@ -1338,6 +1432,15 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             >
               <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>{SMW_ISLAND2_UNAVAILABLE_MSG}</span>
+            </button>
+          ) : selectedLockedCompleted ? (
+            <button
+              type="button"
+              disabled
+              className="flex-1 sm:flex-initial min-h-[40px] px-4 sm:px-5 py-2 rounded-lg bg-stone-800 border border-yellow-500/40 text-yellow-300/80 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold flex items-center justify-center gap-2 cursor-not-allowed whitespace-nowrap shrink-0"
+            >
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>PALÁCIO CONCLUÍDO</span>
             </button>
           ) : (
             <button
@@ -1390,6 +1493,137 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                 className="min-h-[42px] px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow cursor-pointer whitespace-nowrap shrink-0 transition"
               >
                 EXPLORAR ILHA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Castle Save Slots Modal (R1.16.X6.4 — No Auto-Save) */}
+      {showSlotsModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="smw-slots-title"
+          className="absolute inset-0 z-30 flex items-center justify-center p-3 sm:p-5 bg-black/88 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-lg rounded-xl bg-stone-900 border-2 border-amber-400 shadow-2xl p-4 sm:p-5 text-left max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-stone-800">
+              <div>
+                <div className="text-[10px] font-mono text-amber-300">
+                  {castleSavePromptNodeTitle
+                    ? `Castelo Concluído: ${castleSavePromptNodeTitle}`
+                    : 'Gerenciador de Slots · Sem Salvamento Automático'}
+                </div>
+                <h3
+                  id="smw-slots-title"
+                  className="font-['Press_Start_2P',monospace] text-xs sm:text-sm text-white mt-1"
+                >
+                  {castleSavePromptNodeTitle ? 'SALVAR PROGRESSO?' : 'SLOTS DE SALVAMENTO'}
+                </h3>
+              </div>
+              <Save className="w-5 h-5 text-amber-400 shrink-0" />
+            </div>
+
+            <p className="mt-2.5 text-[11px] text-stone-300 bg-stone-950/80 border border-stone-800 rounded-lg px-3 py-2">
+              {castleSavePromptNodeTitle
+                ? 'Você passou pelo castelo! Escolha um Slot abaixo para salvar seu progresso atual (o salvamento automático está desativado).'
+                : 'O salvamento automático está desativado no Super Mario World. Novos salvamentos ficam disponíveis ao vencer os castelos.'}
+            </p>
+
+            <div className="mt-3 space-y-2.5">
+              {[0, 1, 2].map(slotIdx => {
+                const slot = saveSlots[slotIdx] ?? null;
+                return (
+                  <div
+                    key={slotIdx}
+                    className={`rounded-lg border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                      slot
+                        ? 'bg-stone-950/90 border-amber-500/50'
+                        : 'bg-stone-950/50 border-stone-800'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-['Press_Start_2P',monospace] text-[10px] text-amber-300">
+                          SLOT {slotIdx + 1}
+                        </span>
+                        {slot ? (
+                          <span className="text-[10px] font-mono text-emerald-300">
+                            {slot.clearedNodeIds.length}/{SMW_WIKIWORLD_NODES.length} fases
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-stone-500">Vazio</span>
+                        )}
+                      </div>
+                      {slot ? (
+                        <div className="mt-1 text-[11px] text-stone-300 space-y-0.5">
+                          <div className="truncate font-medium text-white">{slot.stageName}</div>
+                          <div className="text-[10px] font-mono text-stone-400">
+                            Vidas: {slot.lives} · Pontos: {slot.score.toLocaleString()} ·{' '}
+                            {slot.yellowSwitchUnlocked ? 'Switch [!] ON' : 'Switch OFF'}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[10px] text-stone-500">
+                          Nenhum progresso gravado neste slot.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {castleSavePromptNodeTitle && onSaveToSlot && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSaveToSlot(slotIdx);
+                            setShowSlotsModal(false);
+                          }}
+                          className="min-h-[34px] px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{slot ? 'Sobrescrever' : 'Salvar Aqui'}</span>
+                        </button>
+                      )}
+                      {!castleSavePromptNodeTitle && slot && onLoadFromSlot && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onLoadFromSlot(slotIdx);
+                            setShowSlotsModal(false);
+                          }}
+                          className="min-h-[34px] px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span>Carregar</span>
+                        </button>
+                      )}
+                      {slot && onDeleteSlot && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteSlot(slotIdx)}
+                          title={`Apagar Slot ${slotIdx + 1}`}
+                          className="min-h-[34px] px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-red-900/80 border border-stone-700 text-stone-300 hover:text-red-200 text-xs cursor-pointer transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSlotsModal(false);
+                  onDismissCastleSave?.();
+                }}
+                className="min-h-[38px] px-4 py-2 rounded-lg bg-stone-700 hover:bg-stone-600 text-white text-xs font-medium cursor-pointer transition"
+              >
+                {castleSavePromptNodeTitle ? 'Continuar sem Salvar' : 'Fechar'}
               </button>
             </div>
           </div>

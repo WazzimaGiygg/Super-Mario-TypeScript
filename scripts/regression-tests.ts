@@ -76,6 +76,7 @@ import {
   EDITOR_MAX_COINS,
   EDITOR_MAX_FLOATING_PLATFORMS,
   EDITOR_MAX_TOTAL_ENTITIES,
+  STAGE_W_COINS_COUNT,
 } from '../src/game/levels.ts';
 import {
   SMW_ISLANDS,
@@ -85,6 +86,14 @@ import {
   createSmwWikiWorldStage,
   findSmwMapPath,
   isSmwNodeUnlocked,
+  isSmwNodeCompletedAndLocked,
+  canEnterSmwNode,
+  loadSmwBetaProgress,
+  saveSmwBetaProgress,
+  loadSmwSaveSlots,
+  saveSmwToSlot,
+  deleteSmwSlot,
+  applySmwSlotToProgress,
   resolveSmwDirectionalStep,
   type SmwBetaProgress,
 } from '../src/game/smwWorldMap.ts';
@@ -942,6 +951,12 @@ async function runR116FixesTests() {
     const uniqueUids = new Set(uids);
     assert.equal(uniqueUids.size, uids.length, 'Todas as UIDs de correções devem ser únicas');
     for (const requiredUid of [
+      'R02.16.PG.4',
+      'R1.16.OV.4',
+      'R1.16.SW.4',
+      'R1.16.X6.4',
+      'R1.16.13U.4',
+      'R1.16.O0.4',
       'R1.16.OY.4',
       'R1.16.P4.4',
       'R1.16.3FG.4',
@@ -1344,6 +1359,261 @@ async function runR116FixesTests() {
     assert.equal(castleResult.count, 1);
     assert.equal(castleResult.totalPoints, 400 * 2);
     assert.equal(castleEngine.enemies[0].alive, false);
+  });
+
+  await test('R1.16.O0.4: Palácio Interruptor Amarelo bloqueia reentrada após ser concluído', () => {
+    const afterW1: SmwBetaProgress = {
+      clearedNodeIds: ['wiki-1-overworld'],
+      selectedNodeId: 'wiki-switch-yellow',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: false,
+    };
+    assert.equal(isSmwNodeCompletedAndLocked('wiki-switch-yellow', afterW1), false);
+    assert.equal(canEnterSmwNode('wiki-switch-yellow', afterW1), true);
+
+    const afterSwitch: SmwBetaProgress = {
+      ...afterW1,
+      clearedNodeIds: ['wiki-1-overworld', 'wiki-switch-yellow'],
+      yellowSwitchUnlocked: true,
+    };
+    assert.equal(isSmwNodeCompletedAndLocked('wiki-switch-yellow', afterSwitch), true);
+    assert.equal(canEnterSmwNode('wiki-switch-yellow', afterSwitch), false);
+    assert.equal(canEnterSmwNode('wiki-1-overworld', afterSwitch), true);
+    assert.equal(canEnterSmwNode('wiki-2-caverna', afterSwitch), true);
+
+    const mapSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SmwOverworldMap.tsx'), 'utf8');
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.ok(mapSrc.includes('PALÁCIO CONCLUÍDO'));
+    assert.ok(mapSrc.includes('isSmwNodeCompletedAndLocked'));
+    assert.ok(canvasSrc.includes('canEnterSmwNode'));
+  });
+
+  await test('R1.16.13U.4: Carteira de Power-UPs armazena reserva e solta do topo ao sofrer dano', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    stepEngine(engine, 10);
+
+    // 1. Pegar Super Cogumelo -> fica Super; pegar Flor de Fogo -> armazena Cogumelo na carteira
+    engine.items.push(makeItem(9201, 'mushroom', engine.marioX, engine.marioY));
+    engine.update(16.67);
+    assert.equal(engine.marioPower, 'super');
+    assert.equal(engine.reservePowerUp, null);
+    engine.marioGrowthTimer = 0;
+
+    engine.items.push(makeItem(9202, 'fireflower', engine.marioX, engine.marioY));
+    engine.update(16.67);
+    assert.equal(engine.marioPower, 'fire');
+    assert.equal(engine.reservePowerUp, 'mushroom');
+    assert.equal(engine.stats.reservePowerUp, 'mushroom');
+    engine.marioGrowthTimer = 0;
+
+    // 2. Ao sofrer dano e perder o Fire, o Cogumelo armazenado cai do topo da tela
+    engine.marioInvulnerableTimer = 0;
+    engine.enemies.push(makeEnemy(9203, 'goomba', engine.marioX + 2, engine.marioY + 14));
+    engine.update(16.67);
+    assert.equal(engine.marioPower, 'small');
+    assert.equal(engine.reservePowerUp, null);
+    assert.equal(engine.stats.reservePowerUp, null);
+
+    const droppedReserve = engine.items.find(it => it.fromReserveBox && it.type === 'mushroom');
+    assert.ok(droppedReserve, 'O power-up guardado na carteira deve cair para o jogador pegar');
+
+    // 3. Limpa freeze/inimigo e deixa o item cair até o personagem para reequipar Super
+    engine.enemies = [];
+    engine.marioShrinkTimer = 0;
+    engine.marioInvulnerableTimer = 0;
+    for (let i = 0; i < 180 && engine.marioPower === 'small'; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioPower, 'super');
+  });
+
+  await test('R1.16.X6.4: Salvamento automático desativado no SMW e Slots manuais salvam/carregam ao vencer castelos', () => {
+    const mapMem = new Map<string, string>();
+    const mockStorage = {
+      getItem: (k: string) => (mapMem.has(k) ? mapMem.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        mapMem.set(k, v);
+      },
+    };
+
+    const progress: SmwBetaProgress = {
+      clearedNodeIds: [
+        'wiki-1-overworld',
+        'wiki-2-caverna',
+        'wiki-3-agua',
+        'wiki-4-mansao',
+        'wiki-5-castelo',
+      ],
+      selectedNodeId: 'wiki-5-castelo',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: false,
+      goalPointsWallet: 50,
+    };
+
+    // Auto-save é no-op e loadSmwBetaProgress sempre inicia limpo
+    saveSmwBetaProgress(progress);
+    const freshLoaded = loadSmwBetaProgress();
+    assert.equal(freshLoaded.clearedNodeIds.length, 0);
+
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.equal(canvasSrc.includes('saveSmwBetaProgress('), false, 'GameCanvas não pode chamar saveSmwBetaProgress');
+    assert.ok(canvasSrc.includes('currNode?.isCastle'));
+
+    // Salvamento manual no Slot 1 (índice 0)
+    const afterSave = saveSmwToSlot(
+      0,
+      progress,
+      { stageName: 'Castelo de Johannnnes89', lives: 7, score: 12500 },
+      mockStorage
+    );
+    assert.ok(afterSave[0]);
+    assert.equal(afterSave[1], null);
+    assert.equal(afterSave[2], null);
+
+    const reloaded = loadSmwSaveSlots(mockStorage);
+    assert.equal(reloaded[0]?.lives, 7);
+    assert.equal(reloaded[0]?.score, 12500);
+    assert.equal(reloaded[0]?.clearedNodeIds.length, 5);
+
+    const applied = applySmwSlotToProgress(reloaded[0]!);
+    assert.deepEqual(applied.clearedNodeIds, progress.clearedNodeIds);
+    assert.equal(applied.goalPointsWallet, 50);
+
+    const afterDelete = deleteSmwSlot(0, mockStorage);
+    assert.equal(afterDelete[0], null);
+  });
+
+  await test('R1.16.SW.4: Bola de fogo transforma inimigos comuns em moedas, exceto fantasmas e esqueletos', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.items = [];
+    stepEngine(engine, 10);
+
+    const yGround = 12 * GameEngine.TILE_SIZE;
+    // Goomba atingido por bola de fogo -> vira moeda coletável
+    const goomba = makeEnemy(9301, 'goomba', 140, yGround);
+    goomba.vx = 0;
+    engine.enemies.push(goomba);
+    engine.fireballs.push({
+      id: 9302,
+      x: 138,
+      y: yGround + 4,
+      vx: 5,
+      vy: 0,
+      alive: true,
+      exploding: false,
+      explodeTimer: 0,
+    });
+    engine.update(16.67);
+    assert.equal(goomba.alive, false);
+    const spawnedCoin = engine.items.find(it => it.type === 'coin' && Math.abs(it.x - 140) <= 4);
+    assert.ok(spawnedCoin, 'Goomba derrotado por bola de fogo deve virar moeda');
+
+    // Boo (fantasma) e Dry Bones (esqueleto) NÃO viram moedas
+    const itemsCountBefore = engine.items.length;
+    const boo = makeEnemy(9303, 'boo', 200, yGround);
+    boo.vx = 0;
+    const dryBones = makeEnemy(9304, 'dry_bones', 260, yGround - 8);
+    dryBones.vx = 0;
+    engine.enemies.push(boo, dryBones);
+    engine.fireballs.push(
+      {
+        id: 9305,
+        x: 198,
+        y: yGround + 4,
+        vx: 5,
+        vy: 0,
+        alive: true,
+        exploding: false,
+        explodeTimer: 0,
+      },
+      {
+        id: 9306,
+        x: 258,
+        y: yGround,
+        vx: 5,
+        vy: 0,
+        alive: true,
+        exploding: false,
+        explodeTimer: 0,
+      }
+    );
+    engine.update(16.67);
+    assert.equal(boo.alive, true, 'Boo deve permanecer vivo e não virar moeda');
+    assert.equal(dryBones.state, 'shell_idle', 'Dry Bones deve desmoronar sem virar moeda');
+    assert.equal(engine.items.length, itemsCountBefore, 'Boo e Dry Bones não podem gerar moedas');
+  });
+
+  await test('R1.16.OV.4: Fases possuem 4 moedas gigantes flutuantes W e coletar as 4 concede +1 vida', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    const wCoins = engine.items.filter(it => it.type === 'w_coin');
+    assert.equal(wCoins.length, STAGE_W_COINS_COUNT);
+    assert.equal(STAGE_W_COINS_COUNT, 4);
+    assert.equal(engine.wCoinsTotal, 4);
+    assert.equal(engine.wCoinsCollected, 0);
+
+    const livesBefore = engine.stats.lives;
+    // Coletar 3 primeiras W-Coins -> ainda não ganha vida extra
+    for (let i = 0; i < 3; i++) {
+      engine.marioX = wCoins[i].x;
+      engine.marioY = wCoins[i].y;
+      engine.marioVx = 0;
+      engine.marioVy = 0;
+      engine.update(16.67);
+    }
+    assert.equal(engine.wCoinsCollected, 3);
+    assert.equal(engine.stats.lives, livesBefore);
+
+    // Coletar a 4ª W-Coin -> concede +1 Vida Extra!
+    engine.marioX = wCoins[3].x;
+    engine.marioY = wCoins[3].y;
+    engine.marioVx = 0;
+    engine.marioVy = 0;
+    engine.update(16.67);
+    assert.equal(engine.wCoinsCollected, 4);
+    assert.equal(engine.stats.wCoinsCollected, 4);
+    assert.equal(engine.stats.lives, livesBefore + 1);
+  });
+
+  await test('R02.16.PG.4: Modo Super Mario World executa animação de entrada no castelo, bandeira e íris antes de concluir', () => {
+    const engine = createFreshEngine();
+    let completedId = '';
+    engine.onSmwStageCompleted = id => {
+      completedId = id;
+    };
+    engine.startSmwStage(createSmwWikiWorldStage('wiki-1-overworld'), true);
+    engine.intermissionTimer = 0;
+    engine.enemies = [];
+
+    // Cruza o poste e caminha até a porta do castelo
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 176;
+    engine.update(16.67);
+    assert.equal(engine.marioState, 'castle_walk');
+
+    for (let i = 0; i < 160 && !engine.smwCastleEntryActive; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.smwCastleEntryActive, true, 'Deve ativar smwCastleEntryActive ao chegar na porta do castelo');
+    assert.equal(engine.marioState, 'castle_walk');
+
+    // Avança frames de entrada na porta do castelo até finalizar estágio e erguer bandeira/íris
+    for (let i = 0; i < 60 && engine.marioState === 'castle_walk'; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioState, 'castle_entered');
+
+    engine.stats.time = 0;
+    for (let i = 0; i < 120 && !completedId; i++) {
+      engine.update(16.67);
+    }
+    assert.ok(engine.smwCastleBannerProgress > 0.5, 'Bandeira de vitória no castelo deve subir');
+    assert.ok(engine.smwCastleIrisProgress > 0.5, 'Transição circular iris-out deve fechar antes do retorno ao mapa');
+    assert.equal(completedId, 'wiki-1-overworld');
   });
 }
 

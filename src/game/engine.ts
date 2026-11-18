@@ -28,6 +28,7 @@ import {
   DebugPlaceableSpec,
   BonusBlockFace,
   BonusStageBlock,
+  ReservePowerItem,
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
@@ -47,6 +48,7 @@ import {
   SINGLEPLAYER_STAGES_PER_WORLD,
   cloneLevelData,
   sanitizeCustomLevelEntities,
+  computeStageWCoins,
 } from './levels.ts';
 import { createSmwWikiWorldStage } from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
@@ -163,6 +165,19 @@ export class GameEngine {
   public bonusStageFinishDelay: number = 0;
   public bonusStageTimeFrames: number = 0;
   public onSmwGoalWalletChanged?: (wallet: number) => void;
+  // R1.16.13U.4: Carteira de Power-UPs (SMW Reserve Item Box)
+  public reservePowerUp: ReservePowerItem | null = null;
+  // R1.16.OV.4: 4 Giant Floating W-Coins per stage
+  public wCoinsCollected: number = 0;
+  public wCoinsTotal: number = 0;
+  private collectedWCoinIndices: Set<number> = new Set();
+  private wCoinLifeAwardedThisStage: boolean = false;
+  // R02.16.PG.4: SMW Castle Entrance Animation state
+  public smwCastleEntryActive: boolean = false;
+  public smwCastleEntryTimer: number = 0;
+  public smwCastleBannerProgress: number = 0;
+  public smwCastleIrisProgress: number = 0;
+  private smwCastleTargetX: number = 0;
   private bonusReturnLevelMeta: {
     id: string;
     name: string;
@@ -258,6 +273,9 @@ export class GameEngine {
     isBonusStage: false,
     bonusBlocksRemaining: 0,
     bonusLivesWon: 0,
+    reservePowerUp: null,
+    wCoinsCollected: 0,
+    wCoinsTotal: 0,
   };
 
   // Local High Score & Ranking Run Tracking
@@ -407,9 +425,17 @@ export class GameEngine {
     this.castlePrincessY = 0;
     this.castlePrincessDialogueTimer = 0;
     this.switchPalaceActivated = false;
+    this.smwCastleEntryActive = false;
+    this.smwCastleEntryTimer = 0;
+    this.smwCastleBannerProgress = 0;
+    this.smwCastleIrisProgress = 0;
+    this.smwCastleTargetX = 0;
     if (!isRespawn) {
       this.isCampaignVictory = false;
+      this.collectedWCoinIndices.clear();
+      this.wCoinLifeAwardedThisStage = false;
     }
+    this.stats.reservePowerUp = this.reservePowerUp;
     this.bossFireballs = [];
     this.hammerProjectiles = [];
     if (resolvedLevel.smwNodeId !== undefined) {
@@ -551,6 +577,40 @@ export class GameEngine {
         collected: false,
         emerging: false,
         emergeY: c.y,
+      });
+    });
+
+    // R1.16.OV.4: Place 4 giant floating "W" Coins across playable stages
+    const skipDefaultWCoins =
+      resolvedLevel.id === 'smw-bonus-stage' ||
+      resolvedLevel.id === 'secret-vault' ||
+      Boolean(resolvedLevel.isCustom);
+    const stageWCoins =
+      resolvedLevel.wCoins !== undefined
+        ? resolvedLevel.wCoins.slice(0, 4)
+        : skipDefaultWCoins
+        ? []
+        : computeStageWCoins(resolvedLevel);
+    this.wCoinsTotal = stageWCoins.length;
+    this.wCoinsCollected = this.collectedWCoinIndices.size;
+    this.stats.wCoinsTotal = this.wCoinsTotal;
+    this.stats.wCoinsCollected = this.wCoinsCollected;
+    stageWCoins.forEach((wc, idx) => {
+      if (this.collectedWCoinIndices.has(idx)) return;
+      this.items.push({
+        id: this.nextEntityId++,
+        type: 'w_coin',
+        x: wc.x,
+        y: wc.y,
+        vx: 0,
+        vy: 0,
+        width: 20,
+        height: 26,
+        grounded: false,
+        collected: false,
+        emerging: false,
+        emergeY: wc.y,
+        wCoinIndex: idx,
       });
     });
 
@@ -1048,8 +1108,34 @@ export class GameEngine {
       return;
     }
 
-    // 6. Castle walk animation
+    // 6. Castle walk & SMW Castle Door Entry animation
     if (this.marioState === 'castle_walk') {
+      if (this.smwCastleEntryActive) {
+        this.smwCastleEntryTimer++;
+        const targetFloorY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
+        this.marioY = targetFloorY;
+        if (this.smwCastleEntryTimer <= 14) {
+          // Pause in victory pose directly in front of castle archway
+          this.marioAnimFrame = 0;
+        } else {
+          // Step cleanly inside the dark arched doorway
+          this.marioX = Math.min(this.smwCastleTargetX + 5, this.marioX + 0.16);
+          this.marioAnimTimer++;
+          if (this.marioAnimTimer >= 5) {
+            this.marioAnimTimer = 0;
+            this.marioAnimFrame = (this.marioAnimFrame + 1) % 3;
+          }
+          if (this.smwCastleEntryTimer >= 30) {
+            this.smwCastleBannerProgress = Math.min(1, (this.smwCastleEntryTimer - 30) / 24);
+          }
+        }
+        if (this.smwCastleEntryTimer >= 44) {
+          this.marioVx = 0;
+          this.finishStage();
+        }
+        return;
+      }
+
       const targetFloorY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
       if (this.marioY < targetFloorY) {
         this.marioY = Math.min(targetFloorY, this.marioY + 2.8);
@@ -1078,6 +1164,17 @@ export class GameEngine {
         if (hasCastleGreeter) {
           this.marioX = targetStopX;
         }
+        if (this.gameMode === 'smw_world_map') {
+          // R02.16.PG.4: Trigger authentic Super Mario World castle entry animation
+          this.marioX = targetStopX;
+          this.marioVx = 0;
+          this.smwCastleTargetX = targetStopX;
+          this.smwCastleEntryActive = true;
+          this.smwCastleEntryTimer = 1;
+          this.smwCastleBannerProgress = 0;
+          this.sound.playPowerUpAppear();
+          return;
+        }
         this.marioVx = 0;
         this.finishStage();
       }
@@ -1086,6 +1183,9 @@ export class GameEngine {
 
     // 7. Castle entered & stage clear time tally countdown sequence
     if (this.marioState === 'castle_entered') {
+      if (this.gameMode === 'smw_world_map') {
+        this.smwCastleBannerProgress = Math.min(1, this.smwCastleBannerProgress + 0.045);
+      }
       if (this.castleToodleActive) {
         this.castleToodleDialogueTimer++;
       }
@@ -1146,6 +1246,15 @@ export class GameEngine {
         this.stageClearDelayTimer = 0;
       } else {
         this.stageClearDelayTimer--;
+      }
+
+      if (this.gameMode === 'smw_world_map' && !this.pendingBonusStage) {
+        if (this.stageClearDelayTimer <= 28) {
+          this.smwCastleIrisProgress = Math.max(
+            this.smwCastleIrisProgress,
+            Math.min(1, (28 - Math.max(0, this.stageClearDelayTimer)) / 26)
+          );
+        }
       }
 
       if (this.stageClearDelayTimer <= 0) {
@@ -2860,6 +2969,7 @@ export class GameEngine {
       this.marioShrinkTimer = 24;
       this.sound.playPipe();
       this.triggerScreenShake(2.0, 6);
+      this.dropReservePowerUp(false);
       this.onMultiplayerSyncNeeded?.();
     } else if (this.marioPower === 'fire' || this.marioPower === 'super') {
       // Fire / Super Mario absorbs the hit, retains player life, and reverts to Small Mario with temporary invincibility
@@ -2871,6 +2981,7 @@ export class GameEngine {
       this.marioShrinkTimer = 32; // Freeze frames for shrink animation
       this.sound.playPipe();
       this.triggerScreenShake(2.5, 7);
+      this.dropReservePowerUp(false);
       this.onMultiplayerSyncNeeded?.();
     } else {
       // Small Mario dies (unless infinite lives is active)
@@ -2949,6 +3060,10 @@ export class GameEngine {
         return;
       }
 
+      if (item.reserveDropGrace && item.reserveDropGrace > 0) {
+        item.reserveDropGrace--;
+      }
+
       // Coin collected in air
       if (item.type === 'coin') {
         if (canCollectItems && this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
@@ -2966,8 +3081,52 @@ export class GameEngine {
         return;
       }
 
-      // Super Leaf & Cape Feather floating physics: gentle side-to-side oscillation and slow fall
-      if (item.type === 'leaf' || item.type === 'feather') {
+      // R1.16.OV.4: Giant Floating "W" Coin (collect 4 in a stage -> +1 Extra Life)
+      if (item.type === 'w_coin') {
+        const floatOffsetY = Math.sin(Date.now() / 220 + (item.wCoinIndex ?? 0) * 1.4) * 3;
+        if (
+          canCollectItems &&
+          this.rectsIntersect(marioBox, {
+            x: item.x - 1,
+            y: item.y + floatOffsetY - 1,
+            width: item.width + 2,
+            height: item.height + 2,
+          })
+        ) {
+          item.collected = true;
+          const wIdx = item.wCoinIndex ?? this.collectedWCoinIndices.size;
+          if (!this.collectedWCoinIndices.has(wIdx)) {
+            this.collectedWCoinIndices.add(wIdx);
+          }
+          this.wCoinsCollected = this.collectedWCoinIndices.size;
+          this.stats.wCoinsCollected = this.wCoinsCollected;
+          this.stats.wCoinsTotal = this.wCoinsTotal;
+          this.sound.playPowerUpEat();
+          this.spawnCoinParticles(item.x + 2, item.y + 4);
+          this.spawnPowerUpSparkles(item.x + 2, item.y + 4);
+          this.addScore(500, item.x, item.y - 4, `W ${this.wCoinsCollected}/${this.wCoinsTotal}`);
+          if (this.wCoinsTotal >= 4 && this.wCoinsCollected >= 4 && !this.wCoinLifeAwardedThisStage) {
+            this.wCoinLifeAwardedThisStage = true;
+            this.awardExtraLife(this.marioX, Math.max(24, this.marioY - 12));
+            this.particleSystem.emitScoreText('4x W! +1 VIDA!', this.marioX, Math.max(20, this.marioY - 22), {
+              maxLife: 48,
+              vy: -0.9,
+            });
+          }
+          this.onMultiplayerSyncNeeded?.();
+        }
+        return;
+      }
+
+      // R1.16.13U.4: Items released from the Power-Up Reserve Box fall smoothly straight down for Mario to catch
+      if (item.fromReserveBox) {
+        item.y += 1.45;
+        if (item.y > GameEngine.NES_HEIGHT + 24) {
+          item.collected = true;
+          return;
+        }
+      } else if (item.type === 'leaf' || item.type === 'feather') {
+        // Super Leaf & Cape Feather floating physics: gentle side-to-side oscillation and slow fall
         const swayFreq = item.type === 'feather' ? 175 : 200;
         const swayAmp = item.type === 'feather' ? 1.35 : 1.2;
         const fallSpeed = item.type === 'feather' ? 0.65 : 0.75;
@@ -3015,8 +3174,12 @@ export class GameEngine {
         }
       }
 
-      // Mario touches item
-      if (canCollectItems && this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
+      // Mario touches item (respect brief drop grace for Reserve Box items so they descend visibly first)
+      if (
+        canCollectItems &&
+        !(item.reserveDropGrace && item.reserveDropGrace > 0) &&
+        this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })
+      ) {
         item.collected = true;
         this.collectItem(item);
       }
@@ -3025,15 +3188,90 @@ export class GameEngine {
     this.items = this.items.filter(i => !i.collected);
   }
 
+  private powerToReserveItem(power: MarioPower): ReservePowerItem | null {
+    switch (power) {
+      case 'super':
+        return 'mushroom';
+      case 'fire':
+        return 'fireflower';
+      case 'tanooki':
+        return 'leaf';
+      case 'cape':
+        return 'feather';
+      case 'femboy':
+        return 'femboy';
+      default:
+        return null;
+    }
+  }
+
+  public dropReservePowerUp(manual: boolean = false): boolean {
+    if (!this.reservePowerUp) return false;
+    if (this.marioState === 'dead' || this.isStageClear || this.isBonusStageActive) return false;
+
+    const itemType = this.reservePowerUp;
+    this.reservePowerUp = null;
+    this.stats.reservePowerUp = null;
+
+    const spawnX = Math.max(
+      this.cameraX + 12,
+      Math.min(this.cameraX + GameEngine.NES_WIDTH - 28, Math.round(this.marioX))
+    );
+    const spawnY = 26;
+
+    this.items.push({
+      id: this.nextEntityId++,
+      type: itemType,
+      x: spawnX,
+      y: spawnY,
+      vx: 0,
+      vy: 0,
+      width: 16,
+      height: 16,
+      grounded: false,
+      collected: false,
+      emerging: false,
+      emergeY: spawnY,
+      fromReserveBox: true,
+      reserveDropGrace: manual ? 8 : 20,
+    });
+
+    this.sound.playPowerUpAppear();
+    this.spawnPowerUpSparkles(spawnX, spawnY);
+    this.onMultiplayerSyncNeeded?.();
+    return true;
+  }
+
   private transitionMarioPower(targetPower: MarioPower, itemX: number, itemY: number, label: string) {
     this.sound.playPowerUpEat();
     const prevPower = this.marioPower;
 
-    // Super Mushroom never downgrades an already powered-up Big/Fire/Suit Mario
+    // Super Mushroom never downgrades an already powered-up Big/Fire/Suit Mario (R0.15.6J.3 + R1.16.13U.4)
     if (targetPower === 'super' && prevPower !== 'small') {
+      if (!this.reservePowerUp) {
+        this.reservePowerUp = 'mushroom';
+        this.stats.reservePowerUp = 'mushroom';
+      }
       this.addScore(1000, itemX, itemY);
       this.spawnPowerUpSparkles(this.marioX, this.marioY);
       return;
+    }
+
+    // R1.16.13U.4: Store displaced or duplicate power-up in the SMW Reserve Box
+    if (prevPower !== 'small') {
+      if (prevPower === targetPower) {
+        const dupReserve = this.powerToReserveItem(targetPower);
+        if (dupReserve) {
+          this.reservePowerUp = dupReserve;
+          this.stats.reservePowerUp = dupReserve;
+        }
+      } else {
+        const prevReserve = this.powerToReserveItem(prevPower);
+        if (prevReserve && !(prevPower === 'super' && this.reservePowerUp && this.reservePowerUp !== 'mushroom')) {
+          this.reservePowerUp = prevReserve;
+          this.stats.reservePowerUp = prevReserve;
+        }
+      }
     }
 
     this.marioTransitionFrom = prevPower;
@@ -3237,15 +3475,36 @@ export class GameEngine {
             }
             return;
           }
+          // R1.16.SW.4: Fireball-defeatable enemies (except ghosts 'boo' & skeletons 'dry_bones') turn into coins!
           e.alive = false;
           e.state = 'flipped';
-          e.vy = -5;
-          this.sound.playKick();
-          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+          e.vy = 0;
+          const coinX = Math.round(e.x);
+          const coinY = Math.max(
+            24,
+            Math.min(12 * GameEngine.TILE_SIZE, Math.round(e.y + Math.max(0, e.height - 16)))
+          );
+          e.y = GameEngine.NES_HEIGHT + 96;
+          this.items.push({
+            id: this.nextEntityId++,
+            type: 'coin',
+            x: coinX,
+            y: coinY,
+            vx: 0,
+            vy: 0,
+            width: 16,
+            height: 16,
+            grounded: true,
+            collected: false,
+            emerging: false,
+            emergeY: coinY,
+          });
+          this.sound.playCoin();
+          this.spawnCoinParticles(coinX, coinY);
           if (fb.color === 'white') {
-            this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y);
+            this.spawnFemboyHeartParticle(e.x + e.width / 2, coinY);
           }
-          this.addScore(200, e.x, e.y);
+          this.addScore(200, coinX, coinY, 'MOEDA!');
         }
       });
 
@@ -4995,6 +5254,7 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.reservePowerUp = null;
     this.stats = {
       score: 0,
       coins: 0,
@@ -5008,6 +5268,9 @@ export class GameEngine {
       isBonusStage: false,
       bonusBlocksRemaining: 0,
       bonusLivesWon: 0,
+      reservePowerUp: null,
+      wCoinsCollected: 0,
+      wCoinsTotal: 0,
     };
 
     this.isCampaignVictory = false;
@@ -5056,6 +5319,7 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.reservePowerUp = null;
     const firstLevel = createSingleplayerLevel(this.singleplayerWorld, this.singleplayerStage);
     this.stats = {
       score: 0,
@@ -5070,6 +5334,9 @@ export class GameEngine {
       isBonusStage: false,
       bonusBlocksRemaining: 0,
       bonusLivesWon: 0,
+      reservePowerUp: null,
+      wCoinsCollected: 0,
+      wCoinsTotal: 0,
     };
 
     this.isPaused = false;
@@ -5110,6 +5377,7 @@ export class GameEngine {
       if (resetSession) {
         this.goalPointsWallet = 0;
         this.onSmwGoalWalletChanged?.(0);
+        this.reservePowerUp = null;
       }
       this.pendingBonusStage = false;
       this.isBonusStageActive = false;
@@ -5126,6 +5394,9 @@ export class GameEngine {
         isBonusStage: false,
         bonusBlocksRemaining: 0,
         bonusLivesWon: 0,
+        reservePowerUp: this.reservePowerUp,
+        wCoinsCollected: 0,
+        wCoinsTotal: 0,
       };
       this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
     }
@@ -5183,6 +5454,7 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.reservePowerUp = null;
     this.stats = {
       score: 0,
       coins: 0,
@@ -5196,6 +5468,9 @@ export class GameEngine {
       isBonusStage: false,
       bonusBlocksRemaining: 0,
       bonusLivesWon: 0,
+      reservePowerUp: null,
+      wCoinsCollected: 0,
+      wCoinsTotal: 0,
     };
 
     this.isPaused = false;
@@ -5212,6 +5487,8 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.reservePowerUp = null;
+    this.stats.reservePowerUp = null;
     this.isCampaignVictory = false;
     this.castleToodleActive = false;
     this.castlePrincessActive = false;
@@ -5410,8 +5687,35 @@ export class GameEngine {
     this.renderTiles(ctx);
     this.renderFloatingPlatforms(ctx);
 
-    // 4. Flagpole & Flag
+    // 4. Flagpole & Flag & SMW Castle Victory Banner
     this.renderFlagpole(ctx);
+    if (
+      this.gameMode === 'smw_world_map' &&
+      this.smwCastleBannerProgress > 0 &&
+      this.level.castleX > 0 &&
+      this.level.castleX < 99000
+    ) {
+      const poleBaseX = Math.round(this.level.castleX + 8 - camX);
+      if (poleBaseX >= -24 && poleBaseX <= GameEngine.NES_WIDTH + 24) {
+        const roofY = 8 * GameEngine.TILE_SIZE;
+        const poleH = Math.round(24 * this.smwCastleBannerProgress);
+        const topY = roofY - poleH;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(poleBaseX - 1, topY, 3, poleH);
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillRect(poleBaseX, topY, 1, poleH);
+        if (poleH >= 8) {
+          ctx.fillStyle = '#d82800';
+          ctx.fillRect(poleBaseX + 1, topY + 1, 14, 9);
+          ctx.fillStyle = '#fce078';
+          ctx.fillRect(poleBaseX + 2, topY + 2, 12, 7);
+          ctx.fillStyle = '#d82800';
+          ctx.fillRect(poleBaseX + 4, topY + 4, 2, 3);
+          ctx.fillRect(poleBaseX + 7, topY + 5, 2, 2);
+          ctx.fillRect(poleBaseX + 10, topY + 4, 2, 3);
+        }
+      }
+    }
 
     // 5. Items
     this.renderItems(ctx);
@@ -5445,7 +5749,27 @@ export class GameEngine {
     this.renderCastlePrincessDialogue(ctx);
     this.renderInCanvasHUD(ctx);
 
-    // 13. Easter Egg: "ILLEGAL INSTRUCTION" Glitched Screen Effect
+    // 13. SMW Castle Circular Iris-Out Transition (R02.16.PG.4)
+    if (this.gameMode === 'smw_world_map' && this.smwCastleIrisProgress > 0) {
+      const doorScreenX =
+        this.level.castleX > 0 && this.level.castleX < 99000
+          ? Math.round(this.level.castleX + 8 - camX)
+          : Math.round(this.marioX + 8 - camX);
+      const doorScreenY = 12 * GameEngine.TILE_SIZE;
+      const maxRadius = 280;
+      const radius = Math.max(0, maxRadius * (1 - this.smwCastleIrisProgress));
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.rect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      if (radius > 0.5) {
+        ctx.arc(doorScreenX, doorScreenY, radius, 0, Math.PI * 2, true);
+      }
+      ctx.fill('evenodd');
+      ctx.restore();
+    }
+
+    // 14. Easter Egg: "ILLEGAL INSTRUCTION" Glitched Screen Effect
     if (this.isIllegalInstructionBug) {
       this.renderIllegalInstructionGlitch(ctx);
     }
@@ -5557,13 +5881,39 @@ export class GameEngine {
       }
     }
 
-    // 7. SMW Goal Points Wallet badge (★XX/100)
+    // 7. SMW Power-Up Reserve Box ("Carteira de Power-UPs" — R1.16.13U.4)
+    if (!this.isBonusStageActive) {
+      const boxX = 128;
+      const boxY = 22;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillRect(boxX, boxY, 20, 20);
+      ctx.strokeStyle = this.reservePowerUp ? '#fce078' : '#78716c';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(boxX + 0.5, boxY + 0.5, 19, 19);
+      if (this.reservePowerUp) {
+        let resSprite: HTMLCanvasElement | null = null;
+        if (this.reservePowerUp === 'mushroom') resSprite = this.atlas.itemMushroomSuper;
+        else if (this.reservePowerUp === 'fireflower') resSprite = this.atlas.itemFireFlowerFrames[0];
+        else if (this.reservePowerUp === 'leaf') resSprite = this.atlas.itemSuperLeaf;
+        else if (this.reservePowerUp === 'feather') resSprite = this.atlas.itemFeather;
+        else if (this.reservePowerUp === 'femboy') resSprite = this.atlas.itemFemboy;
+        if (resSprite) {
+          ctx.drawImage(resSprite, boxX + 2, boxY + 2, 16, 16);
+        }
+      }
+    }
+
+    // 8. SMW Goal Points Wallet badge (★XX/100) & 4 Giant W-Coins Counter (R1.16.OV.4)
     ctx.font = '5px "Press Start 2P", monospace';
     if (this.isBonusStageActive) {
       const rem = this.bonusStageBlocks.filter(b => !b.resolved).length;
       drawShadowText(`BONUS ${9 - rem}/9 +${this.bonusStageLivesWon}V`, 146, 30, '#58f898');
     } else {
-      drawShadowText(`★${String(this.goalPointsWallet).padStart(2, '0')}/100`, 176, 30, '#fce078');
+      drawShadowText(`★${String(this.goalPointsWallet).padStart(2, '0')}/100`, 156, 30, '#fce078');
+      if (this.wCoinsTotal > 0) {
+        const wColor = this.wCoinsCollected >= 4 ? '#58f898' : '#f8d838';
+        drawShadowText(`W:${this.wCoinsCollected}/${this.wCoinsTotal}`, 216, 30, wColor);
+      }
     }
 
     ctx.restore();
@@ -6337,7 +6687,50 @@ export class GameEngine {
     this.items.forEach(item => {
       const ix = Math.round(item.x - camX);
       const iy = Math.round(item.y);
-      if (ix < -16 || ix > GameEngine.NES_WIDTH + 16) return;
+      if (ix < -24 || ix > GameEngine.NES_WIDTH + 24) return;
+
+      // R1.16.OV.4: Giant Floating "W" Coin rendering
+      if (item.type === 'w_coin') {
+        const bobY = Math.round(Math.sin(Date.now() / 220 + (item.wCoinIndex ?? 0) * 1.4) * 3);
+        const spinScale = Math.max(0.3, Math.abs(Math.cos(Date.now() / 320 + (item.wCoinIndex ?? 0) * 0.9)));
+        const cx = ix + 10;
+        const cy = iy + 13 + bobY;
+        const rx = Math.max(3, Math.round(10 * spinScale));
+        const ry = 13;
+
+        ctx.save();
+        // Outer golden rim
+        ctx.fillStyle = '#683800';
+        ctx.fillRect(cx - rx - 1, cy - ry + 2, (rx + 1) * 2, ry * 2 - 4);
+        ctx.fillRect(cx - rx + 1, cy - ry, Math.max(2, (rx - 1) * 2), ry * 2);
+
+        // Main bright gold coin face
+        ctx.fillStyle = '#f8c818';
+        ctx.fillRect(cx - rx, cy - ry + 2, rx * 2, ry * 2 - 4);
+        ctx.fillRect(cx - Math.max(1, rx - 2), cy - ry + 1, Math.max(2, (rx - 2) * 2), ry * 2 - 2);
+
+        // Highlight & bevel
+        ctx.fillStyle = '#fff59d';
+        ctx.fillRect(cx - Math.max(1, rx - 2), cy - ry + 2, Math.max(2, rx), 2);
+        ctx.fillStyle = '#d48200';
+        ctx.fillRect(cx - Math.max(1, rx - 2), cy + ry - 4, Math.max(2, (rx - 2) * 2), 2);
+
+        // Crisp embossed "W" letter when coin faces camera
+        if (spinScale > 0.48) {
+          ctx.fillStyle = '#8c4800';
+          ctx.fillRect(cx - 5, cy - 5, 2, 8);
+          ctx.fillRect(cx - 3, cy + 1, 2, 4);
+          ctx.fillRect(cx - 1, cy - 2, 2, 4);
+          ctx.fillRect(cx + 1, cy + 1, 2, 4);
+          ctx.fillRect(cx + 3, cy - 5, 2, 8);
+
+          ctx.fillStyle = '#fff9c4';
+          ctx.fillRect(cx - 5, cy - 6, 2, 7);
+          ctx.fillRect(cx + 3, cy - 6, 2, 7);
+        }
+        ctx.restore();
+        return;
+      }
 
       let sprite: HTMLCanvasElement | null = null;
       if (item.type === 'leaf') {
@@ -6982,6 +7375,24 @@ export class GameEngine {
     ctx.save();
     if (this.isDebugMode && this.isDebugPlacementActive) {
       ctx.globalAlpha = 0.28;
+    }
+
+    // R02.16.PG.4: SMW Castle doorway entry depth-scale & archway fade as Mario steps inside
+    if (
+      this.smwCastleEntryActive &&
+      this.marioState === 'castle_walk' &&
+      !this.castleToodleActive &&
+      !this.castlePrincessActive &&
+      this.smwCastleEntryTimer > 14
+    ) {
+      const progress = Math.min(1, (this.smwCastleEntryTimer - 14) / 30);
+      const scale = 1 - progress * 0.28;
+      const footY = my + this.getMarioHeight();
+      const centerX = mx + 8;
+      ctx.globalAlpha = Math.max(0.15, 1 - progress * 0.8);
+      ctx.translate(centerX, footY);
+      ctx.scale(scale, scale);
+      ctx.translate(-centerX, -footY);
     }
 
     // Authentic NES Pipe Entering / Exiting Clipping:

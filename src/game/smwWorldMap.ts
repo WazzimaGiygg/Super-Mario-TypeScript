@@ -628,57 +628,196 @@ export interface SmwBetaProgress {
   goalPointsWallet?: number;
 }
 
-const SMW_PROGRESS_STORAGE_KEY = 'smb_smw_beta_v09_progress';
+const SMW_LEGACY_AUTOSAVE_KEY = 'smb_smw_beta_v09_progress';
+export const SMW_SAVE_SLOTS_COUNT = 3;
+export const SMW_SAVE_SLOTS_STORAGE_KEY = 'smb_smw_save_slots_v1';
 
-const DEFAULT_SMW_PROGRESS: SmwBetaProgress = {
-  clearedNodeIds: [],
-  selectedNodeId: 'wiki-1-overworld',
-  selectedIslandId: 'wikiworld',
-  storySeen: false,
-  yellowSwitchUnlocked: false,
-  goalPointsWallet: 0,
-};
+export interface SmwSaveSlotData {
+  slotIndex: number;
+  savedAt: number;
+  stageName: string;
+  clearedNodeIds: string[];
+  selectedNodeId: string;
+  selectedIslandId: SmwIslandId;
+  yellowSwitchUnlocked: boolean;
+  goalPointsWallet: number;
+  lives: number;
+  score: number;
+}
 
+export function createFreshSmwProgress(): SmwBetaProgress {
+  return {
+    clearedNodeIds: [],
+    selectedNodeId: 'wiki-1-overworld',
+    selectedIslandId: 'wikiworld',
+    storySeen: false,
+    yellowSwitchUnlocked: false,
+    goalPointsWallet: 0,
+  };
+}
+
+/**
+ * R1.16.X6.4: Salvamento automático desativado no Super Mario World.
+ * O progresso inicial sempre começa limpo até o jogador carregar um Slot salvo.
+ */
 export function loadSmwBetaProgress(): SmwBetaProgress {
   try {
-    const raw = localStorage.getItem(SMW_PROGRESS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SMW_PROGRESS };
-    const parsed = JSON.parse(raw) as Partial<SmwBetaProgress>;
-    const validIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
-    const clearedNodeIds = Array.isArray(parsed.clearedNodeIds)
-      ? parsed.clearedNodeIds.filter((id): id is string => typeof id === 'string' && validIds.has(id))
-      : [];
-    const selectedNodeId =
-      typeof parsed.selectedNodeId === 'string' && validIds.has(parsed.selectedNodeId)
-        ? parsed.selectedNodeId
-        : 'wiki-1-overworld';
-    const selectedIslandId: SmwIslandId =
-      parsed.selectedIslandId === 'island2' ? 'island2' : 'wikiworld';
-    const rawWallet =
-      typeof parsed.goalPointsWallet === 'number' && Number.isFinite(parsed.goalPointsWallet)
-        ? Math.max(0, Math.min(99, Math.floor(parsed.goalPointsWallet)))
-        : 0;
-    return {
-      clearedNodeIds,
-      selectedNodeId,
-      selectedIslandId,
-      storySeen: Boolean(parsed.storySeen),
-      yellowSwitchUnlocked: Boolean(
-        parsed.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
-      ),
-      goalPointsWallet: rawWallet,
-    };
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(SMW_LEGACY_AUTOSAVE_KEY);
+    }
   } catch {
-    return { ...DEFAULT_SMW_PROGRESS };
+    // Ignore storage access errors in headless/sandbox environments
+  }
+  return createFreshSmwProgress();
+}
+
+/**
+ * R1.16.X6.4: Salvamento automático proibido; mantido apenas como no-op seguro.
+ * Use saveSmwToSlot(...) explicitamente ao concluir um castelo.
+ */
+export function saveSmwBetaProgress(_progress: SmwBetaProgress): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(SMW_LEGACY_AUTOSAVE_KEY);
+    }
+  } catch {
+    // Ignore storage access errors
   }
 }
 
-export function saveSmwBetaProgress(progress: SmwBetaProgress): void {
+function sanitizeSaveSlot(raw: unknown, expectedIndex: number): SmwSaveSlotData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Partial<SmwSaveSlotData>;
+  const validIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
+  const clearedNodeIds = Array.isArray(obj.clearedNodeIds)
+    ? obj.clearedNodeIds.filter((id): id is string => typeof id === 'string' && validIds.has(id))
+    : [];
+  const selectedNodeId =
+    typeof obj.selectedNodeId === 'string' && validIds.has(obj.selectedNodeId)
+      ? obj.selectedNodeId
+      : 'wiki-1-overworld';
+  const selectedIslandId: SmwIslandId =
+    obj.selectedIslandId === 'island2' ? 'island2' : 'wikiworld';
+  const wallet =
+    typeof obj.goalPointsWallet === 'number' && Number.isFinite(obj.goalPointsWallet)
+      ? Math.max(0, Math.min(99, Math.floor(obj.goalPointsWallet)))
+      : 0;
+  const lives =
+    typeof obj.lives === 'number' && Number.isFinite(obj.lives)
+      ? Math.max(1, Math.min(99, Math.floor(obj.lives)))
+      : 3;
+  const score =
+    typeof obj.score === 'number' && Number.isFinite(obj.score)
+      ? Math.max(0, Math.floor(obj.score))
+      : 0;
+
+  return {
+    slotIndex: expectedIndex,
+    savedAt: typeof obj.savedAt === 'number' && Number.isFinite(obj.savedAt) ? obj.savedAt : Date.now(),
+    stageName:
+      typeof obj.stageName === 'string' && obj.stageName.trim().length > 0
+        ? obj.stageName.trim()
+        : 'Castelo Concluído',
+    clearedNodeIds,
+    selectedNodeId,
+    selectedIslandId,
+    yellowSwitchUnlocked: Boolean(
+      obj.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
+    ),
+    goalPointsWallet: wallet,
+    lives,
+    score,
+  };
+}
+
+export function loadSmwSaveSlots(storage?: Pick<Storage, 'getItem'>): (SmwSaveSlotData | null)[] {
+  const empty: (SmwSaveSlotData | null)[] = Array.from({ length: SMW_SAVE_SLOTS_COUNT }, () => null);
   try {
-    localStorage.setItem(SMW_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+    const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined);
+    if (!store) return empty;
+    const raw = store.getItem(SMW_SAVE_SLOTS_STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return empty;
+    return empty.map((_, idx) => sanitizeSaveSlot(parsed[idx], idx));
   } catch {
-    // Ignore storage quota errors
+    return empty;
   }
+}
+
+export function saveSmwToSlot(
+  slotIndex: number,
+  progress: SmwBetaProgress,
+  meta: { stageName?: string; lives?: number; score?: number } = {},
+  storage?: Pick<Storage, 'getItem' | 'setItem'>
+): (SmwSaveSlotData | null)[] {
+  const idx = Math.floor(slotIndex);
+  const current = loadSmwSaveSlots(storage);
+  if (idx < 0 || idx >= SMW_SAVE_SLOTS_COUNT) return current;
+
+  const validIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
+  const clearedNodeIds = progress.clearedNodeIds.filter(id => validIds.has(id));
+  const selectedNodeId = validIds.has(progress.selectedNodeId)
+    ? progress.selectedNodeId
+    : 'wiki-1-overworld';
+
+  const nextSlot: SmwSaveSlotData = {
+    slotIndex: idx,
+    savedAt: Date.now(),
+    stageName: meta.stageName?.trim() || 'Castelo de Johannnnes89',
+    clearedNodeIds,
+    selectedNodeId,
+    selectedIslandId: progress.selectedIslandId === 'island2' ? 'island2' : 'wikiworld',
+    yellowSwitchUnlocked: Boolean(
+      progress.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
+    ),
+    goalPointsWallet: Math.max(0, Math.min(99, Math.floor(progress.goalPointsWallet ?? 0))),
+    lives: Math.max(1, Math.min(99, Math.floor(meta.lives ?? 3))),
+    score: Math.max(0, Math.floor(meta.score ?? 0)),
+  };
+
+  current[idx] = nextSlot;
+  try {
+    const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined);
+    if (store) {
+      store.setItem(SMW_SAVE_SLOTS_STORAGE_KEY, JSON.stringify(current));
+    }
+  } catch {
+    // Ignore quota errors
+  }
+  return current;
+}
+
+export function deleteSmwSlot(
+  slotIndex: number,
+  storage?: Pick<Storage, 'getItem' | 'setItem'>
+): (SmwSaveSlotData | null)[] {
+  const idx = Math.floor(slotIndex);
+  const current = loadSmwSaveSlots(storage);
+  if (idx < 0 || idx >= SMW_SAVE_SLOTS_COUNT) return current;
+  current[idx] = null;
+  try {
+    const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined);
+    if (store) {
+      store.setItem(SMW_SAVE_SLOTS_STORAGE_KEY, JSON.stringify(current));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return current;
+}
+
+export function applySmwSlotToProgress(slot: SmwSaveSlotData): SmwBetaProgress {
+  return {
+    clearedNodeIds: [...slot.clearedNodeIds],
+    selectedNodeId: slot.selectedNodeId,
+    selectedIslandId: slot.selectedIslandId,
+    storySeen: true,
+    yellowSwitchUnlocked: Boolean(
+      slot.yellowSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-yellow')
+    ),
+    goalPointsWallet: Math.max(0, Math.min(99, Math.floor(slot.goalPointsWallet ?? 0))),
+  };
 }
 
 export function isSmwNodeUnlocked(
@@ -693,4 +832,26 @@ export function isSmwNodeUnlocked(
   if (node.order === 0 || !node.unlocksAfterNodeId) return true;
   return progress.clearedNodeIds.includes(node.unlocksAfterNodeId);
 }
+
+/**
+ * R1.16.O0.4: Impede que o jogador jogue novamente o Palácio Interruptor Amarelo
+ * após ele já ter sido concluído.
+ */
+export function isSmwNodeCompletedAndLocked(
+  nodeId: string,
+  progress: SmwBetaProgress
+): boolean {
+  if (nodeId !== 'wiki-switch-yellow') return false;
+  return Boolean(
+    progress.yellowSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-yellow')
+  );
+}
+
+export function canEnterSmwNode(
+  nodeId: string,
+  progress: SmwBetaProgress
+): boolean {
+  return isSmwNodeUnlocked(nodeId, progress) && !isSmwNodeCompletedAndLocked(nodeId, progress);
+}
+
 
