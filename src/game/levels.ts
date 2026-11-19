@@ -85,15 +85,12 @@ export function createWorld1_1(): LevelData {
   // Tile 16: ? (Coin)
   grid[9][16] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
 
-  // Tile 20-24: [Brick] [? (Mushroom)] [Brick] [? (Coin)] [Brick]
+  // Tile 20-24: [Brick] [Brick] [Brick] [? (Coin)] [Brick]
   grid[9][20] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][21] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[9][21] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][22] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][23] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
   grid[9][24] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-
-  // Higher ? block at tile 22 (Femboy Power-Up: 2x Jump!)
-  grid[5][22] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
 
   // Goomba 1
   enemies.push({ type: 'goomba', x: 22 * 16, y: 12 * 16 });
@@ -101,9 +98,6 @@ export function createWorld1_1(): LevelData {
   // 3. Pipes
   // Tile 28: 2-tile high pipe
   placePipe(grid, 28, 12, 2);
-
-  // Cape Feather ? block at tile 33 (between early pipes)
-  grid[9][33] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
 
   // Tile 38: 3-tile high pipe
   placePipe(grid, 38, 12, 3);
@@ -120,13 +114,10 @@ export function createWorld1_1(): LevelData {
   // Tile 57: Warp Pipe to secret underground coin vault!
   placePipe(grid, 57, 12, 4, true);
 
-  // Hidden 1-UP Block (at tile 64, y=8 - authentic NES secret)
-  grid[8][64] = { type: 'brick', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-
   // 4. Area after first pit (Pit at 69-70)
-  // Tile 77: [Brick] [? (mushroom/flower)] [Brick]
+  // Tile 77-79: Brick row
   grid[9][77] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][78] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[9][78] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][79] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
   // High brick platform (Tile 80-87, y=5) guarded by a Hammer Brother
@@ -143,24 +134,23 @@ export function createWorld1_1(): LevelData {
   grid[5][89] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, invisible: true };
 
   // Area after second pit (Pit at 86-88)
-  // Tile 91-94: Brick row with 10-coin multi-hit block!
+  // Tile 91-94: Brick row with multi-hit coin block!
   grid[9][91] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][92] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][93] = { type: 'brick', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 5 };
   grid[9][94] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
-  // Starman question block at tile 101, y=9
+  // Brick row at tile 100-102
   grid[9][100] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][101] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
+  grid[9][101] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][102] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
   // Bouncing Paratroopa & Koopa Troopa patrolling
   enemies.push({ type: 'paratroopa', x: 105 * 16, y: 10 * 16 });
   enemies.push({ type: 'koopa', x: 107 * 16, y: 11 * 16 });
 
-  // Question blocks at tile 109 & 112
+  // Question coin blocks at tile 109 & 112 (y=5)
   grid[9][109] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
-  grid[9][112] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
   grid[5][112] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
 
   // Goombas at tile 115
@@ -306,9 +296,6 @@ export function createSecretVault(): LevelData {
     coins.push({ x: cx * 16 + 8, y: 11 * 16 });
   }
 
-  // Hidden 1-UP Block in Secret Vault (Tile 3, y=8)
-  grid[8][3] = { type: 'brick', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-
   // Exit pipe at right
   placePipe(grid, 20, 12, 4, true);
 
@@ -370,9 +357,6 @@ export function createWorld1_2(): LevelData {
   // Initial drop pipe
   placePipe(grid, 2, 12, 10);
 
-  // Hidden 1-UP Block near the entrance (Tile 10, y=9)
-  grid[9][10] = { type: 'brick', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-
   // Enemies and platforms
   enemies.push({ type: 'goomba', x: 20 * 16, y: 12 * 16 });
   enemies.push({ type: 'goomba', x: 24 * 16, y: 12 * 16 });
@@ -381,16 +365,10 @@ export function createWorld1_2(): LevelData {
   // Hidden Coin Block in upper platform gap (Tile 44, y=5)
   grid[5][44] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, invisible: true };
 
-  // Brick platforms with coins
+  // Brick platforms
   for (let bx = 18; bx <= 28; bx++) {
     grid[8][bx] = { type: 'underground_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[8][23] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
-  grid[5][25] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
-  grid[5][27] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
-
-  // Hidden Starman Block at tile 85, y=9
-  grid[9][85] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0, invisible: true };
 
   // Underground Paratroopa & Hammer Brother guarding the exit passage
   enemies.push({ type: 'paratroopa', x: 96 * 16, y: 10 * 16 });
@@ -502,9 +480,9 @@ export function createWorld2_2(): LevelData {
   coins.push({ x: 19 * 16 + 8, y: 8 * 16 });
   coins.push({ x: 20 * 16 + 8, y: 8 * 16 });
 
-  // Starter question blocks
+  // Starter coral & coin question block
   grid[8][26] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[8][27] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[8][27] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[8][28] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[8][29] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
   grid[8][30] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
@@ -529,14 +507,10 @@ export function createWorld2_2(): LevelData {
   }
   enemies.push({ type: 'cheep_cheep', x: 56 * 16, y: 9 * 16 });
 
-  // Hidden 1-UP block above coral ridge
-  grid[6][66] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-
-  // Mid-sea floating coral platforms & power-up
+  // Mid-sea floating coral platforms
   for (let x = 72; x <= 78; x++) {
     grid[9][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[6][75] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'blooper', x: 74 * 16, y: 5 * 16 });
   enemies.push({ type: 'cheep_cheep', x: 80 * 16, y: 11 * 16 });
 
@@ -545,15 +519,12 @@ export function createWorld2_2(): LevelData {
   enemies.push({ type: 'blooper', x: 103 * 16, y: 8 * 16 });
   enemies.push({ type: 'cheep_cheep', x: 110 * 16, y: 10 * 16 });
 
-  // High coral reefs + coins + Starman block
+  // High coral reefs + coins
   for (let x = 98; x <= 102; x++) {
     grid[10][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
     grid[11][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
     grid[12][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[7][112] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
-  grid[7][113] = { type: 'question', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
-  grid[7][114] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
 
   for (let x = 118; x <= 126; x++) {
     grid[5][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
@@ -566,7 +537,6 @@ export function createWorld2_2(): LevelData {
   for (let x = 144; x <= 150; x++) {
     grid[9][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[9][147] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'cheep_cheep', x: 146 * 16, y: 5 * 16 });
   enemies.push({ type: 'blooper', x: 155 * 16, y: 7 * 16 });
   enemies.push({ type: 'cheep_cheep', x: 160 * 16, y: 10 * 16 });
@@ -697,7 +667,7 @@ export function createWorld1_4(): LevelData {
   // Corridor 1 (19..34)
   fillCastleFloor(19, 16);
   grid[9][23] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][24] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[9][24] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][25] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'goomba', x: 26 * 16, y: 12 * 16 });
   enemies.push({ type: 'koopa', x: 30 * 16, y: 11 * 16 + 8 });
@@ -714,18 +684,16 @@ export function createWorld1_4(): LevelData {
   enemies.push({ type: 'lava_bubble', x: 44 * 16 + 8, y: 13 * 16 });
   coins.push({ x: 37 * 16 + 8, y: 9 * 16 }, { x: 42 * 16 + 8, y: 8 * 16 });
 
-  // Mid-castle hall with Femboy & Fire Flower power-ups (47..72)
+  // Mid-castle hall (47..72)
   fillCastleFloor(47, 26);
   for (let x = 51; x <= 57; x++) {
     grid[9][x] = {
-      type: x === 54 ? 'question' : 'castle_stone',
-      content: x === 54 ? 'femboy' : 'none',
+      type: 'castle_stone',
+      content: 'none',
       bumpOffset: 0,
       bumpVel: 0,
     };
   }
-  grid[5][61] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
-  grid[5][63] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
   coins.push(
     { x: 52 * 16 + 8, y: 7 * 16 },
     { x: 54 * 16 + 8, y: 7 * 16 },
@@ -747,7 +715,6 @@ export function createWorld1_4(): LevelData {
   for (let px = 80; px <= 83; px++) {
     grid[9][px] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[5][81] = { type: 'question', content: 'leaf', bumpOffset: 0, bumpVel: 0 };
   for (let px = 86; px <= 88; px++) {
     grid[11][px] = { type: 'castle_stone', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
@@ -763,8 +730,6 @@ export function createWorld1_4(): LevelData {
   for (let y = 10; y <= 12; y++) {
     grid[y][108] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[5][104] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-  grid[8][118] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'goomba', x: 95 * 16, y: 12 * 16 });
   enemies.push({ type: 'paratroopa', x: 99 * 16, y: 10 * 16 });
   enemies.push({ type: 'koopa', x: 102 * 16, y: 11 * 16 + 8 });
@@ -866,7 +831,7 @@ export function createWorldGhostHouse(): LevelData {
   // 1. Entrance Foyer (0..20)
   fillGhostFloor(0, 21);
   grid[9][10] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][11] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+  grid[9][11] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][12] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[9][13] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
   coins.push(
@@ -890,8 +855,6 @@ export function createWorldGhostHouse(): LevelData {
   );
 
   fillGhostFloor(35, 11);
-  grid[9][39] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
-  grid[5][41] = { type: 'question', content: 'feather', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'dry_bones', x: 40 * 16, y: 13 * 16 - 24 });
   enemies.push({ type: 'boo', x: 44 * 16, y: 7 * 16 });
 
@@ -906,8 +869,8 @@ export function createWorldGhostHouse(): LevelData {
   // Upper attic walkway
   for (let px = 52; px <= 64; px++) {
     grid[8][px] = {
-      type: px === 58 ? 'question' : 'ghost_brick',
-      content: px === 58 ? 'femboy' : 'none',
+      type: 'ghost_brick',
+      content: 'none',
       bumpOffset: 0,
       bumpVel: 0,
     };
@@ -922,12 +885,10 @@ export function createWorldGhostHouse(): LevelData {
   enemies.push({ type: 'dry_bones', x: 57 * 16, y: 13 * 16 - 24 });
   enemies.push({ type: 'dry_bones', x: 63 * 16, y: 13 * 16 - 24 });
 
-  // Raised brick steps & fire flower secret
+  // Raised brick steps
   for (let px = 71; px <= 76; px++) {
     grid[9][px] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[5][73] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
-  grid[5][74] = { type: 'question', content: 'leaf', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'boo', x: 75 * 16, y: 7 * 16 });
   enemies.push({ type: 'dry_bones', x: 78 * 16, y: 13 * 16 - 24 });
 
@@ -935,7 +896,6 @@ export function createWorldGhostHouse(): LevelData {
   fillGhostFloor(86, 11);
   grid[12][89] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
   grid[12][90] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
-  grid[9][92] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
 
   // 5. Abyss of Floating Platforms & Boos (97..137)
   coins.push(
@@ -950,7 +910,6 @@ export function createWorldGhostHouse(): LevelData {
   for (let px = 112; px <= 116; px++) {
     grid[8][px] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[4][114] = { type: 'question', content: 'star', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'dry_bones', x: 113 * 16, y: 13 * 16 - 24 });
   enemies.push({ type: 'boo', x: 117 * 16, y: 7 * 16 });
 
@@ -971,7 +930,6 @@ export function createWorldGhostHouse(): LevelData {
     grid[y][143] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
     grid[y][144] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
   }
-  grid[7][148] = { type: 'question', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
   enemies.push({ type: 'dry_bones', x: 147 * 16, y: 13 * 16 - 24 });
   enemies.push({ type: 'boo', x: 152 * 16, y: 6 * 16 });
   enemies.push({ type: 'dry_bones', x: 156 * 16, y: 13 * 16 - 24 });
@@ -1142,17 +1100,8 @@ export function createEndlessLevel(
     }
   };
 
-  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'coin' => {
-    const r = rand();
-    // Power-ups become slightly scarcer on higher cycles
-    const powerChance = 0.56 - diffRatio * 0.25;
-    if (r > powerChance) return 'coin';
-    const typeRoll = rand();
-    if (typeRoll < 0.28) return 'mushroom';
-    if (typeRoll < 0.50) return 'fireflower';
-    if (typeRoll < 0.68) return 'leaf';
-    if (typeRoll < 0.85) return 'feather';
-    return 'femboy';
+  const pickPowerUp = (): 'coin' => {
+    return 'coin';
   };
 
   const spawnProfile = EnemySpawnManager.getProfile(stage, theme);
@@ -1208,8 +1157,7 @@ export function createEndlessLevel(
       }
 
       if (rand() > 0.72) {
-        const hContent = rand() > 0.72 ? '1up' : rand() > 0.45 ? 'star' : 'coin';
-        grid[5][x + 2] = { type: 'question', content: hContent, bumpOffset: 0, bumpVel: 0, invisible: true };
+        grid[5][x + 2] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, invisible: true };
       }
 
       const slots = len >= 9 ? [x + 2, x + len - 3, mid] : [x + 2, x + len - 2];
@@ -1764,16 +1712,8 @@ export function createSingleplayerLevel(
     }
   };
 
-  const pickPowerUp = (): 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'coin' => {
-    const r = rand();
-    const powerChance = 0.54 - diffRatio * 0.16;
-    if (r > powerChance) return 'coin';
-    const typeRoll = rand();
-    if (typeRoll < 0.28) return 'mushroom';
-    if (typeRoll < 0.50) return 'fireflower';
-    if (typeRoll < 0.68) return 'leaf';
-    if (typeRoll < 0.84) return 'feather';
-    return 'femboy';
+  const pickPowerUp = (): 'coin' => {
+    return 'coin';
   };
 
   const spawnProfile = EnemySpawnManager.getProfile(Math.max(1, Math.ceil(overallIndex / 2)), theme);
@@ -1857,7 +1797,7 @@ export function createSingleplayerLevel(
       if (rand() > 0.76) {
         grid[5][x + 2] = {
           type: 'question',
-          content: rand() > 0.65 ? '1up' : 'coin',
+          content: 'coin',
           bumpOffset: 0,
           bumpVel: 0,
           invisible: true,
@@ -2517,8 +2457,20 @@ const VALID_TILE_TYPES = new Set<TileType>([
   'ghost_floor',
   'ghost_brick',
   'exclam_yellow',
+  'exclam_green',
+  'exclam_red',
+  'exclam_pink',
+  'exclam_blue',
   'yellow_switch',
   'yellow_switch_pressed',
+  'green_switch',
+  'green_switch_pressed',
+  'red_switch',
+  'red_switch_pressed',
+  'pink_switch',
+  'pink_switch_pressed',
+  'blue_switch',
+  'blue_switch_pressed',
 ]);
 
 const VALID_ITEM_CONTENTS = new Set<ItemContent>([
@@ -2532,6 +2484,47 @@ const VALID_ITEM_CONTENTS = new Set<ItemContent>([
   '1up',
   'none',
 ]);
+
+export function isPowerUpBoxContent(content: ItemContent | undefined): boolean {
+  return (
+    content === 'mushroom' ||
+    content === 'fireflower' ||
+    content === 'leaf' ||
+    content === 'feather' ||
+    content === 'femboy' ||
+    content === 'star' ||
+    content === '1up'
+  );
+}
+
+export function isSmwExclamTileType(type: TileType | undefined): boolean {
+  return (
+    type === 'exclam_yellow' ||
+    type === 'exclam_green' ||
+    type === 'exclam_red' ||
+    type === 'exclam_pink' ||
+    type === 'exclam_blue'
+  );
+}
+
+/**
+ * Remove todas as caixas de power-up (blocos com conteúdo de power-up),
+ * preservando exclusivamente as caixas "[!]" do Modo Super Mario World (exclam_*).
+ */
+export function stripNonSmwPowerUpBoxes(level: LevelData): LevelData {
+  for (let y = 0; y < level.tiles.length; y++) {
+    const row = level.tiles[y];
+    if (!row) continue;
+    for (let x = 0; x < row.length; x++) {
+      const tile = row[x];
+      if (!tile) continue;
+      if (!isSmwExclamTileType(tile.type) && isPowerUpBoxContent(tile.content)) {
+        tile.content = tile.type === 'question' ? 'coin' : 'none';
+      }
+    }
+  }
+  return level;
+}
 
 const VALID_ENEMY_TYPES = new Set<EnemyType>([
   'goomba',
@@ -2744,24 +2737,26 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     }
   }
 
-  return sanitizeCustomLevelEntities({
-    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    name,
-    theme,
-    biomeLabel: 'FASE IMPORTADA',
-    width,
-    height,
-    tiles,
-    enemies,
-    coins,
-    floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
-    marioStart: { x: marioStartX, y: marioStartY },
-    flagX,
-    castleX,
-    bgColor: rawBg,
-    timeLimit: rawTime,
-    isCustom: true,
-  }).level;
+  return stripNonSmwPowerUpBoxes(
+    sanitizeCustomLevelEntities({
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      theme,
+      biomeLabel: 'FASE DO JOGADOR',
+      width,
+      height,
+      tiles,
+      enemies,
+      coins,
+      floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
+      marioStart: { x: marioStartX, y: marioStartY },
+      flagX,
+      castleX,
+      bgColor: rawBg,
+      timeLimit: rawTime,
+      isCustom: true,
+    }).level
+  );
 }
 
 

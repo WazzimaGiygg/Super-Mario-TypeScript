@@ -27,6 +27,12 @@ import {
   AlertTriangle,
   Upload,
   FileDown,
+  Undo2,
+  Redo2,
+  ListOrdered,
+  ArrowUp,
+  ArrowDown,
+  Crown,
 } from 'lucide-react';
 import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
@@ -51,6 +57,9 @@ import {
 } from '../game/levels.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 
+export const EDITOR_MAX_HISTORY = 35;
+const EDITOR_MAX_CANVAS_BACKING_WIDTH = 2048;
+
 interface LevelEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,6 +67,9 @@ interface LevelEditorModalProps {
   activeCustomLevelId: string | null;
   onUpdateCustomLevels: (levels: LevelData[], activeId: string | null) => void;
   onPlayLevel: (level: LevelData, options?: { immortality?: boolean }) => void;
+  customCampaignIds?: string[];
+  onUpdateCustomCampaignIds?: (ids: string[]) => void;
+  onPlayCampaign?: (levels: LevelData[], options?: { immortality?: boolean }) => void;
   onBackToMainMenu?: () => void;
   editorImmortality?: boolean;
   onToggleEditorImmortality?: (enabled: boolean) => void;
@@ -126,13 +138,6 @@ const THEME_BG_COLORS: Record<LevelData['theme'], string> = {
 
 const ITEM_CONTENT_OPTIONS: { value: ItemContent; label: string }[] = [
   { value: 'coin', label: 'Moeda' },
-  { value: 'mushroom', label: 'Cogumelo' },
-  { value: 'fireflower', label: 'Flor de Fogo' },
-  { value: 'leaf', label: 'Super Folha' },
-  { value: 'feather', label: 'Pena (Cape)' },
-  { value: 'femboy', label: 'Laço Femboy' },
-  { value: 'star', label: 'Estrela' },
-  { value: '1up', label: 'Cogumelo 1-UP' },
 ];
 
 const hasValidStageGoal = (level: LevelData): boolean => {
@@ -158,20 +163,34 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   activeCustomLevelId,
   onUpdateCustomLevels,
   onPlayLevel,
+  customCampaignIds,
+  onUpdateCustomCampaignIds,
+  onPlayCampaign,
   onBackToMainMenu,
   editorImmortality = false,
   onToggleEditorImmortality,
 }) => {
   const atlas = useMemo(() => SpriteAtlas.get(), []);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPaintedCellRef = useRef<string | null>(null);
   const dragEraseModeRef = useRef(false);
+  const strokeSnapshotRef = useRef<LevelData | null>(null);
+  const strokeCommittedRef = useRef(false);
+  const nameUndoArmedRef = useRef(true);
+
+  const undoStacksRef = useRef<Map<string, LevelData[]>>(new Map());
+  const redoStacksRef = useRef<Map<string, LevelData[]>>(new Map());
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const [internalCampaignIds, setInternalCampaignIds] = useState<string[]>([]);
+  const [showCampaignPanel, setShowCampaignPanel] = useState(false);
+  const [pendingCampaignStart, setPendingCampaignStart] = useState(false);
 
   const [selectedBrushId, setSelectedBrushId] = useState<string>('tile_brick');
-  const [questionContent, setQuestionContent] = useState<ItemContent>('mushroom');
+  const [questionContent, setQuestionContent] = useState<ItemContent>('coin');
   const [invisibleBlock, setInvisibleBlock] = useState(false);
   const [activeTab, setActiveTab] = useState<PaletteTab>('blocks');
   const [cellSize, setCellSize] = useState<16 | 24 | 32>(24);
@@ -181,6 +200,25 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const [statusError, setStatusError] = useState<string>('');
   const [localImmortality, setLocalImmortality] = useState(editorImmortality);
   const [showMissingGoalAlert, setShowMissingGoalAlert] = useState(false);
+
+  const effectiveCampaignIds = customCampaignIds ?? internalCampaignIds;
+  const setEffectiveCampaignIds = useCallback(
+    (nextIds: string[]) => {
+      if (onUpdateCustomCampaignIds) {
+        onUpdateCustomCampaignIds(nextIds);
+      } else {
+        setInternalCampaignIds(nextIds);
+      }
+    },
+    [onUpdateCustomCampaignIds]
+  );
+
+  const campaignLevels = useMemo(() => {
+    const byId = new Map(customLevels.map(l => [l.id, l]));
+    return effectiveCampaignIds
+      .map(id => byId.get(id))
+      .filter((lvl): lvl is LevelData => Boolean(lvl));
+  }, [customLevels, effectiveCampaignIds]);
 
   useEffect(() => {
     setLocalImmortality(editorImmortality);
@@ -201,6 +239,17 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     return customLevels.find(l => l.id === activeCustomLevelId) || customLevels[0] || null;
   }, [customLevels, activeCustomLevelId]);
 
+  const currentLevelId = currentLevel?.id ?? '';
+  const canUndo = useMemo(() => {
+    void historyRevision;
+    return currentLevelId ? (undoStacksRef.current.get(currentLevelId)?.length ?? 0) > 0 : false;
+  }, [currentLevelId, historyRevision]);
+
+  const canRedo = useMemo(() => {
+    void historyRevision;
+    return currentLevelId ? (redoStacksRef.current.get(currentLevelId)?.length ?? 0) > 0 : false;
+  }, [currentLevelId, historyRevision]);
+
   const notify = useCallback((msg: string) => {
     setStatusError('');
     setStatusNotice(msg);
@@ -217,15 +266,102 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     }, 4000);
   }, []);
 
+  const pushUndoSnapshot = useCallback((snapshot: LevelData) => {
+    const stack = undoStacksRef.current.get(snapshot.id) || [];
+    stack.push(cloneLevelData(snapshot));
+    if (stack.length > EDITOR_MAX_HISTORY) {
+      stack.splice(0, stack.length - EDITOR_MAX_HISTORY);
+    }
+    undoStacksRef.current.set(snapshot.id, stack);
+    redoStacksRef.current.set(snapshot.id, []);
+    setHistoryRevision(r => r + 1);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (!currentLevel) return;
+    const stack = undoStacksRef.current.get(currentLevel.id);
+    if (!stack || stack.length === 0) return;
+    const previous = stack.pop()!;
+    const redoStack = redoStacksRef.current.get(currentLevel.id) || [];
+    redoStack.push(cloneLevelData(currentLevel));
+    if (redoStack.length > EDITOR_MAX_HISTORY) {
+      redoStack.splice(0, redoStack.length - EDITOR_MAX_HISTORY);
+    }
+    redoStacksRef.current.set(currentLevel.id, redoStack);
+    setHistoryRevision(r => r + 1);
+    const nextList = customLevels.map(l => (l.id === currentLevel.id ? previous : l));
+    onUpdateCustomLevels(nextList, currentLevel.id);
+    notify('Desfeito (Ctrl+Z)');
+  }, [currentLevel, customLevels, onUpdateCustomLevels, notify]);
+
+  const handleRedo = useCallback(() => {
+    if (!currentLevel) return;
+    const redoStack = redoStacksRef.current.get(currentLevel.id);
+    if (!redoStack || redoStack.length === 0) return;
+    const restored = redoStack.pop()!;
+    const undoStack = undoStacksRef.current.get(currentLevel.id) || [];
+    undoStack.push(cloneLevelData(currentLevel));
+    if (undoStack.length > EDITOR_MAX_HISTORY) {
+      undoStack.splice(0, undoStack.length - EDITOR_MAX_HISTORY);
+    }
+    undoStacksRef.current.set(currentLevel.id, undoStack);
+    setHistoryRevision(r => r + 1);
+    const nextList = customLevels.map(l => (l.id === currentLevel.id ? restored : l));
+    onUpdateCustomLevels(nextList, currentLevel.id);
+    notify('Refeito (Ctrl+Y)');
+  }, [currentLevel, customLevels, onUpdateCustomLevels, notify]);
+
+  // Keyboard shortcuts: Ctrl+Z / Cmd+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z (Redo) — R1.16.FH.4
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const inputType = target?.tagName === 'INPUT' ? (target as HTMLInputElement).type.toLowerCase() : '';
+      const isTextEntry = Boolean(
+        target &&
+          ((target.tagName === 'INPUT' &&
+            !['button', 'submit', 'reset', 'checkbox', 'radio', 'range'].includes(inputType)) ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable)
+      );
+      if (isTextEntry) return;
+
+      const lower = e.key.toLowerCase();
+      if (lower === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleUndo();
+      } else if (lower === 'y' || (lower === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [isOpen, handleUndo, handleRedo]);
+
   const updateCurrentLevel = useCallback(
-    (updater: (draft: LevelData) => LevelData) => {
+    (updater: (draft: LevelData) => LevelData, options?: { recordUndo?: boolean }) => {
       if (!currentLevel) return;
+      if (options?.recordUndo) {
+        if (isDrawingRef.current) {
+          if (!strokeCommittedRef.current && strokeSnapshotRef.current) {
+            pushUndoSnapshot(strokeSnapshotRef.current);
+            strokeCommittedRef.current = true;
+          }
+        } else {
+          pushUndoSnapshot(currentLevel);
+        }
+      }
       const cloned = cloneLevelData(currentLevel);
       const updated = updater(cloned);
       const nextList = customLevels.map(l => (l.id === currentLevel.id ? updated : l));
       onUpdateCustomLevels(nextList, currentLevel.id);
     },
-    [currentLevel, customLevels, onUpdateCustomLevels]
+    [currentLevel, customLevels, onUpdateCustomLevels, pushUndoSnapshot]
   );
 
   const paletteOptions: PaletteOption[] = useMemo(
@@ -330,10 +466,10 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.tileBridge,
       },
 
-      // Question Blocks, Coins & Power-Ups
+      // Question Blocks, SMW [!] Box, Coins & Pipes
       {
         id: 'tile_question',
-        label: `Bloco ? (${ITEM_CONTENT_OPTIONS.find(o => o.value === questionContent)?.label || 'Item'})`,
+        label: `Bloco ? (${ITEM_CONTENT_OPTIONS.find(o => o.value === questionContent)?.label || 'Moeda'})`,
         tab: 'items',
         brush: {
           kind: 'tile',
@@ -342,6 +478,61 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           invisible: invisibleBlock,
         },
         preview: () => atlas.tileQuestionFrames[0] || null,
+      },
+      {
+        id: 'tile_exclam_yellow',
+        label: 'Bloco [!] Amarelo',
+        tab: 'items',
+        brush: {
+          kind: 'tile',
+          tileType: 'exclam_yellow',
+          content: 'mushroom',
+        },
+        preview: () => atlas.tileExclamYellowActive || null,
+      },
+      {
+        id: 'tile_exclam_green',
+        label: 'Bloco [!] Verde (Pena)',
+        tab: 'items',
+        brush: {
+          kind: 'tile',
+          tileType: 'exclam_green',
+          content: 'feather',
+        },
+        preview: () => atlas.tileExclamGreenActive || null,
+      },
+      {
+        id: 'tile_exclam_red',
+        label: 'Bloco [!] Vermelho (Fogo)',
+        tab: 'items',
+        brush: {
+          kind: 'tile',
+          tileType: 'exclam_red',
+          content: 'fireflower',
+        },
+        preview: () => atlas.tileExclamRedActive || null,
+      },
+      {
+        id: 'tile_exclam_pink',
+        label: 'Bloco [!] Rosa (Femboy)',
+        tab: 'items',
+        brush: {
+          kind: 'tile',
+          tileType: 'exclam_pink',
+          content: 'femboy',
+        },
+        preview: () => atlas.tileExclamPinkActive || null,
+      },
+      {
+        id: 'tile_exclam_blue',
+        label: 'Bloco [!] Azul (Tanooki)',
+        tab: 'items',
+        brush: {
+          kind: 'tile',
+          tileType: 'exclam_blue',
+          content: 'leaf',
+        },
+        preview: () => atlas.tileExclamBlueActive || null,
       },
       {
         id: 'tile_question_empty',
@@ -563,7 +754,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
       if (brush.kind === 'tile') {
         const existingTile = currentLevel.tiles[ty]?.[tx];
-        const desiredContent = brush.tileType === 'question' ? brush.content || 'coin' : 'none';
+        const desiredContent =
+          brush.tileType === 'question'
+            ? brush.content || 'coin'
+            : brush.tileType === 'exclam_yellow'
+            ? brush.content || 'mushroom'
+            : brush.tileType === 'exclam_green'
+            ? brush.content || 'feather'
+            : brush.tileType === 'exclam_red'
+            ? brush.content || 'fireflower'
+            : brush.tileType === 'exclam_pink'
+            ? brush.content || 'femboy'
+            : brush.tileType === 'exclam_blue'
+            ? brush.content || 'leaf'
+            : 'none';
         const desiredInvisible = brush.invisible ? true : undefined;
         if (
           existingTile &&
@@ -687,7 +891,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         if (brush.kind === 'tile') {
           draft.tiles[ty][tx] = {
             type: brush.tileType,
-            content: brush.tileType === 'question' ? brush.content || 'coin' : 'none',
+            content:
+              brush.tileType === 'question'
+                ? brush.content || 'coin'
+                : brush.tileType === 'exclam_yellow'
+                ? brush.content || 'mushroom'
+                : brush.tileType === 'exclam_green'
+                ? brush.content || 'feather'
+                : brush.tileType === 'exclam_red'
+                ? brush.content || 'fireflower'
+                : brush.tileType === 'exclam_pink'
+                ? brush.content || 'femboy'
+                : brush.tileType === 'exclam_blue'
+                ? brush.content || 'leaf'
+                : 'none',
             bumpOffset: 0,
             bumpVel: 0,
             invisible: brush.invisible ? true : undefined,
@@ -795,7 +1012,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         }
 
         return draft;
-      });
+      }, { recordUndo: true });
     },
     [currentLevel, activeOption, updateCurrentLevel, notifyError]
   );
@@ -806,6 +1023,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       isDrawingRef.current = false;
       lastPaintedCellRef.current = null;
       dragEraseModeRef.current = false;
+      strokeSnapshotRef.current = null;
+      strokeCommittedRef.current = false;
       setHoverCell(null);
       if (canvasRef.current) {
         canvasRef.current.width = 0;
@@ -814,8 +1033,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     }
   }, [isOpen]);
 
-  // Render the level editor canvas whenever modal opens or level/zoom/grid updates (hover is CSS overlay — R1.16.1IZ.4)
-  useEffect(() => {
+  // Draw only the visible horizontal viewport slice so backing-store width stays <= 2048px (prevents GPU black screen — R1.16.1IZ.4)
+  const drawEditorCanvas = useCallback(() => {
     if (!isOpen) return;
     const canvas = canvasRef.current;
     if (!canvas || !currentLevel) return;
@@ -824,22 +1043,37 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
     const totalW = currentLevel.width * cellSize;
     const totalH = currentLevel.height * cellSize;
-    if (canvas.width !== totalW || canvas.height !== totalH) {
-      canvas.width = totalW;
+    const scrollEl = scrollContainerRef.current;
+    const viewportW = scrollEl?.clientWidth && scrollEl.clientWidth > 0 ? scrollEl.clientWidth : Math.min(totalW, 1280);
+    const drawW = Math.max(1, Math.min(totalW, Math.min(EDITOR_MAX_CANVAS_BACKING_WIDTH, Math.max(viewportW + cellSize * 4, 1024))));
+    const rawScrollLeft = scrollEl?.scrollLeft ?? 0;
+    const offsetX = Math.max(0, Math.min(Math.floor(rawScrollLeft), Math.max(0, totalW - drawW)));
+
+    if (canvas.width !== drawW || canvas.height !== totalH) {
+      canvas.width = drawW;
       canvas.height = totalH;
     }
+    canvas.style.width = `${drawW}px`;
+    canvas.style.height = `${totalH}px`;
+    canvas.style.transform = `translateX(${offsetX}px)`;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
     // Background sky
-    ctx.fillStyle = currentLevel.bgColor || THEME_BG_COLORS[currentLevel.theme];
-    ctx.fillRect(0, 0, totalW, totalH);
+    ctx.fillStyle = currentLevel.bgColor || THEME_BG_COLORS[currentLevel.theme] || '#5c94fc';
+    ctx.fillRect(0, 0, drawW, totalH);
 
-    // Draw tiles
+    const startTx = Math.max(0, Math.floor(offsetX / cellSize) - 1);
+    const endTx = Math.min(currentLevel.width - 1, Math.ceil((offsetX + drawW) / cellSize) + 1);
+
+    // Draw visible tiles
     for (let ty = 0; ty < currentLevel.height; ty++) {
-      for (let tx = 0; tx < currentLevel.width; tx++) {
-        const block = currentLevel.tiles[ty]?.[tx];
+      const row = currentLevel.tiles[ty];
+      if (!row) continue;
+      for (let tx = startTx; tx <= endTx; tx++) {
+        const block = row[tx];
         if (!block) continue;
-        const dx = tx * cellSize;
+        const dx = tx * cellSize - offsetX;
         const dy = ty * cellSize;
 
         let sprite: HTMLCanvasElement | null = null;
@@ -877,11 +1111,47 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           case 'exclam_yellow':
             sprite = atlas.tileExclamYellowActive;
             break;
+          case 'exclam_green':
+            sprite = atlas.tileExclamGreenActive;
+            break;
+          case 'exclam_red':
+            sprite = atlas.tileExclamRedActive;
+            break;
+          case 'exclam_pink':
+            sprite = atlas.tileExclamPinkActive;
+            break;
+          case 'exclam_blue':
+            sprite = atlas.tileExclamBlueActive;
+            break;
           case 'yellow_switch':
             sprite = atlas.tileYellowSwitch;
             break;
           case 'yellow_switch_pressed':
             sprite = atlas.tileYellowSwitchPressed;
+            break;
+          case 'green_switch':
+            sprite = atlas.tileGreenSwitch;
+            break;
+          case 'green_switch_pressed':
+            sprite = atlas.tileGreenSwitchPressed;
+            break;
+          case 'red_switch':
+            sprite = atlas.tileRedSwitch;
+            break;
+          case 'red_switch_pressed':
+            sprite = atlas.tileRedSwitchPressed;
+            break;
+          case 'pink_switch':
+            sprite = atlas.tilePinkSwitch;
+            break;
+          case 'pink_switch_pressed':
+            sprite = atlas.tilePinkSwitchPressed;
+            break;
+          case 'blue_switch':
+            sprite = atlas.tileBlueSwitch;
+            break;
+          case 'blue_switch_pressed':
+            sprite = atlas.tileBlueSwitchPressed;
             break;
           case 'hard_block':
             sprite = atlas.tileHardBlock;
@@ -938,7 +1208,6 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           ctx.setLineDash([3, 2]);
           ctx.strokeRect(dx + 1, dy + 1, cellSize - 2, cellSize - 2);
         }
-        // Small item badge inside ? blocks so the player knows what item is inside
         if (block.type === 'question' && block.content !== 'none' && block.content !== 'coin') {
           const itemSprite =
             block.content === 'mushroom'
@@ -971,28 +1240,32 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
     // Draw SMW Points Goal Gate preview (dual pillar + moving crossbar tape)
     if (currentLevel.flagX > 0 && currentLevel.flagX < currentLevel.width * 16) {
-      const fx = (currentLevel.flagX / 16) * cellSize;
-      const frontX = fx + cellSize * 1.25;
-      for (let py = 3; py <= 11; py++) {
-        ctx.drawImage(atlas.flagPoleBody, frontX, py * cellSize, cellSize, cellSize);
+      const fx = (currentLevel.flagX / 16) * cellSize - offsetX;
+      if (fx >= -cellSize * 3 && fx <= drawW + cellSize * 2) {
+        const frontX = fx + cellSize * 1.25;
+        for (let py = 3; py <= 11; py++) {
+          ctx.drawImage(atlas.flagPoleBody, frontX, py * cellSize, cellSize, cellSize);
+        }
+        ctx.drawImage(atlas.flagPoleTop, frontX, 2 * cellSize, cellSize, cellSize);
+        ctx.drawImage(atlas.flagTriangle, fx + cellSize * 0.45, 4 * cellSize, cellSize, cellSize);
       }
-      ctx.drawImage(atlas.flagPoleTop, frontX, 2 * cellSize, cellSize, cellSize);
-      ctx.drawImage(atlas.flagTriangle, fx + cellSize * 0.45, 4 * cellSize, cellSize, cellSize);
     }
 
     // Draw standalone coins
     const scale = cellSize / 16;
     currentLevel.coins.forEach(c => {
-      const cx = (c.x - 8) * scale;
+      const cx = (c.x - 8) * scale - offsetX;
+      if (cx < -cellSize || cx > drawW + cellSize) return;
       const cy = c.y * scale;
       ctx.drawImage(atlas.itemCoinFrames[0], cx, cy, cellSize, cellSize);
     });
 
     // Draw floating platforms preview
     (currentLevel.floatingPlatforms || []).forEach(fp => {
-      const px = fp.x * scale;
-      const py = fp.y * scale;
+      const px = fp.x * scale - offsetX;
       const pw = fp.width * scale;
+      if (px + pw < -cellSize || px > drawW + cellSize) return;
+      const py = fp.y * scale;
       const ph = (fp.height ?? 10) * scale;
       ctx.save();
       ctx.fillStyle = '#483068';
@@ -1010,7 +1283,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
     // Draw enemies
     currentLevel.enemies.forEach(e => {
-      const ex = e.x * scale;
+      const drawX = (e.type === 'piranha' ? e.x - 4 : e.x) * scale - offsetX;
+      if (drawX < -cellSize * 2 || drawX > drawW + cellSize * 2) return;
       const ey = e.y * scale;
       let sprite: HTMLCanvasElement = atlas.goombaWalk1;
       let w = 16;
@@ -1065,41 +1339,77 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           break;
       }
 
-      const drawX = e.type === 'piranha' ? ex - 4 * scale : ex;
       ctx.drawImage(sprite, drawX, ey, w * scale, h * scale);
     });
 
     // Draw Mario Spawn point marker
-    const mx = currentLevel.marioStart.x * scale;
-    const my = currentLevel.marioStart.y * scale;
-    ctx.drawImage(atlas.marioSmallIdle, mx, my, cellSize, cellSize);
-    ctx.strokeStyle = '#34d399';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(mx, my, cellSize, cellSize);
+    const mx = currentLevel.marioStart.x * scale - offsetX;
+    if (mx >= -cellSize && mx <= drawW + cellSize) {
+      const my = currentLevel.marioStart.y * scale;
+      ctx.drawImage(atlas.marioSmallIdle, mx, my, cellSize, cellSize);
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(mx, my, cellSize, cellSize);
+    }
 
-    // Draw grid lines
+    // Draw grid lines (only visible columns)
     if (showGrid) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let tx = 0; tx <= currentLevel.width; tx++) {
-        const x = tx * cellSize + 0.5;
+      for (let tx = startTx; tx <= endTx + 1; tx++) {
+        const x = tx * cellSize - offsetX + 0.5;
         ctx.moveTo(x, 0);
         ctx.lineTo(x, totalH);
       }
       for (let ty = 0; ty <= currentLevel.height; ty++) {
         const y = ty * cellSize + 0.5;
         ctx.moveTo(0, y);
-        ctx.lineTo(totalW, y);
+        ctx.lineTo(drawW, y);
       }
       ctx.stroke();
     }
   }, [isOpen, currentLevel, cellSize, showGrid, atlas]);
 
+  // Render the level editor canvas whenever modal opens or level/zoom/grid updates (hover is CSS overlay — R1.16.1IZ.4)
+  useEffect(() => {
+    drawEditorCanvas();
+    if (!isOpen) return;
+    const rafId = requestAnimationFrame(() => drawEditorCanvas());
+    return () => cancelAnimationFrame(rafId);
+  }, [isOpen, currentLevel, cellSize, showGrid, atlas]);
+
+  // Redraw viewport slice smoothly on horizontal scroll or container resize
+  useEffect(() => {
+    if (!isOpen) return;
+    const scrollEl = scrollContainerRef.current;
+    if (!scrollEl) return;
+    let rafId: number | null = null;
+    const scheduleDraw = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        drawEditorCanvas();
+      });
+    };
+    scrollEl.addEventListener('scroll', scheduleDraw, { passive: true });
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(scheduleDraw);
+      resizeObserver.observe(scrollEl);
+    }
+    return () => {
+      scrollEl.removeEventListener('scroll', scheduleDraw);
+      resizeObserver?.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [isOpen, drawEditorCanvas]);
+
   const getCellFromPointer = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !currentLevel) return null;
-    const rect = canvas.getBoundingClientRect();
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper || !currentLevel) return null;
+    const rect = wrapper.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
     const tx = Math.floor((relX / rect.width) * currentLevel.width);
@@ -1111,9 +1421,11 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const cell = getCellFromPointer(e.clientX, e.clientY);
-    if (!cell) return;
+    if (!cell || !currentLevel) return;
     isDrawingRef.current = true;
     dragEraseModeRef.current = e.button === 2;
+    strokeSnapshotRef.current = cloneLevelData(currentLevel);
+    strokeCommittedRef.current = false;
     const cellKey = `${cell.tx},${cell.ty},${dragEraseModeRef.current}`;
     lastPaintedCellRef.current = cellKey;
     applyBrushAtCell(cell.tx, cell.ty, dragEraseModeRef.current);
@@ -1134,6 +1446,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     isDrawingRef.current = false;
     lastPaintedCellRef.current = null;
     dragEraseModeRef.current = false;
+    strokeSnapshotRef.current = null;
+    strokeCommittedRef.current = false;
   };
 
   const handleNewBlankLevel = () => {
@@ -1163,6 +1477,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const handleDeleteLevel = () => {
     if (!currentLevel) return;
+    undoStacksRef.current.delete(currentLevel.id);
+    redoStacksRef.current.delete(currentLevel.id);
+    setHistoryRevision(r => r + 1);
+    const nextCampaignIds = effectiveCampaignIds.filter(id => id !== currentLevel.id);
+    if (nextCampaignIds.length !== effectiveCampaignIds.length) {
+      setEffectiveCampaignIds(nextCampaignIds);
+    }
     const remaining = customLevels.filter(l => l.id !== currentLevel.id);
     if (remaining.length === 0) {
       const fresh = createBlankCustomLevel('MINHA FASE 1', 'overworld', 100);
@@ -1216,68 +1537,77 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   const handleThemeChange = (theme: LevelData['theme']) => {
-    updateCurrentLevel(draft => {
-      draft.theme = theme;
-      draft.bgColor = THEME_BG_COLORS[theme];
-      if (theme === 'castle') {
-        const hasAxe = draft.tiles.some(row => row.some(t => t?.type === 'axe'));
-        if (!hasAxe) {
-          const axeX = Math.max(8, draft.width - 12);
-          draft.tiles[12][axeX] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
-          draft.tiles[11][axeX] = { type: 'axe', content: 'none', bumpOffset: 0, bumpVel: 0 };
-          draft.flagX = 999999;
-          draft.castleX = Math.min(draft.width - 2, axeX + 6) * 16;
+    updateCurrentLevel(
+      draft => {
+        draft.theme = theme;
+        draft.bgColor = THEME_BG_COLORS[theme];
+        if (theme === 'castle') {
+          const hasAxe = draft.tiles.some(row => row.some(t => t?.type === 'axe'));
+          if (!hasAxe) {
+            const axeX = Math.max(8, draft.width - 12);
+            draft.tiles[12][axeX] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+            draft.tiles[11][axeX] = { type: 'axe', content: 'none', bumpOffset: 0, bumpVel: 0 };
+            draft.flagX = 999999;
+            draft.castleX = Math.min(draft.width - 2, axeX + 6) * 16;
+          }
         }
-      }
-      return draft;
-    });
+        return draft;
+      },
+      { recordUndo: true }
+    );
   };
 
   const handleWidthChange = (newWidth: number) => {
-    updateCurrentLevel(draft => {
-      const clamped = Math.max(40, Math.min(240, newWidth));
-      const oldW = draft.width;
-      const groundType: TileType =
-        draft.theme === 'underground'
-          ? 'underground_ground'
-          : draft.theme === 'underwater'
-          ? 'sea_ground'
-          : draft.theme === 'castle'
-          ? 'castle_stone'
-          : draft.theme === 'ghost_house'
-          ? 'ghost_floor'
-          : 'ground';
+    if (!currentLevel) return;
+    const clampedTarget = Math.max(40, Math.min(240, newWidth));
+    if (clampedTarget === currentLevel.width) return;
+    updateCurrentLevel(
+      draft => {
+        const clamped = clampedTarget;
+        const oldW = draft.width;
+        const groundType: TileType =
+          draft.theme === 'underground'
+            ? 'underground_ground'
+            : draft.theme === 'underwater'
+            ? 'sea_ground'
+            : draft.theme === 'castle'
+            ? 'castle_stone'
+            : draft.theme === 'ghost_house'
+            ? 'ghost_floor'
+            : 'ground';
 
-      for (let ty = 0; ty < draft.height; ty++) {
-        if (clamped > oldW) {
-          for (let tx = oldW; tx < clamped; tx++) {
-            if (ty >= 13) {
-              draft.tiles[ty][tx] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
-            } else if ((draft.theme === 'underground' || draft.theme === 'castle' || draft.theme === 'ghost_house') && ty <= 1) {
-              draft.tiles[ty][tx] = {
-                type: draft.theme === 'castle' ? 'castle_stone' : draft.theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick',
-                content: 'none',
-                bumpOffset: 0,
-                bumpVel: 0,
-              };
-            } else {
-              draft.tiles[ty][tx] = null;
+        for (let ty = 0; ty < draft.height; ty++) {
+          if (clamped > oldW) {
+            for (let tx = oldW; tx < clamped; tx++) {
+              if (ty >= 13) {
+                draft.tiles[ty][tx] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+              } else if ((draft.theme === 'underground' || draft.theme === 'castle' || draft.theme === 'ghost_house') && ty <= 1) {
+                draft.tiles[ty][tx] = {
+                  type: draft.theme === 'castle' ? 'castle_stone' : draft.theme === 'ghost_house' ? 'ghost_brick' : 'underground_brick',
+                  content: 'none',
+                  bumpOffset: 0,
+                  bumpVel: 0,
+                };
+              } else {
+                draft.tiles[ty][tx] = null;
+              }
             }
+          } else {
+            draft.tiles[ty] = draft.tiles[ty].slice(0, clamped);
           }
-        } else {
-          draft.tiles[ty] = draft.tiles[ty].slice(0, clamped);
         }
-      }
-      draft.width = clamped;
-      draft.enemies = draft.enemies.filter(e => e.x < clamped * 16 - 8);
-      draft.coins = draft.coins.filter(c => c.x < clamped * 16 - 8);
-      draft.marioStart.x = Math.min(draft.marioStart.x, (clamped - 4) * 16);
-      if (draft.flagX < 99000 && draft.flagX >= clamped * 16) {
-        draft.flagX = (clamped - 8) * 16;
-      }
-      draft.castleX = Math.min(draft.castleX, (clamped - 2) * 16);
-      return draft;
-    });
+        draft.width = clamped;
+        draft.enemies = draft.enemies.filter(e => e.x < clamped * 16 - 8);
+        draft.coins = draft.coins.filter(c => c.x < clamped * 16 - 8);
+        draft.marioStart.x = Math.min(draft.marioStart.x, (clamped - 4) * 16);
+        if (draft.flagX < 99000 && draft.flagX >= clamped * 16) {
+          draft.flagX = (clamped - 8) * 16;
+        }
+        draft.castleX = Math.min(draft.castleX, (clamped - 2) * 16);
+        return draft;
+      },
+      { recordUndo: true }
+    );
   };
 
   const scrollToFraction = (fraction: number) => {
@@ -1345,20 +1675,85 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const launchPlayCurrentLevel = () => {
     setShowMissingGoalAlert(false);
+    setPendingCampaignStart(false);
     onPlayLevel(cloneLevelData(currentLevel), { immortality: localImmortality });
     onClose();
   };
 
+  const launchPlayCampaign = () => {
+    if (campaignLevels.length === 0) return;
+    setShowMissingGoalAlert(false);
+    setPendingCampaignStart(false);
+    if (onPlayCampaign) {
+      onPlayCampaign(
+        campaignLevels.map(l => cloneLevelData(l)),
+        { immortality: localImmortality }
+      );
+      onClose();
+    } else {
+      launchPlayCurrentLevel();
+    }
+  };
+
   const handleRequestPlayLevel = () => {
     if (!levelHasGoal) {
+      setPendingCampaignStart(false);
       setShowMissingGoalAlert(true);
       return;
     }
     launchPlayCurrentLevel();
   };
 
+  const handleRequestPlayCampaign = () => {
+    if (campaignLevels.length === 0) {
+      setShowCampaignPanel(true);
+      notifyError('Adicione pelo menos 1 fase à Campanha Personalizada.');
+      return;
+    }
+    const missingGoalStage = campaignLevels.find(lvl => !hasValidStageGoal(lvl));
+    if (missingGoalStage) {
+      onUpdateCustomLevels(customLevels, missingGoalStage.id);
+      setPendingCampaignStart(true);
+      setShowMissingGoalAlert(true);
+      return;
+    }
+    launchPlayCampaign();
+  };
+
+  const handleAddCurrentToCampaign = () => {
+    if (!currentLevel) return;
+    if (effectiveCampaignIds.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+      notifyError(`Limite máximo de ${EDITOR_MAX_CUSTOM_LEVELS} fases na campanha atingido.`);
+      return;
+    }
+    setEffectiveCampaignIds([...effectiveCampaignIds, currentLevel.id]);
+    setShowCampaignPanel(true);
+    notify(`"${currentLevel.name}" adicionada à campanha!`);
+  };
+
+  const handleAddAllToCampaign = () => {
+    const ids = customLevels.slice(0, EDITOR_MAX_CUSTOM_LEVELS).map(l => l.id);
+    setEffectiveCampaignIds(ids);
+    setShowCampaignPanel(true);
+    notify(`${ids.length} fase(s) adicionadas à campanha na ordem atual!`);
+  };
+
+  const handleMoveCampaignStage = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= effectiveCampaignIds.length) return;
+    const next = [...effectiveCampaignIds];
+    const tmp = next[index];
+    next[index] = next[target];
+    next[target] = tmp;
+    setEffectiveCampaignIds(next);
+  };
+
+  const handleRemoveCampaignStage = (index: number) => {
+    setEffectiveCampaignIds(effectiveCampaignIds.filter((_, i) => i !== index));
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/88 backdrop-blur-xs animate-in fade-in duration-150 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/92 animate-in fade-in duration-150 select-none">
       <div className="relative w-full max-w-6xl bg-stone-900 border-2 border-amber-500/70 rounded-xl shadow-2xl p-3 sm:p-5 text-stone-100 max-h-[95vh] flex flex-col gap-3 overflow-hidden">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-stone-800 shrink-0">
@@ -1398,6 +1793,30 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               <Shield className={`w-3.5 h-3.5 ${localImmortality ? 'text-purple-300 fill-purple-400/30' : 'text-stone-400'}`} />
               <span>IMORTAL: {localImmortality ? 'ON' : 'OFF'}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowCampaignPanel(v => !v)}
+              title="Montar campanha personalizada em sequência com suas fases editadas"
+              className={`px-3 py-2 rounded-lg border font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition ${
+                showCampaignPanel || campaignLevels.length > 0
+                  ? 'bg-amber-950/90 border-amber-400 text-amber-200'
+                  : 'bg-stone-800 hover:bg-stone-700 border-stone-600 text-stone-300'
+              }`}
+            >
+              <ListOrdered className="w-3.5 h-3.5 text-amber-400" />
+              <span>CAMPANHA ({campaignLevels.length})</span>
+            </button>
+            {campaignLevels.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRequestPlayCampaign}
+                title="Jogar campanha personalizada do 1º ao último mapa na ordem definida"
+                className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] font-bold shadow-lg flex items-center gap-1.5 cursor-pointer"
+              >
+                <Crown className="w-3.5 h-3.5 fill-stone-950" />
+                <span>JOGAR CAMPANHA</span>
+              </button>
+            )}
             {onBackToMainMenu && (
               <button
                 type="button"
@@ -1476,12 +1895,24 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               type="text"
               maxLength={16}
               value={currentLevel.name}
-              onChange={e =>
-                updateCurrentLevel(draft => {
-                  draft.name = e.target.value.toUpperCase();
-                  return draft;
-                })
-              }
+              onFocus={() => {
+                nameUndoArmedRef.current = true;
+              }}
+              onBlur={() => {
+                nameUndoArmedRef.current = true;
+              }}
+              onChange={e => {
+                const nextName = e.target.value.toUpperCase();
+                const shouldPush = nameUndoArmedRef.current;
+                nameUndoArmedRef.current = false;
+                updateCurrentLevel(
+                  draft => {
+                    draft.name = nextName;
+                    return draft;
+                  },
+                  { recordUndo: shouldPush }
+                );
+              }}
               placeholder="NOME DA FASE"
               className="w-32 bg-stone-900 border border-stone-700 rounded px-2 py-1.5 font-mono text-xs text-white"
             />
@@ -1558,6 +1989,121 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           </div>
         </div>
 
+        {/* Custom Multi-Map Campaign Builder Panel (R1.16.1B0.4) */}
+        {showCampaignPanel && (
+          <div className="bg-stone-950/90 border border-amber-500/50 rounded-lg p-2.5 shrink-0 flex flex-col gap-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span className="font-['Press_Start_2P',monospace] text-[10px] text-amber-300">
+                  CAMPANHA PERSONALIZADA ({campaignLevels.length} {campaignLevels.length === 1 ? 'FASE' : 'FASES'})
+                </span>
+                <span className="hidden md:inline text-[11px] font-mono text-stone-400">
+                  • Ao passar de cada mapa, avança para o próximo na sequência abaixo
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={handleAddCurrentToCampaign}
+                  className="px-2.5 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-200 flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Fase Atual</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddAllToCampaign}
+                  className="px-2.5 py-1 rounded bg-sky-950/90 hover:bg-sky-900 border border-sky-500/60 text-sky-200 cursor-pointer"
+                >
+                  Add Todas ({customLevels.length})
+                </button>
+                {campaignLevels.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEffectiveCampaignIds([])}
+                    className="px-2 py-1 rounded bg-stone-800 hover:bg-red-950 border border-stone-700 hover:border-red-600 text-stone-300 hover:text-red-200 cursor-pointer"
+                  >
+                    Limpar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRequestPlayCampaign}
+                  disabled={campaignLevels.length === 0}
+                  className="px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Play className="w-3 h-3 fill-stone-950" />
+                  <span>Iniciar ({campaignLevels.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {campaignLevels.length === 0 ? (
+              <div className="text-[11px] font-mono text-stone-400 px-2 py-1.5 rounded bg-stone-900/70 border border-stone-800">
+                Nenhuma fase adicionada ainda. Clique em <strong className="text-emerald-300">+ Add Fase Atual</strong> ou{' '}
+                <strong className="text-sky-300">Add Todas</strong> para montar a sequência da sua campanha.
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto">
+                {campaignLevels.map((lvl, idx) => (
+                  <div
+                    key={`${lvl.id}-${idx}`}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md border font-mono text-[11px] ${
+                      lvl.id === currentLevel.id
+                        ? 'bg-amber-500/15 border-amber-400 text-amber-200'
+                        : 'bg-stone-900 border-stone-700 text-stone-200'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onUpdateCustomLevels(customLevels, lvl.id)}
+                      title="Selecionar fase no editor"
+                      className="flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      <span className="px-1 rounded bg-amber-500 text-stone-950 font-bold text-[10px]">
+                        {idx + 1}
+                      </span>
+                      <span className="font-bold">{lvl.name}</span>
+                    </button>
+                    {!hasValidStageGoal(lvl) && (
+                      <span title="Fase sem final (Poste ou Machado)">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleMoveCampaignStage(idx, -1)}
+                      disabled={idx === 0}
+                      title="Mover para antes"
+                      className="p-0.5 rounded hover:bg-stone-800 disabled:opacity-30 cursor-pointer"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveCampaignStage(idx, 1)}
+                      disabled={idx === campaignLevels.length - 1}
+                      title="Mover para depois"
+                      className="p-0.5 rounded hover:bg-stone-800 disabled:opacity-30 cursor-pointer"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCampaignStage(idx)}
+                      title="Remover da campanha"
+                      className="p-0.5 rounded hover:bg-red-950 text-red-400 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Tool Tabs & Quick Actions */}
         <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -1588,7 +2134,27 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             })}
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Desfazer última ação (Ctrl+Z)"
+              className="px-2 py-1.5 rounded border bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed border-stone-700 text-stone-200 flex items-center gap-1 cursor-pointer"
+            >
+              <Undo2 className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">Desfazer</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Refazer ação desfeita (Ctrl+Y)"
+              className="px-2 py-1.5 rounded border bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed border-stone-700 text-stone-200 flex items-center gap-1 cursor-pointer"
+            >
+              <Redo2 className="w-3.5 h-3.5 text-sky-300" />
+              <span className="hidden sm:inline">Refazer</span>
+            </button>
             <button
               type="button"
               onClick={() => setSelectedBrushId('mario_start')}
@@ -1703,13 +2269,14 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           })}
         </div>
 
-        {/* Scrollable Tile Canvas */}
+        {/* Scrollable Tile Canvas (Viewport-windowed backing store <= 2048px — R1.16.1IZ.4) */}
         <div className="flex-1 min-h-0 flex flex-col gap-1.5">
           <div
             ref={scrollContainerRef}
-            className="flex-1 min-h-[240px] overflow-x-auto overflow-y-auto rounded-lg border-2 border-stone-700 bg-black"
+            className="flex-1 min-h-[240px] overflow-x-auto overflow-y-auto rounded-lg border-2 border-stone-700 bg-stone-950"
           >
             <div
+              ref={canvasWrapperRef}
               className="relative inline-block"
               style={{
                 width: currentLevel.width * cellSize,
@@ -1726,7 +2293,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                   handlePointerUp();
                 }}
                 onContextMenu={e => e.preventDefault()}
-                className="block cursor-crosshair touch-none"
+                className="absolute top-0 left-0 block cursor-crosshair touch-none"
                 style={{ imageRendering: 'pixelated' }}
               />
               {hoverCell && (
@@ -1839,7 +2406,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={launchPlayCurrentLevel}
+                  onClick={pendingCampaignStart ? launchPlayCampaign : launchPlayCurrentLevel}
                   className="flex-1 px-4 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-600 text-stone-200 font-['Press_Start_2P',monospace] text-[10px] cursor-pointer transition"
                 >
                   JOGAR MESMO ASSIM

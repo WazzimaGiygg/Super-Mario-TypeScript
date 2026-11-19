@@ -20,6 +20,7 @@ import {
   TileType,
   GameMode,
   GameDifficulty,
+  SmwSwitchColor,
   PlayerCharacter,
   RemotePlayerState,
   MultiplayerMatchPlayerStanding,
@@ -49,9 +50,16 @@ import {
   cloneLevelData,
   sanitizeCustomLevelEntities,
   computeStageWCoins,
+  stripNonSmwPowerUpBoxes,
 } from './levels.ts';
 import { createSmwWikiWorldStage } from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
+import {
+  AchievementManager,
+  AchievementMetric,
+  AchievementProgressView,
+  AchievementUnlockEvent,
+} from './achievements.ts';
 
 export class GameEngine {
   // Screen Dimensions (NES native 256x240)
@@ -250,8 +258,13 @@ export class GameEngine {
   public isCampaignVictory: boolean = false;
   public onSmwStageCompleted?: (nodeId: string) => void;
   public yellowSwitchUnlocked: boolean = false;
+  public greenSwitchUnlocked: boolean = false;
+  public redSwitchUnlocked: boolean = false;
+  public pinkSwitchUnlocked: boolean = false;
+  public blueSwitchUnlocked: boolean = false;
   public switchPalaceActivated: boolean = false;
   public onSmwYellowSwitchActivated?: () => void;
+  public onSmwSwitchActivated?: (color: SmwSwitchColor) => void;
 
   // Scenery Elements (Bushes, Clouds, Hills)
   public sceneries: { type: string; x: number; y: number }[] = [];
@@ -290,7 +303,16 @@ export class GameEngine {
   public infiniteLives: boolean = false;
   public isEditorImmortality: boolean = false;
   private customLevelTemplate: LevelData | null = null;
+  public customCampaignLevels: LevelData[] = [];
+  public customCampaignIndex: number = 0;
   private ceilingTileColumns: boolean[] = [];
+
+  // Achievement Tracking System
+  public achievementManager: AchievementManager = new AchievementManager();
+  public stageElapsedMs: number = 0;
+  public recentAchievementUnlock: AchievementUnlockEvent | null = null;
+  public onAchievementUnlocked?: (event: AchievementUnlockEvent) => void;
+  public onAchievementsChanged?: (views: AchievementProgressView[]) => void;
 
   // Sonic-style Debug Mode & Item Placement Cursor
   public static readonly DEBUG_PLACEABLES: readonly DebugPlaceableSpec[] = [
@@ -303,7 +325,11 @@ export class GameEngine {
     { id: 'star', label: 'ESTRELA', category: 'item' },
     { id: '1up', label: '1-UP', category: 'item' },
     { id: 'question_coin', label: 'BLOCO ? MOEDA', category: 'tile' },
-    { id: 'question_mushroom', label: 'BLOCO ? POWER', category: 'tile' },
+    { id: 'exclam_yellow', label: 'BLOCO [!] SMW', category: 'tile' },
+    { id: 'exclam_green', label: 'BLOCO [!] VERDE', category: 'tile' },
+    { id: 'exclam_red', label: 'BLOCO [!] VERMELHO', category: 'tile' },
+    { id: 'exclam_pink', label: 'BLOCO [!] ROSA', category: 'tile' },
+    { id: 'exclam_blue', label: 'BLOCO [!] AZUL', category: 'tile' },
     { id: 'brick', label: 'TIJOLO', category: 'tile' },
     { id: 'hard_block', label: 'BLOCO DURO', category: 'tile' },
     { id: 'goomba', label: 'GOOMBA', category: 'enemy' },
@@ -359,8 +385,17 @@ export class GameEngine {
       }
     } else if (!isRespawn) {
       this.customLevelTemplate = null;
+      this.customCampaignLevels = [];
+      this.customCampaignIndex = 0;
       this.isEditorImmortality = false;
       this.infiniteLives = this.isCheatActive;
+    }
+    if (resolvedLevel.isCustom && this.customCampaignLevels.length > 0 && !resolvedLevel.biomeLabel) {
+      resolvedLevel.biomeLabel = resolvedLevel.name || 'CAMPANHA PERSONALIZADA';
+    }
+    resolvedLevel = stripNonSmwPowerUpBoxes(resolvedLevel);
+    if (!isRespawn) {
+      this.stageElapsedMs = 0;
     }
     this.level = resolvedLevel;
     this.ceilingTileColumns = new Array(resolvedLevel.width).fill(false);
@@ -499,7 +534,9 @@ export class GameEngine {
     this.marioFacing = 'right';
     this.marioInvulnerableTimer = isRespawn ? 40 : 0;
     this.stats.world =
-      newLevel.id === 'world-1-1'
+      newLevel.isCustom && this.customCampaignLevels.length > 0
+        ? `${this.customCampaignIndex + 1}/${this.customCampaignLevels.length}`
+        : newLevel.id === 'world-1-1'
         ? '1-1'
         : newLevel.id === 'world-1-2'
         ? '1-2'
@@ -841,10 +878,16 @@ export class GameEngine {
     }
 
     // SMW Goal Gate moving crossbar tape oscillator
-    if (this.hasGoalPointsPost() && !this.goalTapeCut && !this.isStageClear) {
+    if (
+      this.hasGoalPointsPost() &&
+      !this.goalTapeCut &&
+      !this.isStageClear &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered'
+    ) {
       this.goalTapeY += this.goalTapeDir * 1.45;
-      if (this.goalTapeY >= 178) {
-        this.goalTapeY = 178;
+      if (this.goalTapeY >= 184) {
+        this.goalTapeY = 184;
         this.goalTapeDir = -1;
       } else if (this.goalTapeY <= 44) {
         this.goalTapeY = 44;
@@ -852,8 +895,16 @@ export class GameEngine {
       }
     }
 
-    // Timer countdown (only counts down when the player has actually started the game!)
+    // Timer countdown & stage elapsed tracker (only when the player has actually started the game!)
     if (this.isGameStarted && !this.isStageClear && this.marioState !== 'dead') {
+      if (
+        !this.isBonusStageActive &&
+        this.marioState !== 'castle_walk' &&
+        this.marioState !== 'castle_entered' &&
+        this.bridgeCollapseQueue.length === 0
+      ) {
+        this.stageElapsedMs += deltaMs;
+      }
       this.timeAccumulator += deltaMs;
       if (this.timeAccumulator >= 600) {
         this.timeAccumulator = 0;
@@ -1695,12 +1746,12 @@ export class GameEngine {
             this.marioState = Math.abs(this.marioVx) > 0.1 ? 'running' : 'idle';
           }
 
-          const yellowSwitchTile = tilesV.find(x => x.tile.type === 'yellow_switch');
-          if (yellowSwitchTile && !this.isStageClear) {
-            this.activateYellowSwitch(
-              yellowSwitchTile.tileX,
-              yellowSwitchTile.tileY,
-              yellowSwitchTile.tile
+          const switchTile = tilesV.find(x => this.getSwitchTileColor(x.tile.type) !== null);
+          if (switchTile && !this.isStageClear) {
+            this.activateSmwSwitch(
+              switchTile.tileX,
+              switchTile.tileY,
+              switchTile.tile
             );
           }
         } else if (this.marioVy < 0) {
@@ -1814,6 +1865,7 @@ export class GameEngine {
         this.sound.playKick();
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(100, e.x, e.y);
+        this.recordEnemyDefeat(e.type);
       }
     });
 
@@ -1857,11 +1909,17 @@ export class GameEngine {
       return;
     }
 
-    if (block.type === 'exclam_yellow') {
-      if (!this.yellowSwitchUnlocked) return;
+    const exclamColor = this.getExclamBlockColor(block.type);
+    if (exclamColor) {
+      if (!this.isSwitchUnlocked(exclamColor)) return;
       block.type = 'question_empty';
       block.content = 'none';
-      this.spawnDirectMushroom(tx, ty);
+      if (exclamColor === 'yellow') {
+        this.spawnDirectMushroom(tx, ty);
+      } else {
+        const rewardItem = this.getExclamRewardItem(exclamColor);
+        this.spawnBlockContent(tx, ty, rewardItem);
+      }
       this.particleSystem.add({
         type: 'sparkle',
         x: tx * GameEngine.TILE_SIZE + 4,
@@ -1893,10 +1951,111 @@ export class GameEngine {
         this.createBrickDebris(tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE);
         this.addScore(50, tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE);
         this.triggerScreenShake(2.5, 6);
+        this.recordAchievementProgress('bricks_broken', 1);
       } else {
         // Small Mario bumps brick
         this.sound.playBump();
       }
+    }
+  }
+
+  public isSwitchUnlocked(color: SmwSwitchColor): boolean {
+    switch (color) {
+      case 'yellow':
+        return this.yellowSwitchUnlocked;
+      case 'green':
+        return this.greenSwitchUnlocked;
+      case 'red':
+        return this.redSwitchUnlocked;
+      case 'pink':
+        return this.pinkSwitchUnlocked;
+      case 'blue':
+        return this.blueSwitchUnlocked;
+    }
+  }
+
+  public setSwitchUnlocked(color: SmwSwitchColor, unlocked: boolean): void {
+    switch (color) {
+      case 'yellow':
+        this.yellowSwitchUnlocked = unlocked;
+        break;
+      case 'green':
+        this.greenSwitchUnlocked = unlocked;
+        break;
+      case 'red':
+        this.redSwitchUnlocked = unlocked;
+        break;
+      case 'pink':
+        this.pinkSwitchUnlocked = unlocked;
+        break;
+      case 'blue':
+        this.blueSwitchUnlocked = unlocked;
+        break;
+    }
+  }
+
+  private getExclamBlockColor(type: TileType): SmwSwitchColor | null {
+    switch (type) {
+      case 'exclam_yellow':
+        return 'yellow';
+      case 'exclam_green':
+        return 'green';
+      case 'exclam_red':
+        return 'red';
+      case 'exclam_pink':
+        return 'pink';
+      case 'exclam_blue':
+        return 'blue';
+      default:
+        return null;
+    }
+  }
+
+  private getSwitchTileColor(type: TileType): SmwSwitchColor | null {
+    switch (type) {
+      case 'yellow_switch':
+        return 'yellow';
+      case 'green_switch':
+        return 'green';
+      case 'red_switch':
+        return 'red';
+      case 'pink_switch':
+        return 'pink';
+      case 'blue_switch':
+        return 'blue';
+      default:
+        return null;
+    }
+  }
+
+  private isAnySwitchTile(type: TileType | undefined): boolean {
+    return (
+      type === 'yellow_switch' ||
+      type === 'yellow_switch_pressed' ||
+      type === 'green_switch' ||
+      type === 'green_switch_pressed' ||
+      type === 'red_switch' ||
+      type === 'red_switch_pressed' ||
+      type === 'pink_switch' ||
+      type === 'pink_switch_pressed' ||
+      type === 'blue_switch' ||
+      type === 'blue_switch_pressed'
+    );
+  }
+
+  private getExclamRewardItem(color: SmwSwitchColor): 'mushroom' | 'feather' | 'fireflower' | 'femboy' | 'leaf' {
+    switch (color) {
+      case 'green':
+        return 'feather';
+      case 'red':
+        return 'fireflower';
+      case 'pink':
+        return 'femboy';
+      case 'blue':
+        return 'leaf';
+      case 'yellow':
+      default:
+        return 'mushroom';
     }
   }
 
@@ -1920,10 +2079,27 @@ export class GameEngine {
     });
   }
 
-  private activateYellowSwitch(tx: number, ty: number, tile: BlockTile) {
-    if (this.isStageClear || tile.type !== 'yellow_switch') return;
-    tile.type = 'yellow_switch_pressed';
-    this.yellowSwitchUnlocked = true;
+  private activateSmwSwitch(tx: number, ty: number, tile: BlockTile) {
+    const color = this.getSwitchTileColor(tile.type);
+    if (this.isStageClear || !color) return;
+
+    const pressedMap: Record<SmwSwitchColor, TileType> = {
+      yellow: 'yellow_switch_pressed',
+      green: 'green_switch_pressed',
+      red: 'red_switch_pressed',
+      pink: 'pink_switch_pressed',
+      blue: 'blue_switch_pressed',
+    };
+    const bannerMap: Record<SmwSwitchColor, { title: string; detail: string }> = {
+      yellow: { title: 'SWITCH AMARELO!', detail: 'BLOCOS [!] LIBERADOS!' },
+      green: { title: 'SWITCH VERDE!', detail: 'BLOCOS [!] PENA LIBERADOS!' },
+      red: { title: 'SWITCH VERMELHO!', detail: 'BLOCOS [!] FOGO LIBERADOS!' },
+      pink: { title: 'SWITCH ROSA!', detail: 'BLOCOS [!] FEMBOY LIBERADOS!' },
+      blue: { title: 'SWITCH AZUL!', detail: 'BLOCOS [!] TANOOKI LIBERADOS!' },
+    };
+
+    tile.type = pressedMap[color];
+    this.setSwitchUnlocked(color, true);
     this.switchPalaceActivated = true;
     this.marioVx = 0;
     this.marioVy = 0;
@@ -1948,14 +2124,18 @@ export class GameEngine {
       });
     }
 
-    this.addScore(1000, px, py, 'SWITCH AMARELO!');
-    this.particleSystem.emitScoreText('BLOCOS [!] LIBERADOS!', px - 36, py - 24, {
+    const banner = bannerMap[color];
+    this.addScore(1000, px, py, banner.title);
+    this.particleSystem.emitScoreText(banner.detail, px - 36, py - 24, {
       maxLife: 95,
       vy: -0.45,
     });
     this.transformStageEndEnemiesToPoints();
     this.enforceStageEndDebugLock(false);
-    this.onSmwYellowSwitchActivated?.();
+    if (color === 'yellow') {
+      this.onSmwYellowSwitchActivated?.();
+    }
+    this.onSmwSwitchActivated?.(color);
     this.finishStage();
   }
 
@@ -2096,6 +2276,7 @@ export class GameEngine {
     }
     this.addScore(200, x, y);
     this.spawnCoinParticles(x, y);
+    this.recordAchievementProgress('coins_collected', 1);
 
     // Bouncing coin particle
     this.particleSystem.add({
@@ -2662,6 +2843,10 @@ export class GameEngine {
             } else {
               this.awardExtraLife(other.x, other.y);
             }
+            this.recordEnemyDefeat(other.type);
+            if (otherWasMovingShell) {
+              this.recordEnemyDefeat(e.type);
+            }
           }
         });
       } else if (e.state === 'walk' && e.type !== 'paratroopa' && e.type !== 'hammer_bro') {
@@ -2805,6 +2990,7 @@ export class GameEngine {
           this.awardExtraLife(e.x, e.y);
         }
       }
+      this.recordEnemyDefeat(e.type);
       return;
     }
 
@@ -2817,6 +3003,7 @@ export class GameEngine {
         this.triggerScreenShake(1.5, 4);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.awardStompCombo(e.x, e.y);
+        this.recordEnemyDefeat(e.type);
       } else if (e.type === 'bullet_bill') {
         e.alive = false;
         e.state = 'flipped';
@@ -2827,6 +3014,7 @@ export class GameEngine {
         this.triggerScreenShake(2.5, 7);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.awardStompCombo(e.x, e.y, 1);
+        this.recordEnemyDefeat(e.type);
       } else if (e.type === 'paratroopa') {
         // Stomping a Paratroopa knocks off its wings and turns it into a fast Red Koopa
         const speedMult = this.level.enemySpeedMultiplier ?? 1;
@@ -2850,6 +3038,7 @@ export class GameEngine {
         this.triggerLargeEnemyImpactShake(e);
         this.spawnEnemyDefeatParticles(e.x, e.y, 'hammer_bro');
         this.awardStompCombo(e.x, e.y, 5);
+        this.recordEnemyDefeat(e.type);
       } else if (e.type === 'koopa' || e.type === 'red_koopa') {
         if (e.state === 'walk') {
           // Retreat into shell (large 24px enemy stomp impact)
@@ -3077,6 +3266,7 @@ export class GameEngine {
           }
           this.spawnCoinParticles(item.x, item.y);
           this.addScore(200, item.x, item.y);
+          this.recordAchievementProgress('coins_collected', 1);
         }
         return;
       }
@@ -3112,6 +3302,7 @@ export class GameEngine {
               maxLife: 48,
               vy: -0.9,
             });
+            this.recordAchievementProgress('w_coin_sets', 1);
           }
           this.onMultiplayerSyncNeeded?.();
         }
@@ -3467,6 +3658,7 @@ export class GameEngine {
               e.vy = -5.5;
               this.triggerScreenShake(4.0, 12);
               this.addScore(5000, e.x, e.y, 'BOWSER!');
+              this.recordEnemyDefeat('bowser');
               if (fb.color === 'white') {
                 this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y + 4);
               }
@@ -3505,6 +3697,7 @@ export class GameEngine {
             this.spawnFemboyHeartParticle(e.x + e.width / 2, coinY);
           }
           this.addScore(200, coinX, coinY, 'MOEDA!');
+          this.recordEnemyDefeat(e.type);
         }
       });
 
@@ -3634,6 +3827,7 @@ export class GameEngine {
         e.vx = 0;
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(5000, e.x, e.y, 'BOWSER!');
+        this.recordEnemyDefeat('bowser');
       }
     });
 
@@ -3727,6 +3921,75 @@ export class GameEngine {
     this.syncHighScore(true);
 
     this.particleSystem.emitScoreText(customText || `${points}`, x, y - 8);
+  }
+
+  // --- ACHIEVEMENT TRACKING & REWARDS ---
+  public getStageElapsedSeconds(): number {
+    return this.stageElapsedMs / 1000;
+  }
+
+  public getAchievements(): AchievementProgressView[] {
+    return this.achievementManager.getViews();
+  }
+
+  public getAchievementSummary() {
+    return this.achievementManager.getSummary();
+  }
+
+  public resetAchievements(): AchievementProgressView[] {
+    this.achievementManager.reset();
+    this.recentAchievementUnlock = null;
+    const views = this.achievementManager.getViews();
+    this.onAchievementsChanged?.(views);
+    return views;
+  }
+
+  public recordAchievementProgress(
+    metric: AchievementMetric,
+    amount: number = 1
+  ): AchievementUnlockEvent[] {
+    const unlocked = this.achievementManager.recordMetric(metric, amount);
+    if (unlocked.length === 0) return unlocked;
+
+    for (const evt of unlocked) {
+      if (evt.rewardPoints > 0) {
+        this.stats.score += evt.rewardPoints;
+        this.syncHighScore(true);
+      }
+      if (evt.rewardLives > 0) {
+        this.stats.lives = Math.min(99, this.stats.lives + evt.rewardLives);
+      }
+      if (evt.rewardLives > 0) {
+        this.sound.play1Up();
+      } else {
+        this.sound.playPowerUpEat();
+      }
+      this.particleSystem.emitPowerUpSparkles(this.marioX, Math.max(24, this.marioY - 8));
+      this.particleSystem.emitScoreText(
+        `CONQUISTA: ${evt.achievement.title.toUpperCase()}!`,
+        Math.max(8, this.marioX - 36),
+        Math.max(20, this.marioY - 22),
+        {
+          maxLife: 65,
+          vy: -0.75,
+          color: '#fce078',
+        }
+      );
+      this.recentAchievementUnlock = evt;
+      this.onAchievementUnlocked?.(evt);
+    }
+
+    this.onAchievementsChanged?.(this.achievementManager.getViews());
+    return unlocked;
+  }
+
+  private recordEnemyDefeat(enemyType: EnemyType) {
+    this.recordAchievementProgress('enemies_defeated', 1);
+    if (enemyType === 'goomba') {
+      this.recordAchievementProgress('goombas_defeated', 1);
+    } else if (enemyType === 'bowser') {
+      this.recordAchievementProgress('bowsers_defeated', 1);
+    }
   }
 
   // --- CHEAT ENGINE METHODS ("lula132026") ---
@@ -4038,7 +4301,7 @@ export class GameEngine {
       if (!row) continue;
       for (let tx = 0; tx < this.level.width; tx++) {
         const type = row[tx]?.type;
-        if (type === 'axe' || type === 'yellow_switch' || type === 'yellow_switch_pressed') {
+        if (type === 'axe' || this.isAnySwitchTile(type)) {
           hasExplicitEnd = true;
           const endPx = tx * T;
           if (px >= endPx - proximityPx && px <= endPx + proximityPx) return true;
@@ -4125,8 +4388,16 @@ export class GameEngine {
       let newTile: BlockTile;
       if (spec.id === 'question_coin') {
         newTile = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 1 };
-      } else if (spec.id === 'question_mushroom') {
-        newTile = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+      } else if (spec.id === 'exclam_yellow') {
+        newTile = { type: 'exclam_yellow', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+      } else if (spec.id === 'exclam_green') {
+        newTile = { type: 'exclam_green', content: 'feather', bumpOffset: 0, bumpVel: 0 };
+      } else if (spec.id === 'exclam_red') {
+        newTile = { type: 'exclam_red', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
+      } else if (spec.id === 'exclam_pink') {
+        newTile = { type: 'exclam_pink', content: 'femboy', bumpOffset: 0, bumpVel: 0 };
+      } else if (spec.id === 'exclam_blue') {
+        newTile = { type: 'exclam_blue', content: 'leaf', bumpOffset: 0, bumpVel: 0 };
       } else if (spec.id === 'brick') {
         newTile = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
       } else {
@@ -4520,6 +4791,7 @@ export class GameEngine {
             e.state = 'flipped';
             e.vy = -5.5;
             this.addScore(5000, e.x, e.y, 'BOWSER!');
+            this.recordEnemyDefeat('bowser');
           } else {
             this.addScore(100, e.x, e.y);
           }
@@ -4533,6 +4805,7 @@ export class GameEngine {
         this.triggerScreenShake(2.5, 6);
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
         this.addScore(200, e.x, e.y);
+        this.recordEnemyDefeat(e.type);
       }
     });
 
@@ -4541,13 +4814,14 @@ export class GameEngine {
     const hitTileY = Math.floor((this.marioY + 12) / GameEngine.TILE_SIZE);
     if (hitTileX >= 0 && hitTileX < this.level.width && hitTileY >= 0 && hitTileY < this.level.height) {
       const block = this.level.tiles[hitTileY][hitTileX];
+      const exclamCol = block ? this.getExclamBlockColor(block.type) : null;
       if (
         block &&
         (block.type === 'brick' ||
           block.type === 'underground_brick' ||
           block.type === 'ghost_brick' ||
           block.type === 'question' ||
-          (block.type === 'exclam_yellow' && this.yellowSwitchUnlocked))
+          (exclamCol !== null && this.isSwitchUnlocked(exclamCol)))
       ) {
         this.hitBlock(hitTileX, hitTileY, block);
         this.triggerScreenShake(2.0, 5);
@@ -4566,34 +4840,51 @@ export class GameEngine {
     );
   }
 
-  public computeGoalGatePoints(marioCenterY: number, tapeY: number = this.goalTapeY): number {
-    // Height of Mario crossing the post (y ~ 58 at top -> 50 pts; y ~ 182 walking bottom -> 1 pt)
-    const marioRatio = Math.max(0, Math.min(1, (182 - marioCenterY) / (182 - 58)));
-    // Also reward direct mid-air tape hits based on tape height
-    const hitTapeDirectly = Math.abs(marioCenterY - tapeY) <= 18 && marioCenterY < 172;
-    const tapeRatio = hitTapeDirectly
-      ? Math.max(0, Math.min(1, (178 - tapeY) / (178 - 44)))
-      : 0;
-    const ratio = Math.max(marioRatio, tapeRatio);
+  public computeGoalGatePoints(
+    marioCenterY: number,
+    tapeY: number = this.goalTapeY,
+    marioHeight: number = this.getMarioHeight()
+  ): number {
+    // Player only earns Goal Gate points when Mario reaches the moving tape cursor position
+    const tapeHalfThickness = 4;
+    const maxReach = Math.max(14, marioHeight * 0.5 + tapeHalfThickness);
+    if (Math.abs(marioCenterY - (tapeY + 2)) > maxReach && Math.abs(marioCenterY - tapeY) > maxReach) {
+      return 0;
+    }
+
+    // Score depends on the cursor's height when touched (50 at top -> 1 at bottom)
+    const ratio = Math.max(0, Math.min(1, (178 - tapeY) / (178 - 44)));
 
     if (ratio >= 0.86) return 50;
-    if (ratio >= 0.70) return 40;
-    if (ratio >= 0.54) return 30;
-    if (ratio >= 0.38) return 20;
-    if (ratio >= 0.24) return 10;
-    if (ratio >= 0.12) return 5;
+    if (ratio >= 0.68) return 40;
+    if (ratio >= 0.50) return 30;
+    if (ratio >= 0.34) return 20;
+    if (ratio >= 0.18) return 10;
+    if (ratio >= 0.08) return 5;
     return 1;
   }
 
   public applyGoalPointsReward(points: number, x: number, y: number) {
+    const cleanPoints = Math.max(0, Math.floor(points));
+    if (cleanPoints <= 0) {
+      this.pendingBonusStage = false;
+      this.stats.goalPointsWallet = this.goalPointsWallet;
+      this.particleSystem.emitScoreText('SEM FITA! +0', x - 16, Math.max(40, y), {
+        maxLife: 65,
+        vy: -0.6,
+        color: '#d8e0ec',
+      });
+      return;
+    }
+
     const prevWallet = Math.max(0, Math.min(99, this.goalPointsWallet));
-    const total = prevWallet + Math.max(1, Math.floor(points));
+    const total = prevWallet + cleanPoints;
 
     // Score bonus proportional to goal gate points (authentic SMW scoring feel)
-    this.addScore(points * 100, x, Math.max(40, y), `+${points} PTS POSTE!`);
+    this.addScore(cleanPoints * 100, x, Math.max(40, y), `+${cleanPoints} PTS POSTE!`);
 
     // 50 points milestone -> +3 lives (3-UP!)
-    const earnedThreeUp = points >= 50 || (prevWallet < 50 && total >= 50);
+    const earnedThreeUp = cleanPoints >= 50 || (prevWallet < 50 && total >= 50);
     if (earnedThreeUp) {
       if (!this.infiniteLives && !this.isEditorImmortality) {
         this.stats.lives += 3;
@@ -4833,7 +5124,7 @@ export class GameEngine {
       if (!row) continue;
       for (let tx = 0; tx < this.level.width; tx++) {
         const type = row[tx]?.type;
-        if (type === 'axe' || type === 'yellow_switch' || type === 'yellow_switch_pressed') {
+        if (type === 'axe' || this.isAnySwitchTile(type)) {
           hasMarker = true;
           const markerX = tx * T;
           if (Math.abs(enemyX - markerX) <= rangePx) return true;
@@ -4908,14 +5199,18 @@ export class GameEngine {
       // Cross the SMW Points Goal Gate!
       this.marioStarTimer = 0;
       this.starComboCount = 0;
-      this.goalTapeCut = true;
       this.marioVx = 0;
       this.marioVy = 0;
       this.marioState = 'castle_walk';
       this.marioFacing = 'right';
 
-      const marioCenterY = this.marioY + this.getMarioHeight() * 0.5;
-      const earnedGoalPts = this.computeGoalGatePoints(marioCenterY, this.goalTapeY);
+      const marioHeight = this.getMarioHeight();
+      const marioCenterY = this.marioY + marioHeight * 0.5;
+      const earnedGoalPts = this.computeGoalGatePoints(marioCenterY, this.goalTapeY, marioHeight);
+      this.goalTapeCut = earnedGoalPts > 0;
+      if (this.goalTapeCut) {
+        this.particleSystem.emitCoinSparkles(this.level.flagX + 16, this.goalTapeY);
+      }
       this.lastGoalGatePoints = earnedGoalPts;
       this.applyGoalPointsReward(earnedGoalPts, this.level.flagX, Math.max(40, this.marioY));
       this.transformStageEndEnemiesToPoints();
@@ -4934,6 +5229,12 @@ export class GameEngine {
     this.timeCountTickCounter = 0;
     this.transformStageEndEnemiesToPoints();
     this.enforceStageEndDebugLock(false);
+    if (!this.isBonusStageActive) {
+      this.recordAchievementProgress('levels_completed', 1);
+      if (this.stageElapsedMs < 60000) {
+        this.recordAchievementProgress('level_clear_under_60s', 1);
+      }
+    }
     this.syncHighScore(true);
     this.onMultiplayerSyncNeeded?.();
   }
@@ -5096,6 +5397,25 @@ export class GameEngine {
   }
 
   public advanceToNextLevel() {
+    if (this.level.isCustom && this.customCampaignLevels.length > 0) {
+      const nextIndex = this.customCampaignIndex + 1;
+      if (nextIndex < this.customCampaignLevels.length) {
+        this.customCampaignIndex = nextIndex;
+        const nextStage = cloneLevelData(this.customCampaignLevels[nextIndex]);
+        nextStage.isCustom = true;
+        if (!nextStage.biomeLabel || nextStage.biomeLabel === 'FASE DO JOGADOR') {
+          nextStage.biomeLabel = nextStage.name || `FASE ${nextIndex + 1}`;
+        }
+        this.customLevelTemplate = cloneLevelData(nextStage);
+        this.loadLevel(nextStage, true, false);
+        return;
+      }
+      this.isCampaignVictory = true;
+      this.isStageClear = false;
+      this.sound.stopMusic();
+      this.sound.playStageClear();
+      return;
+    }
     if (this.level.isCustom && this.customLevelTemplate) {
       this.loadLevel(cloneLevelData(this.customLevelTemplate), true, false);
       return;
@@ -5103,6 +5423,20 @@ export class GameEngine {
     if (this.gameMode === 'smw_world_map' && this.level.smwNodeId) {
       const clearedNodeId = this.level.smwNodeId;
       this.isStageClear = false;
+      this.localStageCleared = false;
+      this.waitingForPlayersFinish = false;
+      this.waitingPlayersNames = [];
+      this.allPlayersClearedReady = false;
+      this.allPlayersClearedCountdown = 0;
+      this.stageClearDelayTimer = 0;
+      this.stageClearTallyDelay = 0;
+      this.smwCastleEntryActive = false;
+      this.smwCastleEntryTimer = 0;
+      this.marioState = 'idle';
+      this.marioVx = 0;
+      this.marioVy = 0;
+      this.isGameStarted = false;
+      this.resetControls();
       this.syncHighScore(true);
       this.persistRunScoreToRanking();
       this.sound.stopMusic();
@@ -5168,6 +5502,8 @@ export class GameEngine {
   }
 
   public restartMultiplayerMatch(targetLevel?: LevelData, notifyNetwork: boolean = true) {
+    this.customCampaignLevels = [];
+    this.customCampaignIndex = 0;
     this.isMultiplayerMatchOver = false;
     this.multiplayerMatchResult = null;
     this.localStageCleared = false;
@@ -5228,6 +5564,19 @@ export class GameEngine {
   }
 
   public playCustomLevel(customLevel: LevelData, immortality: boolean = false) {
+    this.customCampaignLevels = [];
+    this.customCampaignIndex = 0;
+    this.gameMode = 'classic';
+    this.smwCastleEntryActive = false;
+    this.smwCastleEntryTimer = 0;
+    this.smwCastleBannerProgress = 0;
+    this.smwCastleIrisProgress = 0;
+    this.isIllegalInstructionBug = false;
+    this.illegalInstructionTimer = 0;
+    this.marioGrowthTimer = 0;
+    this.marioShrinkTimer = 0;
+    this.marioFireThrowTimer = 0;
+
     this.isMultiplayerMatchOver = false;
     this.multiplayerMatchResult = null;
     this.localStageCleared = false;
@@ -5286,7 +5635,103 @@ export class GameEngine {
     this.loadLevel(prepared, true, false);
   }
 
+  public startCustomCampaign(levels: LevelData[], immortality: boolean = false) {
+    if (!levels || levels.length === 0) return;
+
+    const preparedLevels: LevelData[] = levels.map((lvl, idx) => {
+      const sanitized = sanitizeCustomLevelEntities(lvl).level;
+      return {
+        ...cloneLevelData(sanitized),
+        isCustom: true,
+        biomeLabel: sanitized.name || `FASE ${idx + 1}`,
+      };
+    });
+
+    this.customCampaignLevels = preparedLevels;
+    this.customCampaignIndex = 0;
+    this.gameMode = 'classic';
+    this.smwCastleEntryActive = false;
+    this.smwCastleEntryTimer = 0;
+    this.smwCastleBannerProgress = 0;
+    this.smwCastleIrisProgress = 0;
+    this.isIllegalInstructionBug = false;
+    this.illegalInstructionTimer = 0;
+    this.marioGrowthTimer = 0;
+    this.marioShrinkTimer = 0;
+    this.marioFireThrowTimer = 0;
+
+    this.isMultiplayerMatchOver = false;
+    this.multiplayerMatchResult = null;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.stageArrivalNotice = '';
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.notifiedArrivedPlayerIds.clear();
+    this.activeCheckpoint = null;
+    this.activatedCheckpointIndices.clear();
+
+    this.isEditorImmortality = immortality;
+    this.infiniteLives = this.isCheatActive || immortality;
+
+    const initialLives = this.difficulty === 'easy' ? 5 : this.difficulty === 'hard' ? 1 : 3;
+    const topScore = getTopScore();
+    this.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.runInitialHighScore = topScore;
+    this.isNewHighScore = false;
+    this.hasTriggeredNewRecordBanner = false;
+    this.lastSavedRank = null;
+
+    this.goalPointsWallet = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
+    this.reservePowerUp = null;
+    const firstLevel = cloneLevelData(preparedLevels[0]);
+    this.stats = {
+      score: 0,
+      coins: 0,
+      world: `1/${preparedLevels.length}`,
+      time: firstLevel.timeLimit || 400,
+      lives: this.infiniteLives ? 99 : initialLives,
+      highScore: topScore,
+      difficulty: this.difficulty,
+      isNewHighScore: false,
+      goalPointsWallet: 0,
+      isBonusStage: false,
+      bonusBlocksRemaining: 0,
+      bonusLivesWon: 0,
+      reservePowerUp: null,
+      wCoinsCollected: 0,
+      wCoinsTotal: 0,
+    };
+
+    this.isCampaignVictory = false;
+    this.isGameOver = false;
+    this.isStageClear = false;
+    this.isPaused = false;
+    this.isGameStarted = true;
+    this.endlessStage = 0;
+    this.marioPower = this.difficulty === 'easy' ? 'super' : 'small';
+    this.marioStarTimer = 0;
+    this.loadLevel(firstLevel, true, false);
+  }
+
+  public isPlayingCustomCampaign(): boolean {
+    return this.customCampaignLevels.length > 0;
+  }
+
+  public getCustomCampaignProgress(): { index: number; total: number } | null {
+    if (this.customCampaignLevels.length === 0) return null;
+    return {
+      index: this.customCampaignIndex,
+      total: this.customCampaignLevels.length,
+    };
+  }
+
   public startSingleplayerCampaign(world: number = 1, stage: number = 1) {
+    this.customCampaignLevels = [];
+    this.customCampaignIndex = 0;
     this.gameMode = 'singleplayer';
     this.singleplayerWorld = Math.max(1, Math.min(SINGLEPLAYER_WORLD_COUNT, Math.floor(world)));
     this.singleplayerStage = Math.max(1, Math.min(SINGLEPLAYER_STAGES_PER_WORLD, Math.floor(stage)));
@@ -5348,6 +5793,8 @@ export class GameEngine {
   }
 
   public startSmwStage(level: LevelData, resetSession: boolean = false) {
+    this.customCampaignLevels = [];
+    this.customCampaignIndex = 0;
     this.gameMode = 'smw_world_map';
     this.isCampaignVictory = false;
     this.isEditorImmortality = false;
@@ -5406,10 +5853,51 @@ export class GameEngine {
     this.isGameOver = false;
     this.endlessStage = 0;
     this.marioStarTimer = 0;
+    this.resetControls();
     this.loadLevel(level, true, false);
   }
 
+  public resetControls() {
+    this.controls = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    };
+    this.prevControls = { ...this.controls };
+  }
+
+  public returnToSmwOverworldState() {
+    this.gameMode = 'smw_world_map';
+    this.isGameStarted = false;
+    this.isPaused = false;
+    this.isGameOver = false;
+    this.isStageClear = false;
+    this.localStageCleared = false;
+    this.waitingForPlayersFinish = false;
+    this.waitingPlayersNames = [];
+    this.allPlayersClearedReady = false;
+    this.allPlayersClearedCountdown = 0;
+    this.stageClearDelayTimer = 0;
+    this.stageClearTallyDelay = 0;
+    this.smwCastleEntryActive = false;
+    this.smwCastleEntryTimer = 0;
+    this.smwCastleBannerProgress = 0;
+    this.smwCastleIrisProgress = 0;
+    this.marioState = 'idle';
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.resetControls();
+  }
+
   public restartGame() {
+    if (this.level?.isCustom && this.customCampaignLevels.length > 0) {
+      this.startCustomCampaign(this.customCampaignLevels, this.isEditorImmortality);
+      return;
+    }
     if (this.level?.isCustom && this.customLevelTemplate) {
       this.playCustomLevel(this.customLevelTemplate, this.isEditorImmortality);
       return;
@@ -5483,6 +5971,8 @@ export class GameEngine {
 
   public exitToMainMenu() {
     this.customLevelTemplate = null;
+    this.customCampaignLevels = [];
+    this.customCampaignIndex = 0;
     this.gameMode = 'classic';
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
@@ -5584,10 +6074,10 @@ export class GameEngine {
       type === 'castle_stone' ||
       type === 'ghost_floor' ||
       type === 'ghost_brick' ||
-      type === 'yellow_switch' ||
-      type === 'yellow_switch_pressed' ||
+      this.isAnySwitchTile(type) ||
       type === 'bonus_block' ||
-      (type === 'exclam_yellow' && this.yellowSwitchUnlocked)
+      (this.getExclamBlockColor(type) !== null &&
+        this.isSwitchUnlocked(this.getExclamBlockColor(type)!))
     );
   }
 
@@ -6465,11 +6955,71 @@ export class GameEngine {
               screenY
             );
             break;
+          case 'exclam_green':
+            ctx.drawImage(
+              this.greenSwitchUnlocked
+                ? this.atlas.tileExclamGreenActive
+                : this.atlas.tileExclamGreenLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_red':
+            ctx.drawImage(
+              this.redSwitchUnlocked
+                ? this.atlas.tileExclamRedActive
+                : this.atlas.tileExclamRedLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_pink':
+            ctx.drawImage(
+              this.pinkSwitchUnlocked
+                ? this.atlas.tileExclamPinkActive
+                : this.atlas.tileExclamPinkLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_blue':
+            ctx.drawImage(
+              this.blueSwitchUnlocked
+                ? this.atlas.tileExclamBlueActive
+                : this.atlas.tileExclamBlueLocked,
+              screenX,
+              screenY
+            );
+            break;
           case 'yellow_switch':
             ctx.drawImage(this.atlas.tileYellowSwitch, screenX, screenY);
             break;
           case 'yellow_switch_pressed':
             ctx.drawImage(this.atlas.tileYellowSwitchPressed, screenX, screenY);
+            break;
+          case 'green_switch':
+            ctx.drawImage(this.atlas.tileGreenSwitch, screenX, screenY);
+            break;
+          case 'green_switch_pressed':
+            ctx.drawImage(this.atlas.tileGreenSwitchPressed, screenX, screenY);
+            break;
+          case 'red_switch':
+            ctx.drawImage(this.atlas.tileRedSwitch, screenX, screenY);
+            break;
+          case 'red_switch_pressed':
+            ctx.drawImage(this.atlas.tileRedSwitchPressed, screenX, screenY);
+            break;
+          case 'pink_switch':
+            ctx.drawImage(this.atlas.tilePinkSwitch, screenX, screenY);
+            break;
+          case 'pink_switch_pressed':
+            ctx.drawImage(this.atlas.tilePinkSwitchPressed, screenX, screenY);
+            break;
+          case 'blue_switch':
+            ctx.drawImage(this.atlas.tileBlueSwitch, screenX, screenY);
+            break;
+          case 'blue_switch_pressed':
+            ctx.drawImage(this.atlas.tileBlueSwitchPressed, screenX, screenY);
             break;
           case 'hard_block':
             ctx.drawImage(this.atlas.tileHardBlock, screenX, screenY);
@@ -7209,8 +7759,32 @@ export class GameEngine {
         sprite = this.atlas.itemMushroom1Up;
         break;
       case 'question_coin':
-      case 'question_mushroom':
         sprite = this.atlas.tileQuestionFrames[Math.floor((Date.now() / 180) % 3)];
+        break;
+      case 'exclam_yellow':
+        sprite = this.yellowSwitchUnlocked
+          ? this.atlas.tileExclamYellowActive
+          : this.atlas.tileExclamYellowLocked;
+        break;
+      case 'exclam_green':
+        sprite = this.greenSwitchUnlocked
+          ? this.atlas.tileExclamGreenActive
+          : this.atlas.tileExclamGreenLocked;
+        break;
+      case 'exclam_red':
+        sprite = this.redSwitchUnlocked
+          ? this.atlas.tileExclamRedActive
+          : this.atlas.tileExclamRedLocked;
+        break;
+      case 'exclam_pink':
+        sprite = this.pinkSwitchUnlocked
+          ? this.atlas.tileExclamPinkActive
+          : this.atlas.tileExclamPinkLocked;
+        break;
+      case 'exclam_blue':
+        sprite = this.blueSwitchUnlocked
+          ? this.atlas.tileExclamBlueActive
+          : this.atlas.tileExclamBlueLocked;
         break;
       case 'brick':
         sprite = this.atlas.tileBrick;

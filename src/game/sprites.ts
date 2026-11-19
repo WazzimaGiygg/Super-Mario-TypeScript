@@ -440,6 +440,22 @@ export class SpriteAtlas {
   public tileExclamYellowActive!: HTMLCanvasElement;
   public tileYellowSwitch!: HTMLCanvasElement;
   public tileYellowSwitchPressed!: HTMLCanvasElement;
+  public tileExclamGreenLocked!: HTMLCanvasElement;
+  public tileExclamGreenActive!: HTMLCanvasElement;
+  public tileGreenSwitch!: HTMLCanvasElement;
+  public tileGreenSwitchPressed!: HTMLCanvasElement;
+  public tileExclamRedLocked!: HTMLCanvasElement;
+  public tileExclamRedActive!: HTMLCanvasElement;
+  public tileRedSwitch!: HTMLCanvasElement;
+  public tileRedSwitchPressed!: HTMLCanvasElement;
+  public tileExclamPinkLocked!: HTMLCanvasElement;
+  public tileExclamPinkActive!: HTMLCanvasElement;
+  public tilePinkSwitch!: HTMLCanvasElement;
+  public tilePinkSwitchPressed!: HTMLCanvasElement;
+  public tileExclamBlueLocked!: HTMLCanvasElement;
+  public tileExclamBlueActive!: HTMLCanvasElement;
+  public tileBlueSwitch!: HTMLCanvasElement;
+  public tileBlueSwitchPressed!: HTMLCanvasElement;
   
   // Pipes
   public pipeTopLeft!: HTMLCanvasElement;
@@ -2913,6 +2929,127 @@ export class SpriteAtlas {
       'G': '#78716c',
     });
     this.tileYellowSwitchPressed = cSwitchPressed;
+
+    // 4a-4. Colored SMW [!] Blocks & Switch Palace Buttons (Green, Red, Pink, Blue)
+    const buildColoredSwitchSet = (pal: {
+      outline: string;
+      light: string;
+      mid: string;
+      dark: string;
+      dot: string;
+      ink: string;
+      switchLight: string;
+      switchDark: string;
+      switchPressedMid: string;
+      switchPressedDark: string;
+    }) => {
+      const [cLocked, ctxLocked] = createOffscreen(16, 16);
+      drawPixelGrid(ctxLocked, exclLockedPattern, {
+        '.': 'transparent',
+        'Y': pal.outline,
+      });
+
+      const [cActive, ctxActive] = createOffscreen(16, 16);
+      drawPixelGrid(ctxActive, exclActivePattern, {
+        'B': '#000000',
+        'L': pal.light,
+        'Y': pal.mid,
+        'D': pal.dark,
+        'K': pal.ink,
+        '.': pal.dot,
+      });
+
+      const [cSw, ctxSw] = createOffscreen(16, 16);
+      drawPixelGrid(ctxSw, switchPattern, {
+        '.': 'transparent',
+        'B': '#000000',
+        'L': pal.switchLight,
+        'Y': pal.mid,
+        'D': pal.switchDark,
+        'K': pal.ink,
+        'G': '#78716c',
+      });
+
+      const [cSwPressed, ctxSwPressed] = createOffscreen(16, 16);
+      drawPixelGrid(ctxSwPressed, switchPressedPattern, {
+        '.': 'transparent',
+        'B': '#000000',
+        'L': pal.switchLight,
+        'Y': pal.switchPressedMid,
+        'D': pal.switchPressedDark,
+        'G': '#78716c',
+      });
+
+      return { cLocked, cActive, cSw, cSwPressed };
+    };
+
+    const greenSet = buildColoredSwitchSet({
+      outline: '#4ade80',
+      light: '#dcfce7',
+      mid: '#22c55e',
+      dark: '#15803d',
+      dot: '#16a34a',
+      ink: '#052e16',
+      switchLight: '#bbf7d0',
+      switchDark: '#166534',
+      switchPressedMid: '#16a34a',
+      switchPressedDark: '#14532d',
+    });
+    this.tileExclamGreenLocked = greenSet.cLocked;
+    this.tileExclamGreenActive = greenSet.cActive;
+    this.tileGreenSwitch = greenSet.cSw;
+    this.tileGreenSwitchPressed = greenSet.cSwPressed;
+
+    const redSet = buildColoredSwitchSet({
+      outline: '#f87171',
+      light: '#fee2e2',
+      mid: '#ef4444',
+      dark: '#b91c1c',
+      dot: '#dc2626',
+      ink: '#450a0a',
+      switchLight: '#fecaca',
+      switchDark: '#991b1b',
+      switchPressedMid: '#dc2626',
+      switchPressedDark: '#7f1d1d',
+    });
+    this.tileExclamRedLocked = redSet.cLocked;
+    this.tileExclamRedActive = redSet.cActive;
+    this.tileRedSwitch = redSet.cSw;
+    this.tileRedSwitchPressed = redSet.cSwPressed;
+
+    const pinkSet = buildColoredSwitchSet({
+      outline: '#f472b6',
+      light: '#fce7f3',
+      mid: '#ec4899',
+      dark: '#be185d',
+      dot: '#db2777',
+      ink: '#500724',
+      switchLight: '#fbcfe8',
+      switchDark: '#9d174d',
+      switchPressedMid: '#db2777',
+      switchPressedDark: '#831843',
+    });
+    this.tileExclamPinkLocked = pinkSet.cLocked;
+    this.tileExclamPinkActive = pinkSet.cActive;
+    this.tilePinkSwitch = pinkSet.cSw;
+    this.tilePinkSwitchPressed = pinkSet.cSwPressed;
+
+    const blueSet = buildColoredSwitchSet({
+      outline: '#60a5fa',
+      light: '#dbeafe',
+      mid: '#3b82f6',
+      dark: '#1d4ed8',
+      dot: '#2563eb',
+      ink: '#172554',
+      switchLight: '#bfdbfe',
+      switchDark: '#1e40af',
+      switchPressedMid: '#2563eb',
+      switchPressedDark: '#1e3a8a',
+    });
+    this.tileExclamBlueLocked = blueSet.cLocked;
+    this.tileExclamBlueActive = blueSet.cActive;
+    this.tileBlueSwitch = blueSet.cSw;
+    this.tileBlueSwitchPressed = blueSet.cSwPressed;
 
     // 4b. Castle Lava (2 animated 16x16 frames)
     this.tileLavaFrames = [];

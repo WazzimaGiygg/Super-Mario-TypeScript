@@ -56,6 +56,7 @@ interface SmwOverworldMapProps {
   justClearedNodeId?: string | null;
   saveSlots?: (SmwSaveSlotData | null)[];
   castleSavePromptNodeTitle?: string | null;
+  openLoadSignal?: number;
   onSelectNode: (nodeId: string) => void;
   onSelectIsland?: (islandId: SmwIslandId) => void;
   onEnterStage: (nodeId: string) => void;
@@ -181,6 +182,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   justClearedNodeId = null,
   saveSlots = [null, null, null],
   castleSavePromptNodeTitle = null,
+  openLoadSignal = 0,
   onSelectNode,
   onSelectIsland,
   onEnterStage,
@@ -194,18 +196,42 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 }) => {
   const [showStory, setShowStory] = useState<boolean>(!progress.storySeen);
   const [showSlotsModal, setShowSlotsModal] = useState<boolean>(false);
+  const [slotsModalMode, setSlotsModalMode] = useState<'save' | 'load'>('load');
   const [switchLockedNotice, setSwitchLockedNotice] = useState<string>('');
   const [localIslandId, setLocalIslandId] = useState<SmwIslandId>(
     progress.selectedIslandId === 'island2' ? 'island2' : 'wikiworld'
   );
   const [island2Notice, setIsland2Notice] = useState<string>('');
+  const lastLoadSignalRef = useRef<number>(openLoadSignal);
   const atlas = useMemo(() => SpriteAtlas.get(), []);
 
+  const blurActiveElement = () => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
   useEffect(() => {
-    if (isOpen && castleSavePromptNodeTitle) {
+    if (!isOpen) {
+      setShowSlotsModal(false);
+      return;
+    }
+    if (castleSavePromptNodeTitle) {
+      setSlotsModalMode('save');
       setShowSlotsModal(true);
     }
   }, [isOpen, castleSavePromptNodeTitle]);
+
+  useEffect(() => {
+    if (openLoadSignal > 0 && openLoadSignal !== lastLoadSignalRef.current) {
+      lastLoadSignalRef.current = openLoadSignal;
+      if (isOpen) {
+        setShowStory(false);
+        setSlotsModalMode('load');
+        setShowSlotsModal(true);
+      }
+    }
+  }, [isOpen, openLoadSignal]);
 
   const activeIsland: SmwIslandId = onSelectIsland
     ? progress.selectedIslandId === 'island2'
@@ -224,10 +250,10 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && !progress.storySeen) {
+    if (isOpen && !progress.storySeen && !(openLoadSignal > 0 && showSlotsModal)) {
       setShowStory(true);
     }
-  }, [isOpen, progress.storySeen]);
+  }, [isOpen, progress.storySeen, openLoadSignal, showSlotsModal]);
 
   const activeNodes = activeIsland === 'island2' ? SMW_ISLAND2_NODES : SMW_WIKIWORLD_NODES;
   const activeSegments =
@@ -482,6 +508,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           e.preventDefault();
           setShowSlotsModal(false);
           onDismissCastleSave?.();
+          blurActiveElement();
         }
         return;
       }
@@ -563,6 +590,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           return;
         }
         if (selectedUnlocked) {
+          blurActiveElement();
           onEnterStage(selectedNode.id);
         }
       }
@@ -711,12 +739,16 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
           <button
             type="button"
-            onClick={() => setShowSlotsModal(true)}
-            title="Slots de Salvamento Manual (salva ao passar dos castelos)"
+            onClick={() => {
+              setSlotsModalMode('load');
+              setShowSlotsModal(true);
+            }}
+            title="Carregar Progresso Salvo nos Slots (salva ao passar dos castelos)"
             className="min-h-[34px] px-2.5 py-1.5 rounded-lg bg-amber-950/90 hover:bg-amber-900 border border-amber-500/70 text-amber-200 text-[10px] sm:text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
           >
             <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
-            <span>Slots ({usedSlotsCount}/3)</span>
+            <span className="hidden sm:inline">Carregar Progresso ({usedSlotsCount}/3)</span>
+            <span className="sm:hidden">Carregar ({usedSlotsCount}/3)</span>
           </button>
 
           <button
@@ -1222,6 +1254,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                       setSwitchLockedNotice('Palácio do Interruptor Amarelo já concluído!');
                       return;
                     }
+                    blurActiveElement();
                     onEnterStage(node.id);
                   } else {
                     onSelectNode(node.id);
@@ -1233,6 +1266,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                     setSwitchLockedNotice('Palácio do Interruptor Amarelo já concluído!');
                     return;
                   }
+                  blurActiveElement();
                   onEnterStage(node.id);
                 }}
                 disabled={!isIsland2 && !unlocked}
@@ -1344,7 +1378,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
         {/* Island 2 Unavailable Notice Banner (RW0.15.0.PW.4) */}
         {activeIsland === 'island2' && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-lg px-3.5 py-2 rounded-lg bg-stone-950/92 border border-amber-400/80 text-center shadow-xl">
+          <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-lg px-3.5 py-2 rounded-lg bg-stone-950/92 border border-amber-400/80 text-center shadow-xl">
             <p className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Fase 2-1 · {SMW_ISLAND2_UNAVAILABLE_MSG}</span>
@@ -1359,7 +1393,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
         {/* Switch Palace Completed Lock Toast (R1.16.O0.4) */}
         {switchLockedNotice && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-md px-3.5 py-2 rounded-lg bg-amber-950/95 border border-yellow-400 text-center shadow-xl">
+          <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-md px-3.5 py-2 rounded-lg bg-amber-950/95 border border-yellow-400 text-center shadow-xl">
             <p className="text-[11px] sm:text-xs font-bold text-yellow-200 flex items-center justify-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
               <span>{switchLockedNotice}</span>
@@ -1369,7 +1403,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
         {/* Island 1 Victory Celebration Toast */}
         {activeIsland === 'wikiworld' && !switchLockedNotice && (islandCompleted || justClearedNodeId === 'wiki-5-castelo') && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-lg px-3.5 py-2 rounded-lg bg-stone-950/92 border border-amber-400/80 text-center shadow-xl">
+          <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 z-20 w-[94%] max-w-lg px-3.5 py-2 rounded-lg bg-stone-950/92 border border-amber-400/80 text-center shadow-xl">
             <p className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center justify-center gap-1.5">
               <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Castelo de Johannnnes89 conquistado! Ilha WikiWorldWeb 100% salva!</span>
@@ -1446,7 +1480,10 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             <button
               type="button"
               disabled={!selectedUnlocked}
-              onClick={() => onEnterStage(selectedNode.id)}
+              onClick={() => {
+                blurActiveElement();
+                onEnterStage(selectedNode.id);
+              }}
               className="flex-1 sm:flex-initial min-h-[40px] px-4 sm:px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-stone-800 disabled:text-stone-500 text-white font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap shrink-0 transition"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
@@ -1499,7 +1536,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
         </div>
       )}
 
-      {/* Manual Castle Save Slots Modal (R1.16.X6.4 — No Auto-Save) */}
+      {/* Manual Castle Save & Load Progress Slots Modal (R1.16.X6.4 — No Auto-Save) */}
       {showSlotsModal && (
         <div
           role="dialog"
@@ -1511,29 +1548,38 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
             <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-stone-800">
               <div>
                 <div className="text-[10px] font-mono text-amber-300">
-                  {castleSavePromptNodeTitle
+                  {castleSavePromptNodeTitle && slotsModalMode === 'save'
                     ? `Castelo Concluído: ${castleSavePromptNodeTitle}`
-                    : 'Gerenciador de Slots · Sem Salvamento Automático'}
+                    : 'Modo World · Slots de Progresso Manual'}
                 </div>
                 <h3
                   id="smw-slots-title"
                   className="font-['Press_Start_2P',monospace] text-xs sm:text-sm text-white mt-1"
                 >
-                  {castleSavePromptNodeTitle ? 'SALVAR PROGRESSO?' : 'SLOTS DE SALVAMENTO'}
+                  {castleSavePromptNodeTitle && slotsModalMode === 'save'
+                    ? 'SALVAR PROGRESSO?'
+                    : 'CARREGAR PROGRESSO'}
                 </h3>
               </div>
-              <Save className="w-5 h-5 text-amber-400 shrink-0" />
+              {castleSavePromptNodeTitle && slotsModalMode === 'save' ? (
+                <Save className="w-5 h-5 text-amber-400 shrink-0" />
+              ) : (
+                <FolderOpen className="w-5 h-5 text-amber-400 shrink-0" />
+              )}
             </div>
 
             <p className="mt-2.5 text-[11px] text-stone-300 bg-stone-950/80 border border-stone-800 rounded-lg px-3 py-2">
-              {castleSavePromptNodeTitle
+              {castleSavePromptNodeTitle && slotsModalMode === 'save'
                 ? 'Você passou pelo castelo! Escolha um Slot abaixo para salvar seu progresso atual (o salvamento automático está desativado).'
-                : 'O salvamento automático está desativado no Super Mario World. Novos salvamentos ficam disponíveis ao vencer os castelos.'}
+                : usedSlotsCount > 0
+                ? 'Escolha um dos slots salvos para carregar seu progresso no Modo World (fases concluídas, vidas, pontuação e blocos [!]).'
+                : 'Nenhum progresso salvo ainda. Conclua um castelo no Modo World para salvar em um dos slots manuais.'}
             </p>
 
             <div className="mt-3 space-y-2.5">
               {[0, 1, 2].map(slotIdx => {
                 const slot = saveSlots[slotIdx] ?? null;
+                const isSaveMode = Boolean(castleSavePromptNodeTitle && slotsModalMode === 'save');
                 return (
                   <div
                     key={slotIdx}
@@ -1572,12 +1618,14 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {castleSavePromptNodeTitle && onSaveToSlot && (
+                      {isSaveMode && onSaveToSlot && (
                         <button
                           type="button"
                           onClick={() => {
                             onSaveToSlot(slotIdx);
+                            onDismissCastleSave?.();
                             setShowSlotsModal(false);
+                            blurActiveElement();
                           }}
                           className="min-h-[34px] px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
                         >
@@ -1585,14 +1633,21 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                           <span>{slot ? 'Sobrescrever' : 'Salvar Aqui'}</span>
                         </button>
                       )}
-                      {!castleSavePromptNodeTitle && slot && onLoadFromSlot && (
+                      {slot && onLoadFromSlot && (
                         <button
                           type="button"
                           onClick={() => {
                             onLoadFromSlot(slotIdx);
+                            onDismissCastleSave?.();
+                            setShowStory(false);
                             setShowSlotsModal(false);
+                            blurActiveElement();
                           }}
-                          className="min-h-[34px] px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                          className={`min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition ${
+                            isSaveMode
+                              ? 'bg-stone-800 hover:bg-amber-600 border border-amber-500/60 text-amber-200 hover:text-stone-950'
+                              : 'bg-amber-500 hover:bg-amber-400 text-stone-950'
+                          }`}
                         >
                           <FolderOpen className="w-3.5 h-3.5" />
                           <span>Carregar</span>
@@ -1614,16 +1669,29 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
               })}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              {castleSavePromptNodeTitle && slotsModalMode === 'save' && usedSlotsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSlotsModalMode('load')}
+                  className="min-h-[36px] px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-amber-500/50 text-amber-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Ir para Carregar Progresso</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setShowSlotsModal(false);
                   onDismissCastleSave?.();
+                  blurActiveElement();
                 }}
-                className="min-h-[38px] px-4 py-2 rounded-lg bg-stone-700 hover:bg-stone-600 text-white text-xs font-medium cursor-pointer transition"
+                className="ml-auto min-h-[38px] px-4 py-2 rounded-lg bg-stone-700 hover:bg-stone-600 text-white text-xs font-medium cursor-pointer transition"
               >
-                {castleSavePromptNodeTitle ? 'Continuar sem Salvar' : 'Fechar'}
+                {castleSavePromptNodeTitle && slotsModalMode === 'save'
+                  ? 'Continuar sem Salvar'
+                  : 'Fechar'}
               </button>
             </div>
           </div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BlockTile, LevelData } from './types.ts';
+import { BlockTile, ItemContent, LevelData, SmwSwitchColor, TileType } from './types.ts';
 import {
   createSingleplayerLevel,
   createWorldGhostHouse,
@@ -56,10 +56,49 @@ export interface SmwMapNode {
   mapY: number;
   isCastle?: boolean;
   isSwitchPalace?: boolean;
-  switchColor?: 'yellow';
+  switchColor?: SmwSwitchColor;
   unlocksAfterNodeId?: string;
   betaPlaceholderMessage?: string;
 }
+
+export interface SmwDevSwitchPalaceInfo {
+  id: string;
+  code: string;
+  color: SmwSwitchColor;
+  title: string;
+  rewardLabel: string;
+}
+
+export const SMW_DEV_ONLY_SWITCH_PALACES: SmwDevSwitchPalaceInfo[] = [
+  {
+    id: 'wiki-switch-green',
+    code: 'PV',
+    color: 'green',
+    title: 'Palácio Interruptor Verde',
+    rewardLabel: 'Bloco [!] Verde · Pena (Cape)',
+  },
+  {
+    id: 'wiki-switch-red',
+    code: 'PR',
+    color: 'red',
+    title: 'Palácio Interruptor Vermelho',
+    rewardLabel: 'Bloco [!] Vermelho · Flor de Fogo',
+  },
+  {
+    id: 'wiki-switch-pink',
+    code: 'PP',
+    color: 'pink',
+    title: 'Palácio Interruptor Rosa',
+    rewardLabel: 'Bloco [!] Rosa · Laço Femboy',
+  },
+  {
+    id: 'wiki-switch-blue',
+    code: 'PB',
+    color: 'blue',
+    title: 'Palácio Interruptor Azul',
+    rewardLabel: 'Bloco [!] Azul · Tanooki',
+  },
+];
 
 export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
   {
@@ -455,9 +494,9 @@ export function createYellowSwitchPalaceStage(): LevelData {
     tiles[y][width - 1] = makeTile('hard_block');
   }
 
-  // Section 1: Welcome showcase (locked Yellow [!] outline + Mushroom Question block)
+  // Section 1: Welcome showcase (locked Yellow [!] outline)
   tiles[9][9] = makeTile('exclam_yellow', 'mushroom');
-  tiles[9][13] = makeTile('question', 'mushroom');
+  tiles[9][13] = makeTile('brick');
   tiles[9][14] = makeTile('brick');
   tiles[9][15] = makeTile('brick');
 
@@ -545,10 +584,231 @@ export function createYellowSwitchPalaceStage(): LevelData {
   };
 }
 
+export function createColoredSwitchPalaceStage(color: Exclude<SmwSwitchColor, 'yellow'>): LevelData {
+  const specs: Record<
+    Exclude<SmwSwitchColor, 'yellow'>,
+    {
+      nodeId: string;
+      id: string;
+      code: string;
+      biomeLabel: string;
+      bgColor: string;
+      exclamTile: TileType;
+      exclamContent: ItemContent;
+      switchTile: TileType;
+    }
+  > = {
+    green: {
+      nodeId: 'wiki-switch-green',
+      id: 'smw-wiki-switch-green',
+      code: 'PV',
+      biomeLabel: 'WIKIWORLDWEB · PALÁCIO VERDE',
+      bgColor: '#062614',
+      exclamTile: 'exclam_green',
+      exclamContent: 'feather',
+      switchTile: 'green_switch',
+    },
+    red: {
+      nodeId: 'wiki-switch-red',
+      id: 'smw-wiki-switch-red',
+      code: 'PR',
+      biomeLabel: 'WIKIWORLDWEB · PALÁCIO VERMELHO',
+      bgColor: '#2a0808',
+      exclamTile: 'exclam_red',
+      exclamContent: 'fireflower',
+      switchTile: 'red_switch',
+    },
+    pink: {
+      nodeId: 'wiki-switch-pink',
+      id: 'smw-wiki-switch-pink',
+      code: 'PP',
+      biomeLabel: 'WIKIWORLDWEB · PALÁCIO ROSA',
+      bgColor: '#29091d',
+      exclamTile: 'exclam_pink',
+      exclamContent: 'femboy',
+      switchTile: 'pink_switch',
+    },
+    blue: {
+      nodeId: 'wiki-switch-blue',
+      id: 'smw-wiki-switch-blue',
+      code: 'PB',
+      biomeLabel: 'WIKIWORLDWEB · PALÁCIO AZUL',
+      bgColor: '#071a32',
+      exclamTile: 'exclam_blue',
+      exclamContent: 'leaf',
+      switchTile: 'blue_switch',
+    },
+  };
+
+  const spec = specs[color];
+  const width = 90;
+  const height = 15;
+  const tiles: (BlockTile | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
+
+  // Enclosed Switch Palace ceiling & solid floor with two hazardous gaps
+  for (let x = 0; x < width; x++) {
+    tiles[0][x] = makeTile('hard_block');
+    tiles[1][x] = makeTile('hard_block');
+    const isHazard =
+      color === 'green'
+        ? (x >= 42 && x <= 44) || (x >= 57 && x <= 59)
+        : color === 'red'
+        ? (x >= 40 && x <= 43) || (x >= 56 && x <= 59)
+        : color === 'pink'
+        ? (x >= 43 && x <= 45) || (x >= 58 && x <= 60)
+        : (x >= 41 && x <= 43) || (x >= 55 && x <= 57);
+    if (isHazard) {
+      tiles[13][x] = makeTile('lava');
+      tiles[14][x] = makeTile('lava');
+    } else {
+      tiles[13][x] = makeTile('hard_block');
+      tiles[14][x] = makeTile('hard_block');
+    }
+  }
+
+  for (let y = 2; y <= 12; y++) {
+    tiles[y][0] = makeTile('hard_block');
+    tiles[y][1] = makeTile('hard_block');
+    tiles[y][width - 3] = makeTile('hard_block');
+    tiles[y][width - 2] = makeTile('hard_block');
+    tiles[y][width - 1] = makeTile('hard_block');
+  }
+
+  // Section 1: Showcase [!] block of this palace's color + bricks
+  tiles[9][9] = makeTile(spec.exclamTile, spec.exclamContent);
+  tiles[9][13] = makeTile('brick');
+  tiles[9][14] = makeTile('brick');
+  tiles[9][15] = makeTile('brick');
+
+  // Section 2: Elevated arena tailored per palace color
+  for (let x = 22; x <= 36; x++) {
+    tiles[10][x] = makeTile('hard_block');
+  }
+  tiles[6][29] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 5 };
+  tiles[6][28] = makeTile('brick');
+  tiles[6][30] = makeTile('brick');
+
+  // Section 3: Mid-palace [!] block & bridge/steps over hazard pools
+  for (let x = 40; x <= 61; x++) {
+    if (tiles[13][x]?.type === 'lava' && x % 2 === 0) {
+      tiles[10][x] = makeTile('brick');
+    }
+  }
+  tiles[9][50] = makeTile(spec.exclamTile, spec.exclamContent);
+  tiles[11][53] = makeTile('hard_block');
+  tiles[10][54] = makeTile('hard_block');
+  tiles[11][62] = makeTile('hard_block');
+
+  // Section 4: Grand Switch Altar
+  tiles[12][68] = makeTile('hard_block');
+  tiles[12][69] = makeTile('hard_block');
+  tiles[11][70] = makeTile('hard_block');
+  for (let x = 71; x <= 82; x++) {
+    tiles[11][x] = makeTile('hard_block');
+    tiles[12][x] = makeTile('hard_block');
+  }
+  for (let y = 3; y <= 10; y++) {
+    tiles[y][83] = makeTile('hard_block');
+  }
+  tiles[10][77] = makeTile(spec.switchTile);
+
+  const coins: { x: number; y: number }[] = [];
+  for (let x = 5; x <= 8; x++) {
+    coins.push({ x: x * 16, y: 11 * 16 });
+  }
+  for (let x = 24; x <= 34; x++) {
+    if (x >= 28 && x <= 30) continue;
+    coins.push({ x: x * 16, y: 7 * 16 });
+  }
+  coins.push(
+    { x: 75 * 16, y: 8 * 16 },
+    { x: 76 * 16, y: 7 * 16 },
+    { x: 77 * 16, y: 6 * 16 },
+    { x: 78 * 16, y: 7 * 16 },
+    { x: 79 * 16, y: 8 * 16 }
+  );
+
+  const enemies: LevelData['enemies'] =
+    color === 'green'
+      ? [
+          { type: 'paratroopa', x: 18 * 16, y: 9 * 16 },
+          { type: 'koopa', x: 26 * 16, y: 11 * 16 },
+          { type: 'paratroopa', x: 48 * 16, y: 8 * 16 },
+          { type: 'goomba', x: 64 * 16, y: 12 * 16 },
+        ]
+      : color === 'red'
+      ? [
+          { type: 'goomba', x: 18 * 16, y: 12 * 16 },
+          { type: 'red_koopa', x: 26 * 16, y: 11 * 16 },
+          { type: 'red_koopa', x: 33 * 16, y: 11 * 16 },
+          { type: 'hammer_bro', x: 63 * 16, y: 11 * 16 },
+        ]
+      : color === 'pink'
+      ? [
+          { type: 'goomba', x: 17 * 16, y: 12 * 16 },
+          { type: 'koopa', x: 27 * 16, y: 11 * 16 },
+          { type: 'paratroopa', x: 47 * 16, y: 7 * 16 },
+          { type: 'red_koopa', x: 64 * 16, y: 11 * 16 },
+        ]
+      : [
+          { type: 'goomba', x: 18 * 16, y: 12 * 16 },
+          { type: 'koopa', x: 25 * 16, y: 11 * 16 },
+          { type: 'paratroopa', x: 35 * 16, y: 8 * 16 },
+          { type: 'koopa', x: 64 * 16, y: 11 * 16 },
+        ];
+
+  return {
+    id: spec.id,
+    name: spec.code,
+    theme: 'underground',
+    width,
+    height,
+    tiles,
+    enemies,
+    coins,
+    marioStart: { x: 3 * 16, y: 11 * 16 },
+    flagX: 999999,
+    castleX: 999999,
+    bgColor: spec.bgColor,
+    timeLimit: 200,
+    biomeLabel: spec.biomeLabel,
+    checkpoints: [{ x: 41 * 16, respawnPos: { x: 41 * 16, y: 11 * 16 } }],
+    smwNodeId: spec.nodeId,
+    smwWorldName: SMW_WORLD_ISLAND_NAME,
+    isFinalCastle: false,
+  };
+}
+
+export function createGreenSwitchPalaceStage(): LevelData {
+  return createColoredSwitchPalaceStage('green');
+}
+
+export function createRedSwitchPalaceStage(): LevelData {
+  return createColoredSwitchPalaceStage('red');
+}
+
+export function createPinkSwitchPalaceStage(): LevelData {
+  return createColoredSwitchPalaceStage('pink');
+}
+
+export function createBlueSwitchPalaceStage(): LevelData {
+  return createColoredSwitchPalaceStage('blue');
+}
+
 export function createSmwWikiWorldStage(nodeId: string): LevelData {
   switch (nodeId) {
     case 'wiki-switch-yellow':
       return createYellowSwitchPalaceStage();
+    case 'wiki-switch-green':
+      return createGreenSwitchPalaceStage();
+    case 'wiki-switch-red':
+      return createRedSwitchPalaceStage();
+    case 'wiki-switch-pink':
+      return createPinkSwitchPalaceStage();
+    case 'wiki-switch-blue':
+      return createBlueSwitchPalaceStage();
 
     case 'wiki-2-caverna': {
       const level = createSingleplayerLevel(2, 3, {
@@ -625,6 +885,10 @@ export interface SmwBetaProgress {
   selectedIslandId?: SmwIslandId;
   storySeen: boolean;
   yellowSwitchUnlocked: boolean;
+  greenSwitchUnlocked?: boolean;
+  redSwitchUnlocked?: boolean;
+  pinkSwitchUnlocked?: boolean;
+  blueSwitchUnlocked?: boolean;
   goalPointsWallet?: number;
 }
 
@@ -640,6 +904,10 @@ export interface SmwSaveSlotData {
   selectedNodeId: string;
   selectedIslandId: SmwIslandId;
   yellowSwitchUnlocked: boolean;
+  greenSwitchUnlocked?: boolean;
+  redSwitchUnlocked?: boolean;
+  pinkSwitchUnlocked?: boolean;
+  blueSwitchUnlocked?: boolean;
   goalPointsWallet: number;
   lives: number;
   score: number;
@@ -652,6 +920,10 @@ export function createFreshSmwProgress(): SmwBetaProgress {
     selectedIslandId: 'wikiworld',
     storySeen: false,
     yellowSwitchUnlocked: false,
+    greenSwitchUnlocked: false,
+    redSwitchUnlocked: false,
+    pinkSwitchUnlocked: false,
+    blueSwitchUnlocked: false,
     goalPointsWallet: 0,
   };
 }
@@ -688,12 +960,16 @@ export function saveSmwBetaProgress(_progress: SmwBetaProgress): void {
 function sanitizeSaveSlot(raw: unknown, expectedIndex: number): SmwSaveSlotData | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Partial<SmwSaveSlotData>;
-  const validIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
+  const validMapIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
+  const validAllIds = new Set([
+    ...SMW_WIKIWORLD_NODES.map(n => n.id),
+    ...SMW_DEV_ONLY_SWITCH_PALACES.map(p => p.id),
+  ]);
   const clearedNodeIds = Array.isArray(obj.clearedNodeIds)
-    ? obj.clearedNodeIds.filter((id): id is string => typeof id === 'string' && validIds.has(id))
+    ? obj.clearedNodeIds.filter((id): id is string => typeof id === 'string' && validAllIds.has(id))
     : [];
   const selectedNodeId =
-    typeof obj.selectedNodeId === 'string' && validIds.has(obj.selectedNodeId)
+    typeof obj.selectedNodeId === 'string' && validMapIds.has(obj.selectedNodeId)
       ? obj.selectedNodeId
       : 'wiki-1-overworld';
   const selectedIslandId: SmwIslandId =
@@ -723,6 +999,18 @@ function sanitizeSaveSlot(raw: unknown, expectedIndex: number): SmwSaveSlotData 
     selectedIslandId,
     yellowSwitchUnlocked: Boolean(
       obj.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
+    ),
+    greenSwitchUnlocked: Boolean(
+      obj.greenSwitchUnlocked || clearedNodeIds.includes('wiki-switch-green')
+    ),
+    redSwitchUnlocked: Boolean(
+      obj.redSwitchUnlocked || clearedNodeIds.includes('wiki-switch-red')
+    ),
+    pinkSwitchUnlocked: Boolean(
+      obj.pinkSwitchUnlocked || clearedNodeIds.includes('wiki-switch-pink')
+    ),
+    blueSwitchUnlocked: Boolean(
+      obj.blueSwitchUnlocked || clearedNodeIds.includes('wiki-switch-blue')
     ),
     goalPointsWallet: wallet,
     lives,
@@ -755,9 +1043,13 @@ export function saveSmwToSlot(
   const current = loadSmwSaveSlots(storage);
   if (idx < 0 || idx >= SMW_SAVE_SLOTS_COUNT) return current;
 
-  const validIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
-  const clearedNodeIds = progress.clearedNodeIds.filter(id => validIds.has(id));
-  const selectedNodeId = validIds.has(progress.selectedNodeId)
+  const validMapIds = new Set(SMW_WIKIWORLD_NODES.map(n => n.id));
+  const validAllIds = new Set([
+    ...SMW_WIKIWORLD_NODES.map(n => n.id),
+    ...SMW_DEV_ONLY_SWITCH_PALACES.map(p => p.id),
+  ]);
+  const clearedNodeIds = progress.clearedNodeIds.filter(id => validAllIds.has(id));
+  const selectedNodeId = validMapIds.has(progress.selectedNodeId)
     ? progress.selectedNodeId
     : 'wiki-1-overworld';
 
@@ -770,6 +1062,18 @@ export function saveSmwToSlot(
     selectedIslandId: progress.selectedIslandId === 'island2' ? 'island2' : 'wikiworld',
     yellowSwitchUnlocked: Boolean(
       progress.yellowSwitchUnlocked || clearedNodeIds.includes('wiki-switch-yellow')
+    ),
+    greenSwitchUnlocked: Boolean(
+      progress.greenSwitchUnlocked || clearedNodeIds.includes('wiki-switch-green')
+    ),
+    redSwitchUnlocked: Boolean(
+      progress.redSwitchUnlocked || clearedNodeIds.includes('wiki-switch-red')
+    ),
+    pinkSwitchUnlocked: Boolean(
+      progress.pinkSwitchUnlocked || clearedNodeIds.includes('wiki-switch-pink')
+    ),
+    blueSwitchUnlocked: Boolean(
+      progress.blueSwitchUnlocked || clearedNodeIds.includes('wiki-switch-blue')
     ),
     goalPointsWallet: Math.max(0, Math.min(99, Math.floor(progress.goalPointsWallet ?? 0))),
     lives: Math.max(1, Math.min(99, Math.floor(meta.lives ?? 3))),
@@ -816,6 +1120,18 @@ export function applySmwSlotToProgress(slot: SmwSaveSlotData): SmwBetaProgress {
     yellowSwitchUnlocked: Boolean(
       slot.yellowSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-yellow')
     ),
+    greenSwitchUnlocked: Boolean(
+      slot.greenSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-green')
+    ),
+    redSwitchUnlocked: Boolean(
+      slot.redSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-red')
+    ),
+    pinkSwitchUnlocked: Boolean(
+      slot.pinkSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-pink')
+    ),
+    blueSwitchUnlocked: Boolean(
+      slot.blueSwitchUnlocked || slot.clearedNodeIds.includes('wiki-switch-blue')
+    ),
     goalPointsWallet: Math.max(0, Math.min(99, Math.floor(slot.goalPointsWallet ?? 0))),
   };
 }
@@ -841,10 +1157,32 @@ export function isSmwNodeCompletedAndLocked(
   nodeId: string,
   progress: SmwBetaProgress
 ): boolean {
-  if (nodeId !== 'wiki-switch-yellow') return false;
-  return Boolean(
-    progress.yellowSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-yellow')
-  );
+  if (nodeId === 'wiki-switch-yellow') {
+    return Boolean(
+      progress.yellowSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-yellow')
+    );
+  }
+  if (nodeId === 'wiki-switch-green') {
+    return Boolean(
+      progress.greenSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-green')
+    );
+  }
+  if (nodeId === 'wiki-switch-red') {
+    return Boolean(
+      progress.redSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-red')
+    );
+  }
+  if (nodeId === 'wiki-switch-pink') {
+    return Boolean(
+      progress.pinkSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-pink')
+    );
+  }
+  if (nodeId === 'wiki-switch-blue') {
+    return Boolean(
+      progress.blueSwitchUnlocked || progress.clearedNodeIds.includes('wiki-switch-blue')
+    );
+  }
+  return false;
 }
 
 export function canEnterSmwNode(

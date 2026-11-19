@@ -5,6 +5,8 @@
 
 export type MarioPower = 'small' | 'super' | 'fire' | 'tanooki' | 'femboy' | 'cape';
 
+export type SmwSwitchColor = 'yellow' | 'green' | 'red' | 'pink' | 'blue';
+
 export type MarioState = 
   | 'idle' 
   | 'running' 
@@ -66,8 +68,20 @@ export type TileType =
   | 'ghost_floor'
   | 'ghost_brick'
   | 'exclam_yellow'
+  | 'exclam_green'
+  | 'exclam_red'
+  | 'exclam_pink'
+  | 'exclam_blue'
   | 'yellow_switch'
   | 'yellow_switch_pressed'
+  | 'green_switch'
+  | 'green_switch_pressed'
+  | 'red_switch'
+  | 'red_switch_pressed'
+  | 'pink_switch'
+  | 'pink_switch_pressed'
+  | 'blue_switch'
+  | 'blue_switch_pressed'
   | 'bonus_block';
 
 export type ItemContent = 'coin' | 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy' | 'star' | '1up' | 'none';
@@ -245,7 +259,11 @@ export type DebugPlaceableId =
   | 'star'
   | '1up'
   | 'question_coin'
-  | 'question_mushroom'
+  | 'exclam_yellow'
+  | 'exclam_green'
+  | 'exclam_red'
+  | 'exclam_pink'
+  | 'exclam_blue'
   | 'brick'
   | 'hard_block'
   | 'goomba'

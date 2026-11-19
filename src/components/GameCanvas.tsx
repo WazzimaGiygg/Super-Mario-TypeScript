@@ -13,12 +13,19 @@ import { CheatMenuModal } from './CheatMenuModal.tsx';
 import { MultiplayerModal } from './MultiplayerModal.tsx';
 import { LevelEditorModal } from './LevelEditorModal.tsx';
 import { UpdatesModal, UpdatesModalFilter } from './UpdatesModal.tsx';
+import { AchievementsModal } from './AchievementsModal.tsx';
 import { SmwOverworldMap } from './SmwOverworldMap.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SoundEngine } from '../game/audio.ts';
-import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent } from '../game/types.ts';
+import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent, SmwSwitchColor } from '../game/types.ts';
+import {
+  AchievementManager,
+  AchievementProgressView,
+  AchievementUnlockEvent,
+} from '../game/achievements.ts';
 import {
   SMW_WIKIWORLD_NODES,
+  SMW_DEV_ONLY_SWITCH_PALACES,
   SmwBetaProgress,
   SmwSaveSlotData,
   createSmwWikiWorldStage,
@@ -32,9 +39,17 @@ import {
   applySmwSlotToProgress,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
-import { sanitizeCustomLevelEntities } from '../game/levels.ts';
+import {
+  sanitizeCustomLevelEntities,
+  createWorld1_1,
+  createSecretVault,
+  createWorld1_2,
+  createWorld2_2,
+  createWorldGhostHouse,
+  createWorld1_4,
+} from '../game/levels.ts';
 import { isSmartTvUserAgent, moveFocusWithDpad, resolveTvRemoteAction } from '../game/smartTv.ts';
-import { Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench } from 'lucide-react';
+import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -135,14 +150,25 @@ export const GameCanvas: React.FC = () => {
   const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
   const [isUpdatesOpen, setIsUpdatesOpen] = useState(false);
   const [updatesFilter, setUpdatesFilter] = useState<UpdatesModalFilter>('all');
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [achievements, setAchievements] = useState<AchievementProgressView[]>(() =>
+    new AchievementManager().getViews()
+  );
+  const [achievementsSummary, setAchievementsSummary] = useState(() =>
+    new AchievementManager().getSummary()
+  );
+  const [achievementToast, setAchievementToast] = useState<AchievementUnlockEvent | null>(null);
+  const achievementToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSmwMapOpen, setIsSmwMapOpen] = useState(false);
   const [isSmwModeActive, setIsSmwModeActive] = useState(false);
   const [smwProgress, setSmwProgress] = useState<SmwBetaProgress>(() => loadSmwBetaProgress());
   const [smwJustClearedNodeId, setSmwJustClearedNodeId] = useState<string | null>(null);
   const [smwSaveSlots, setSmwSaveSlots] = useState<(SmwSaveSlotData | null)[]>(() => loadSmwSaveSlots());
   const [smwCastleSaveTitle, setSmwCastleSaveTitle] = useState<string | null>(null);
+  const [smwOpenLoadSignal, setSmwOpenLoadSignal] = useState(0);
   const [customLevels, setCustomLevels] = useState<LevelData[]>([]);
   const [activeCustomLevelId, setActiveCustomLevelId] = useState<string | null>(null);
+  const [customCampaignIds, setCustomCampaignIds] = useState<string[]>([]);
   const [editorImmortality, setEditorImmortality] = useState(false);
   const [isCustomLevelActive, setIsCustomLevelActive] = useState(false);
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
@@ -267,8 +293,30 @@ export const GameCanvas: React.FC = () => {
   useEffect(() => {
     const engine = new GameEngine();
     engine.stats.highScore = getTopScore();
+    setAchievements(engine.getAchievements());
+    setAchievementsSummary(engine.getAchievementSummary());
+    engine.onAchievementsChanged = (views) => {
+      setAchievements(views);
+      setAchievementsSummary(engine.getAchievementSummary());
+    };
+    engine.onAchievementUnlocked = (evt) => {
+      setAchievements(engine.getAchievements());
+      setAchievementsSummary(engine.getAchievementSummary());
+      setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
+      setAchievementToast(evt);
+      if (achievementToastTimerRef.current) {
+        clearTimeout(achievementToastTimerRef.current);
+      }
+      achievementToastTimerRef.current = setTimeout(() => {
+        setAchievementToast(null);
+      }, 4200);
+    };
     const initialSmwProgress = loadSmwBetaProgress();
     engine.yellowSwitchUnlocked = initialSmwProgress.yellowSwitchUnlocked;
+    engine.greenSwitchUnlocked = Boolean(initialSmwProgress.greenSwitchUnlocked);
+    engine.redSwitchUnlocked = Boolean(initialSmwProgress.redSwitchUnlocked);
+    engine.pinkSwitchUnlocked = Boolean(initialSmwProgress.pinkSwitchUnlocked);
+    engine.blueSwitchUnlocked = Boolean(initialSmwProgress.blueSwitchUnlocked);
     engine.goalPointsWallet = initialSmwProgress.goalPointsWallet ?? 0;
     engine.stats.goalPointsWallet = engine.goalPointsWallet;
     engine.onSmwGoalWalletChanged = (wallet: number) => {
@@ -290,8 +338,19 @@ export const GameCanvas: React.FC = () => {
         };
       });
     };
+    engine.onSmwSwitchActivated = (color: SmwSwitchColor) => {
+      setSmwProgress(prev => ({
+        ...prev,
+        yellowSwitchUnlocked: prev.yellowSwitchUnlocked || color === 'yellow',
+        greenSwitchUnlocked: Boolean(prev.greenSwitchUnlocked) || color === 'green',
+        redSwitchUnlocked: Boolean(prev.redSwitchUnlocked) || color === 'red',
+        pinkSwitchUnlocked: Boolean(prev.pinkSwitchUnlocked) || color === 'pink',
+        blueSwitchUnlocked: Boolean(prev.blueSwitchUnlocked) || color === 'blue',
+      }));
+    };
     engine.onSmwStageCompleted = (nodeId: string) => {
       const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
+      const isDevOnlyPalace = SMW_DEV_ONLY_SWITCH_PALACES.some(p => p.id === nodeId);
       setSmwProgress(prev => {
         const nextCleared = prev.clearedNodeIds.includes(nodeId)
           ? prev.clearedNodeIds
@@ -302,16 +361,27 @@ export const GameCanvas: React.FC = () => {
             : currNode && currNode.order < 4
             ? SMW_WIKIWORLD_NODES[currNode.order + 1]
             : undefined;
-        const nextSelected =
-          nextNode && !nextCleared.includes(nextNode.id)
-            ? nextNode.id
-            : nodeId;
+        const nextSelected = isDevOnlyPalace
+          ? SMW_WIKIWORLD_NODES.some(n => n.id === prev.selectedNodeId)
+            ? prev.selectedNodeId
+            : 'wiki-1-overworld'
+          : nextNode && !nextCleared.includes(nextNode.id)
+          ? nextNode.id
+          : nodeId;
         return {
           ...prev,
           clearedNodeIds: nextCleared,
           selectedNodeId: nextSelected,
           yellowSwitchUnlocked:
             prev.yellowSwitchUnlocked || nodeId === 'wiki-switch-yellow',
+          greenSwitchUnlocked:
+            Boolean(prev.greenSwitchUnlocked) || nodeId === 'wiki-switch-green',
+          redSwitchUnlocked:
+            Boolean(prev.redSwitchUnlocked) || nodeId === 'wiki-switch-red',
+          pinkSwitchUnlocked:
+            Boolean(prev.pinkSwitchUnlocked) || nodeId === 'wiki-switch-pink',
+          blueSwitchUnlocked:
+            Boolean(prev.blueSwitchUnlocked) || nodeId === 'wiki-switch-blue',
         };
       });
       if (currNode?.isCastle) {
@@ -326,6 +396,16 @@ export const GameCanvas: React.FC = () => {
       setIsGameOver(false);
       setIsSmwModeActive(true);
       setIsSmwMapOpen(true);
+      manualRunHeldRef.current = false;
+      setControls({
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      });
       setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
     };
     engineRef.current = engine;
@@ -335,6 +415,11 @@ export const GameCanvas: React.FC = () => {
       engine.onSmwStageCompleted = undefined;
       engine.onSmwYellowSwitchActivated = undefined;
       engine.onSmwGoalWalletChanged = undefined;
+      engine.onAchievementUnlocked = undefined;
+      engine.onAchievementsChanged = undefined;
+      if (achievementToastTimerRef.current) {
+        clearTimeout(achievementToastTimerRef.current);
+      }
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
@@ -345,6 +430,14 @@ export const GameCanvas: React.FC = () => {
   const openUpdatesModal = useCallback((filter: UpdatesModalFilter = 'all') => {
     setUpdatesFilter(filter);
     setIsUpdatesOpen(true);
+  }, []);
+
+  const openAchievementsModal = useCallback(() => {
+    if (engineRef.current) {
+      setAchievements(engineRef.current.getAchievements());
+      setAchievementsSummary(engineRef.current.getAchievementSummary());
+    }
+    setIsAchievementsOpen(true);
   }, []);
 
   // Update controls to engine (only during active gameplay; blocked in menus/overlays — R1.16.UF.4)
@@ -365,7 +458,8 @@ export const GameCanvas: React.FC = () => {
         !isCheatMenuOpen &&
         !isMultiplayerOpen &&
         !isLevelEditorOpen &&
-        !isUpdatesOpen;
+        !isUpdatesOpen &&
+        !isAchievementsOpen;
       if (!canControlGameplay) {
         engine.controls.left = false;
         engine.controls.right = false;
@@ -400,6 +494,7 @@ export const GameCanvas: React.FC = () => {
       isMultiplayerOpen,
       isLevelEditorOpen,
       isUpdatesOpen,
+      isAchievementsOpen,
     ]
   );
 
@@ -550,7 +645,7 @@ export const GameCanvas: React.FC = () => {
   useEffect(() => {
     if (!smartTvMode) return;
     const timer = window.setTimeout(() => {
-      if (isSettingsOpen || isLeaderboardOpen || isCheatMenuOpen || isMultiplayerOpen || isUpdatesOpen || isLevelEditorOpen) {
+      if (isSettingsOpen || isLeaderboardOpen || isCheatMenuOpen || isMultiplayerOpen || isUpdatesOpen || isAchievementsOpen || isLevelEditorOpen) {
         const dialog = document.querySelector<HTMLElement>('.fixed.inset-0.z-50');
         const firstBtn = dialog?.querySelector<HTMLElement>('button:not(:disabled)');
         firstBtn?.focus();
@@ -586,6 +681,7 @@ export const GameCanvas: React.FC = () => {
     isCheatMenuOpen,
     isMultiplayerOpen,
     isUpdatesOpen,
+    isAchievementsOpen,
     isLevelEditorOpen,
   ]);
 
@@ -637,6 +733,7 @@ export const GameCanvas: React.FC = () => {
           e.preventDefault();
           target?.blur();
           if (isCheatMenuOpen) setIsCheatMenuOpen(false);
+          else if (isAchievementsOpen) setIsAchievementsOpen(false);
           else if (isUpdatesOpen) setIsUpdatesOpen(false);
           else if (isLeaderboardOpen) setIsLeaderboardOpen(false);
           else if (isSettingsOpen) setIsSettingsOpen(false);
@@ -652,12 +749,14 @@ export const GameCanvas: React.FC = () => {
         isLeaderboardOpen ||
         isLevelEditorOpen ||
         isUpdatesOpen ||
+        isAchievementsOpen ||
         isCheatMenuOpen;
 
       if (anyModalOpen) {
         if (tv.isBack && !e.repeat) {
           e.preventDefault();
           if (isCheatMenuOpen) setIsCheatMenuOpen(false);
+          else if (isAchievementsOpen) setIsAchievementsOpen(false);
           else if (isUpdatesOpen) setIsUpdatesOpen(false);
           else if (isLeaderboardOpen) setIsLeaderboardOpen(false);
           else if (isSettingsOpen) setIsSettingsOpen(false);
@@ -696,16 +795,16 @@ export const GameCanvas: React.FC = () => {
         return;
       }
 
-      if (isSmwMapOpen) {
-        return;
-      }
-
-      // Secret Cheat Code Detection: "lula132026"
+      // Secret Cheat Code Detection: "lula132026" (allowed both in-game and on SMW Overworld Map)
       if (e.key && e.key.length === 1) {
         cheatBufferRef.current = (cheatBufferRef.current + e.key.toLowerCase()).slice(-16);
         if (cheatBufferRef.current.endsWith('lula132026')) {
           activateCheat();
         }
+      }
+
+      if (isSmwMapOpen) {
+        return;
       }
 
       // TV Info / Menu key opens Settings cleanly
@@ -968,6 +1067,7 @@ export const GameCanvas: React.FC = () => {
     isLeaderboardOpen,
     isLevelEditorOpen,
     isUpdatesOpen,
+    isAchievementsOpen,
     isSmwMapOpen,
     smartTvMode,
     smartTvJumpWithUp,
@@ -993,7 +1093,8 @@ export const GameCanvas: React.FC = () => {
       isCheatMenuOpen ||
       isMultiplayerOpen ||
       isLevelEditorOpen ||
-      isUpdatesOpen;
+      isUpdatesOpen ||
+      isAchievementsOpen;
 
     if (
       !hasStarted ||
@@ -1062,6 +1163,7 @@ export const GameCanvas: React.FC = () => {
     isMultiplayerOpen,
     isLevelEditorOpen,
     isUpdatesOpen,
+    isAchievementsOpen,
   ]);
 
   // Main Game Loop (60 FPS) — Freezes canvas rendering & RAF loop completely while paused
@@ -1097,41 +1199,43 @@ export const GameCanvas: React.FC = () => {
           return;
         }
 
-        // Update Physics & Game State
-        engine.update(deltaMs);
+        // Update Physics & Game State (freeze background stage loop while SMW Overworld Map is open)
+        if (!isSmwMapOpen) {
+          engine.update(deltaMs);
 
-        // Render Canvas
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          engine.render(ctx);
-        }
+          // Render Canvas
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            engine.render(ctx);
+          }
 
-        // Throttle UI React state updates to ~10 times per second for smooth DOM performance
-        uiTimer += deltaMs;
-        if (uiTimer >= 100) {
-          uiTimer = 0;
-          setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
-          setLastSavedRank(engine.lastSavedRank);
-          setMarioPower(engine.marioPower);
-          setIsPaused(engine.isPaused);
-          setIsGameOver(engine.isGameOver);
-          setIsStageClear(engine.isStageClear);
-          setWaitingForPlayersFinish(engine.waitingForPlayersFinish);
-          setWaitingPlayersNames([...engine.waitingPlayersNames]);
-          setStageArrivalNotice(engine.stageArrivalNotice);
-          setAllPlayersClearedReady(engine.allPlayersClearedReady);
-          setLocalStageCleared(engine.localStageCleared);
-          setIsCampaignVictory(engine.isCampaignVictory);
-          setIsSmwModeActive(engine.gameMode === 'smw_world_map');
-          setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
-          setMultiplayerMatchResult(engine.multiplayerMatchResult);
-          setIsCustomLevelActive(Boolean(engine.level?.isCustom));
-          setIsCheatActive(engine.isCheatActive);
-          setIsDebugMode(engine.isDebugMode);
-          setIsDebugPlacementActive(engine.isDebugPlacementActive);
-          setDebugCoords({ x: engine.marioX, y: engine.marioY });
-          setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
-          setIsIllegalInstructionBug(engine.isIllegalInstructionBug);
+          // Throttle UI React state updates to ~10 times per second for smooth DOM performance
+          uiTimer += deltaMs;
+          if (uiTimer >= 100) {
+            uiTimer = 0;
+            setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
+            setLastSavedRank(engine.lastSavedRank);
+            setMarioPower(engine.marioPower);
+            setIsPaused(engine.isPaused);
+            setIsGameOver(engine.isGameOver);
+            setIsStageClear(engine.isStageClear);
+            setWaitingForPlayersFinish(engine.waitingForPlayersFinish);
+            setWaitingPlayersNames([...engine.waitingPlayersNames]);
+            setStageArrivalNotice(engine.stageArrivalNotice);
+            setAllPlayersClearedReady(engine.allPlayersClearedReady);
+            setLocalStageCleared(engine.localStageCleared);
+            setIsCampaignVictory(engine.isCampaignVictory);
+            setIsSmwModeActive(engine.gameMode === 'smw_world_map');
+            setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
+            setMultiplayerMatchResult(engine.multiplayerMatchResult);
+            setIsCustomLevelActive(Boolean(engine.level?.isCustom));
+            setIsCheatActive(engine.isCheatActive);
+            setIsDebugMode(engine.isDebugMode);
+            setIsDebugPlacementActive(engine.isDebugPlacementActive);
+            setDebugCoords({ x: engine.marioX, y: engine.marioY });
+            setDebugSelectedLabel(engine.getCurrentDebugPlaceable().label);
+            setIsIllegalInstructionBug(engine.isIllegalInstructionBug);
+          }
         }
       }
 
@@ -1140,7 +1244,7 @@ export const GameCanvas: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isPaused, pollGamepad]);
+  }, [isPaused, isSmwMapOpen, pollGamepad]);
 
   // Audio Controls Handlers
   const toggleMute = () => {
@@ -1184,6 +1288,96 @@ export const GameCanvas: React.FC = () => {
       setIsSmwModeActive(Boolean(level.smwNodeId));
     }
   };
+
+  const handleWarpToSpecificStage = useCallback(
+    (stageId: string) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      if (multiplayerStatus.connected && multiplayerStatus.transport === 'firebase' && !multiplayerStatus.isHost) {
+        setCheatToast('Apenas o anfitrião pode trocar a fase da sala!');
+        setTimeout(() => setCheatToast(''), 3000);
+        return;
+      }
+
+      SoundEngine.get().resume();
+      engine.activateCheatMode();
+      setIsCheatActive(true);
+      setIsSmwMapOpen(false);
+      setSmwCastleSaveTitle(null);
+      setSmwJustClearedNodeId(null);
+      setIsCustomLevelActive(false);
+      setIsPaused(false);
+      setIsGameOver(false);
+      setIsStageClear(false);
+      setIsCampaignVictory(false);
+      setHasStarted(true);
+      manualRunHeldRef.current = false;
+      setControls({
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      });
+
+      const isSmwStage =
+        stageId.startsWith('wiki-') ||
+        SMW_DEV_ONLY_SWITCH_PALACES.some(p => p.id === stageId);
+
+      if (isSmwStage) {
+        engine.yellowSwitchUnlocked = smwProgress.yellowSwitchUnlocked;
+        engine.greenSwitchUnlocked = Boolean(smwProgress.greenSwitchUnlocked);
+        engine.redSwitchUnlocked = Boolean(smwProgress.redSwitchUnlocked);
+        engine.pinkSwitchUnlocked = Boolean(smwProgress.pinkSwitchUnlocked);
+        engine.blueSwitchUnlocked = Boolean(smwProgress.blueSwitchUnlocked);
+        engine.goalPointsWallet = smwProgress.goalPointsWallet ?? 0;
+        engine.stats.goalPointsWallet = engine.goalPointsWallet;
+        const smwStage = createSmwWikiWorldStage(stageId);
+        engine.startSmwStage(smwStage, false);
+        setIsSmwModeActive(true);
+        setStats({ ...engine.stats, isNewHighScore: false });
+        setMarioPower(engine.marioPower);
+        setCheatToast(`Modo Dev: ${smwStage.biomeLabel || smwStage.name}`);
+        setTimeout(() => setCheatToast(''), 3500);
+        return;
+      }
+
+      let classicLevel: LevelData;
+      switch (stageId) {
+        case 'secret-vault':
+          classicLevel = createSecretVault();
+          break;
+        case 'world-1-2':
+          classicLevel = createWorld1_2();
+          break;
+        case 'world-2-2':
+          classicLevel = createWorld2_2();
+          break;
+        case 'world-ghost':
+          classicLevel = createWorldGhostHouse();
+          break;
+        case 'world-1-4':
+          classicLevel = createWorld1_4();
+          break;
+        case 'world-1-1':
+        default:
+          classicLevel = createWorld1_1();
+          break;
+      }
+      engine.isPaused = false;
+      engine.gameMode = 'classic';
+      engine.isGameStarted = true;
+      engine.loadLevel(classicLevel, true, false);
+      setIsSmwModeActive(false);
+      setStats({ ...engine.stats, isNewHighScore: false });
+      setMarioPower(engine.marioPower);
+      setCheatToast(`Modo Dev: ${classicLevel.biomeLabel || classicLevel.name}`);
+      setTimeout(() => setCheatToast(''), 3500);
+    },
+    [multiplayerStatus.connected, multiplayerStatus.isHost, multiplayerStatus.transport, smwProgress]
+  );
 
   const openLevelEditor = useCallback(() => {
     const engine = engineRef.current;
@@ -1248,6 +1442,39 @@ export const GameCanvas: React.FC = () => {
     [multiplayerStatus.connected, editorImmortality]
   );
 
+  const handlePlayCustomCampaign = useCallback(
+    (levels: LevelData[], options?: { immortality?: boolean }) => {
+      if (multiplayerStatus.connected) {
+        setCheatToast('Saia da sala multiplayer para jogar sua campanha personalizada!');
+        setTimeout(() => setCheatToast(''), 3500);
+        return;
+      }
+      if (!levels || levels.length === 0) return;
+      const immortal = options?.immortality ?? editorImmortality;
+      const sanitizedLevels = levels.map(l => sanitizeCustomLevelEntities(l).level);
+      setEditorImmortality(immortal);
+      SoundEngine.get().resume();
+      setIsLevelEditorOpen(false);
+      setIsSettingsOpen(false);
+      setIsUpdatesOpen(false);
+      setIsCampaignVictory(false);
+      setIsMultiplayerMatchOver(false);
+      setHasStarted(true);
+      setIsCustomLevelActive(true);
+      setIsSmwMapOpen(false);
+      setIsSmwModeActive(false);
+      if (engineRef.current) {
+        engineRef.current.startCustomCampaign(sanitizedLevels, immortal);
+        setIsPaused(false);
+        setIsGameOver(false);
+        setIsStageClear(false);
+        setStats({ ...engineRef.current.stats, isNewHighScore: false });
+        setMarioPower(engineRef.current.marioPower);
+      }
+    },
+    [multiplayerStatus.connected, editorImmortality]
+  );
+
   const handleReturnToMainMenu = useCallback(() => {
     setIsLevelEditorOpen(false);
     setIsSettingsOpen(false);
@@ -1256,6 +1483,8 @@ export const GameCanvas: React.FC = () => {
     setIsSmwMapOpen(false);
     setIsSmwModeActive(false);
     setSmwJustClearedNodeId(null);
+    setSmwCastleSaveTitle(null);
+    setSmwSaveSlots(loadSmwSaveSlots());
     setIsPaused(false);
     setIsGameOver(false);
     setIsStageClear(false);
@@ -1431,12 +1660,30 @@ export const GameCanvas: React.FC = () => {
     setHasStarted(true);
     setIsSmwModeActive(true);
     setIsSmwMapOpen(true);
+    manualRunHeldRef.current = false;
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    });
     if (engineRef.current) {
-      engineRef.current.gameMode = 'smw_world_map';
-      engineRef.current.isPaused = false;
-      engineRef.current.isGameOver = false;
+      engineRef.current.returnToSmwOverworldState();
     }
   }, [multiplayerStatus.connected]);
+
+  const handleOpenSmwLoadProgress = useCallback(() => {
+    if (multiplayerStatus.connected) {
+      setCheatToast('Desconecte do multiplayer para carregar o Modo World!');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
+    handleOpenSmwWorldMap();
+    setSmwOpenLoadSignal(prev => prev + 1);
+  }, [multiplayerStatus.connected, handleOpenSmwWorldMap]);
 
   const handleEnterSmwStage = useCallback(
     (nodeId: string) => {
@@ -1448,6 +1695,10 @@ export const GameCanvas: React.FC = () => {
           setTimeout(() => setCheatToast(''), 3000);
         }
         return;
+      }
+
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
       }
 
       const updated: SmwBetaProgress = {
@@ -1464,8 +1715,22 @@ export const GameCanvas: React.FC = () => {
       setSmwJustClearedNodeId(null);
       setHasStarted(true);
       setIsCustomLevelActive(false);
+      manualRunHeldRef.current = false;
+      setControls({
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        jump: false,
+        run: false,
+        pause: false,
+      });
       if (engineRef.current) {
         engineRef.current.yellowSwitchUnlocked = updated.yellowSwitchUnlocked;
+        engineRef.current.greenSwitchUnlocked = Boolean(updated.greenSwitchUnlocked);
+        engineRef.current.redSwitchUnlocked = Boolean(updated.redSwitchUnlocked);
+        engineRef.current.pinkSwitchUnlocked = Boolean(updated.pinkSwitchUnlocked);
+        engineRef.current.blueSwitchUnlocked = Boolean(updated.blueSwitchUnlocked);
         engineRef.current.goalPointsWallet = updated.goalPointsWallet ?? 0;
         engineRef.current.stats.goalPointsWallet = engineRef.current.goalPointsWallet;
         engineRef.current.startSmwStage(createSmwWikiWorldStage(nodeId), false);
@@ -1503,8 +1768,33 @@ export const GameCanvas: React.FC = () => {
     setSmwSaveSlots(slots);
     setSmwCastleSaveTitle(null);
     setSmwJustClearedNodeId(null);
+    setIsGameOver(false);
+    setIsPaused(false);
+    setIsStageClear(false);
+    setIsCampaignVictory(false);
+    setHasStarted(true);
+    setIsSmwModeActive(true);
+    setIsSmwMapOpen(true);
+    manualRunHeldRef.current = false;
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    });
     if (engineRef.current) {
+      engineRef.current.returnToSmwOverworldState();
+      if (!engineRef.current.currentRunId) {
+        engineRef.current.currentRunId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      }
       engineRef.current.yellowSwitchUnlocked = loadedProgress.yellowSwitchUnlocked;
+      engineRef.current.greenSwitchUnlocked = Boolean(loadedProgress.greenSwitchUnlocked);
+      engineRef.current.redSwitchUnlocked = Boolean(loadedProgress.redSwitchUnlocked);
+      engineRef.current.pinkSwitchUnlocked = Boolean(loadedProgress.pinkSwitchUnlocked);
+      engineRef.current.blueSwitchUnlocked = Boolean(loadedProgress.blueSwitchUnlocked);
       engineRef.current.goalPointsWallet = loadedProgress.goalPointsWallet ?? 0;
       engineRef.current.stats.goalPointsWallet = engineRef.current.goalPointsWallet;
       engineRef.current.stats.lives = Math.max(1, slot.lives);
@@ -1529,12 +1819,21 @@ export const GameCanvas: React.FC = () => {
     setIsStageClear(false);
     setSmwJustClearedNodeId(null);
     setSmwCastleSaveTitle(null);
+    setSmwSaveSlots(loadSmwSaveSlots());
     setIsSmwModeActive(true);
     setIsSmwMapOpen(true);
+    manualRunHeldRef.current = false;
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false,
+      pause: false,
+    });
     if (engineRef.current) {
-      engineRef.current.gameMode = 'smw_world_map';
-      engineRef.current.isPaused = false;
-      engineRef.current.isGameOver = false;
+      engineRef.current.returnToSmwOverworldState();
     }
   }, []);
 
@@ -1825,6 +2124,16 @@ export const GameCanvas: React.FC = () => {
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
+                    onClick={handleOpenSmwLoadProgress}
+                    title="Carregar progresso salvo manualmente no Modo World"
+                    className="px-3 py-2 rounded-lg bg-amber-950/90 hover:bg-amber-900 border border-amber-500/70 text-amber-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Carregar World ({smwSaveSlots.filter(Boolean).length}/3)</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setIsMultiplayerOpen(true)}
                     className="px-3 py-2 rounded-lg bg-emerald-950/85 hover:bg-emerald-900 border border-emerald-500/70 text-emerald-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
                   >
@@ -1852,8 +2161,19 @@ export const GameCanvas: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={openAchievementsModal}
+                    className="px-3 py-2 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-emerald-500/60 text-emerald-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0 tabular-nums"
+                  >
+                    <Award className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>
+                      Conquistas ({achievementsSummary.unlockedCount}/{achievementsSummary.totalCount})
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => openUpdatesModal('fixes')}
-                    className="px-3 py-2 rounded-lg bg-amber-950/85 hover:bg-amber-900 border border-amber-400/80 text-amber-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+                    className="px-3 py-2 rounded-lg bg-amber-950/85 hover:bg-amber-900 border border-amber-400/80 text-amber-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
                   >
                     <Wrench className="w-3.5 h-3.5 text-amber-400" />
                     <span>Correções Recentes</span>
@@ -1862,7 +2182,7 @@ export const GameCanvas: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsSettingsOpen(true)}
-                    className="px-3 py-2 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition"
+                    className="px-3 py-2 rounded-lg bg-stone-900/90 hover:bg-stone-800 border border-stone-700 text-stone-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap shrink-0"
                   >
                     <Settings className="w-3.5 h-3.5 text-stone-300" />
                     <span>Opções</span>
@@ -1963,6 +2283,14 @@ export const GameCanvas: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={openAchievementsModal}
+                  className="px-4 py-2.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Award className="w-3.5 h-3.5 text-emerald-400" />
+                  CONQUISTAS
+                </button>
+                <button
+                  type="button"
                   onClick={() => openUpdatesModal('fixes')}
                   className="px-4 py-2.5 rounded-lg bg-amber-950 hover:bg-amber-900 border border-amber-400/70 text-amber-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
@@ -2030,6 +2358,7 @@ export const GameCanvas: React.FC = () => {
             justClearedNodeId={smwJustClearedNodeId}
             saveSlots={smwSaveSlots}
             castleSavePromptNodeTitle={smwCastleSaveTitle}
+            openLoadSignal={smwOpenLoadSignal}
             onSelectNode={nodeId => {
               setSmwProgress(prev => ({ ...prev, selectedNodeId: nodeId }));
             }}
@@ -2047,10 +2376,18 @@ export const GameCanvas: React.FC = () => {
                 selectedIslandId: 'wikiworld',
                 storySeen: true,
                 yellowSwitchUnlocked: false,
+                greenSwitchUnlocked: false,
+                redSwitchUnlocked: false,
+                pinkSwitchUnlocked: false,
+                blueSwitchUnlocked: false,
                 goalPointsWallet: 0,
               };
               if (engineRef.current) {
                 engineRef.current.yellowSwitchUnlocked = false;
+                engineRef.current.greenSwitchUnlocked = false;
+                engineRef.current.redSwitchUnlocked = false;
+                engineRef.current.pinkSwitchUnlocked = false;
+                engineRef.current.blueSwitchUnlocked = false;
                 engineRef.current.goalPointsWallet = 0;
                 engineRef.current.stats.goalPointsWallet = 0;
               }
@@ -2259,7 +2596,7 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
-          {/* Final 7-World Singleplayer Victory Overlay (Princesa Femboy Rescued!) */}
+          {/* Final Campaign Victory Overlay (7-World Singleplayer or Custom Editor Campaign) */}
           {isCampaignVictory && !isGameOver && !isMultiplayerMatchOver && (
             <div
               ref={victoryOverlayRef}
@@ -2267,13 +2604,15 @@ export const GameCanvas: React.FC = () => {
             >
               <div className="flex items-center gap-2 mb-2">
                 <Crown className="w-7 h-7 text-amber-400 fill-amber-400" />
-                <Heart className="w-6 h-6 text-pink-400 fill-pink-500" />
+                {!isCustomLevelActive && <Heart className="w-6 h-6 text-pink-400 fill-pink-500" />}
               </div>
               <h2 className="font-['Press_Start_2P',monospace] text-lg sm:text-2xl text-pink-300 mb-2 tracking-wider drop-shadow-lg">
-                7 MUNDOS CONCLUÍDOS!
+                {isCustomLevelActive ? 'CAMPANHA CONCLUÍDA!' : '7 MUNDOS CONCLUÍDOS!'}
               </h2>
               <p className="text-amber-300 font-mono text-xs sm:text-sm font-bold mb-1">
-                Você salvou a Princesa Femboy no Castelo Final (7-5)!
+                {isCustomLevelActive
+                  ? 'Você venceu todas as fases da sua campanha personalizada!'
+                  : 'Você salvou a Princesa Femboy no Castelo Final (7-5)!'}
               </p>
               <p className="text-stone-300 font-mono text-xs mb-3">
                 Pontuação Final:{' '}
@@ -2290,12 +2629,22 @@ export const GameCanvas: React.FC = () => {
               <div className="flex flex-wrap gap-3 justify-center mt-2">
                 <button
                   type="button"
-                  onClick={handleStartSingleplayer}
+                  onClick={isCustomLevelActive ? handleRestart : handleStartSingleplayer}
                   className="px-5 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <RotateCcw className="w-4 h-4" />
                   JOGAR NOVAMENTE
                 </button>
+                {isCustomLevelActive && (
+                  <button
+                    type="button"
+                    onClick={openLevelEditor}
+                    className="px-5 py-3 rounded-xl bg-sky-900 hover:bg-sky-800 text-sky-200 border border-sky-400/60 font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Hammer className="w-4 h-4 text-sky-400" />
+                    EDITOR
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsLeaderboardOpen(true)}
@@ -2402,10 +2751,23 @@ export const GameCanvas: React.FC = () => {
             type="button"
             onClick={() => setIsLeaderboardOpen(true)}
             title="Placar de Recordes (Hall da Fama)"
-            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-amber-500/40 text-amber-300 hover:text-white transition flex items-center gap-1.5"
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-amber-500/40 text-amber-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Trophy className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline text-[11px]">Placar</span>
+          </button>
+
+          {/* Conquistas */}
+          <button
+            type="button"
+            onClick={openAchievementsModal}
+            title="Conquistas e Recompensas"
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-emerald-500/45 text-emerald-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer tabular-nums"
+          >
+            <Award className="w-4 h-4 text-emerald-400" />
+            <span className="hidden md:inline text-[11px]">
+              Conquistas ({achievementsSummary.unlockedCount}/{achievementsSummary.totalCount})
+            </span>
           </button>
 
           {/* Multiplayer Firebase (Login Google) */}
@@ -2593,6 +2955,8 @@ export const GameCanvas: React.FC = () => {
         onOpenLevelEditor={openLevelEditor}
         onStartSingleplayer={handleStartSingleplayer}
         onStartSmwWorldMap={handleOpenSmwWorldMap}
+        onLoadSmwWorldProgress={handleOpenSmwLoadProgress}
+        smwSavedSlotsCount={smwSaveSlots.filter(Boolean).length}
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         smartTvMode={smartTvMode}
@@ -2640,6 +3004,13 @@ export const GameCanvas: React.FC = () => {
         isFemboy={marioPower === 'femboy'}
         isDebugMode={isDebugMode}
         isDebugPlacementActive={isDebugPlacementActive}
+        switchStates={{
+          yellow: smwProgress.yellowSwitchUnlocked,
+          green: Boolean(smwProgress.greenSwitchUnlocked),
+          red: Boolean(smwProgress.redSwitchUnlocked),
+          pink: Boolean(smwProgress.pinkSwitchUnlocked),
+          blue: Boolean(smwProgress.blueSwitchUnlocked),
+        }}
         onToggleInfiniteLives={() => {
           engineRef.current?.toggleInfiniteLives();
           setStats({ ...engineRef.current!.stats });
@@ -2662,6 +3033,7 @@ export const GameCanvas: React.FC = () => {
             setStats({ ...engineRef.current.stats });
           }
         }}
+        onWarpToSpecificStage={handleWarpToSpecificStage}
       />
 
       {/* Multiplayer por IP Modal (WazzimaGiygg / Mario) */}
@@ -2681,6 +3053,9 @@ export const GameCanvas: React.FC = () => {
           setActiveCustomLevelId(activeId);
         }}
         onPlayLevel={handlePlayCustomLevel}
+        customCampaignIds={customCampaignIds}
+        onUpdateCustomCampaignIds={setCustomCampaignIds}
+        onPlayCampaign={handlePlayCustomCampaign}
         onBackToMainMenu={handleReturnToMainMenu}
         editorImmortality={editorImmortality}
         onToggleEditorImmortality={enabled => {
@@ -2697,6 +3072,47 @@ export const GameCanvas: React.FC = () => {
         initialFilter={updatesFilter}
         onClose={() => setIsUpdatesOpen(false)}
       />
+
+      {/* Achievements Modal */}
+      <AchievementsModal
+        isOpen={isAchievementsOpen}
+        onClose={() => setIsAchievementsOpen(false)}
+        achievements={achievements}
+        summary={achievementsSummary}
+        onResetAchievements={() => {
+          if (engineRef.current) {
+            const next = engineRef.current.resetAchievements();
+            setAchievements(next);
+            setAchievementsSummary(engineRef.current.getAchievementSummary());
+          }
+        }}
+      />
+
+      {/* Achievement Unlock Toast Notification */}
+      {achievementToast && (
+        <div
+          role="status"
+          className="fixed top-14 right-4 z-50 px-4 py-3 rounded-xl bg-stone-900/95 border-2 border-emerald-400 text-stone-100 shadow-2xl flex items-center gap-3 max-w-xs sm:max-w-sm animate-in fade-in slide-in-from-top-2"
+        >
+          <div className="w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-400 flex items-center justify-center shrink-0">
+            <Award className="w-5 h-5 text-amber-300" />
+          </div>
+          <div className="min-w-0 text-left">
+            <div className="font-['Press_Start_2P',monospace] text-[9px] text-emerald-300">
+              CONQUISTA DESBLOQUEADA!
+            </div>
+            <div className="mt-1 text-xs font-bold text-white truncate">
+              {achievementToast.achievement.title}
+            </div>
+            <div className="text-[11px] font-mono text-amber-300 tabular-nums">
+              +{achievementToast.rewardPoints.toLocaleString()} PTS
+              {achievementToast.rewardLives > 0
+                ? ` · +${achievementToast.rewardLives} ${achievementToast.rewardLives === 1 ? 'Vida' : 'Vidas'}`
+                : ''}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Multiplayer Logoff / Room Inactivity Toast Notification */}
       {multiplayerNotice && (

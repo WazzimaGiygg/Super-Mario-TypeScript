@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Flame, Shield, Sparkles, Heart, PlusCircle, X, Check, Flag, Bug, Crosshair } from 'lucide-react';
-import { MarioPower } from '../game/types.ts';
+import { Flame, Sparkles, Heart, PlusCircle, X, Check, Flag, Bug, Crosshair, Compass } from 'lucide-react';
+import { MarioPower, SmwSwitchColor } from '../game/types.ts';
+import { SMW_DEV_ONLY_SWITCH_PALACES, SMW_WIKIWORLD_NODES } from '../game/smwWorldMap.ts';
 
 interface CheatMenuModalProps {
   isOpen: boolean;
@@ -14,12 +15,14 @@ interface CheatMenuModalProps {
   isFemboy?: boolean;
   isDebugMode?: boolean;
   isDebugPlacementActive?: boolean;
+  switchStates?: Record<SmwSwitchColor, boolean>;
   onToggleInfiniteLives: () => void;
   onToggleDebugMode?: () => void;
   onToggleDebugPlacement?: () => void;
   onSetPowerUp: (power: MarioPower | 'star') => void;
   onAddScore: (points: number) => void;
   onTeleportToEnd: () => void;
+  onWarpToSpecificStage?: (stageId: string) => void;
 }
 
 export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
@@ -29,14 +32,17 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
   isFemboy = false,
   isDebugMode = false,
   isDebugPlacementActive = false,
+  switchStates = { yellow: false, green: false, red: false, pink: false, blue: false },
   onToggleInfiniteLives,
   onToggleDebugMode,
   onToggleDebugPlacement,
   onSetPowerUp,
   onAddScore,
   onTeleportToEnd,
+  onWarpToSpecificStage,
 }) => {
   const [customPoints, setCustomPoints] = useState('');
+  const [selectedStageId, setSelectedStageId] = useState('wiki-switch-green');
   const [successMessage, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
@@ -375,6 +381,103 @@ export const CheatMenuModal: React.FC<CheatMenuModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* 5. Ir até a Fase Específica (Palácios Switchers em expansão + Fases) */}
+          {onWarpToSpecificStage && (
+            <div className="bg-stone-800/80 p-3.5 rounded-lg border border-emerald-500/45 space-y-3">
+              <div className="flex items-center gap-2">
+                <Compass className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <h3 className="font-['Press_Start_2P',monospace] text-[10px] text-emerald-300">
+                    IR ATÉ A FASE ESPECÍFICA
+                  </h3>
+                  <p className="text-[10px] text-stone-300">
+                    Acesse diretamente fases em expansão do Super Mario World (Palácios Switchers) ou fases clássicas
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <select
+                  aria-label="Selecionar fase específica"
+                  value={selectedStageId}
+                  onChange={e => setSelectedStageId(e.target.value)}
+                  className="flex-1 bg-stone-950 border border-stone-700 rounded px-2.5 py-2 text-xs text-stone-100 focus:outline-hidden focus:border-emerald-500"
+                >
+                  <optgroup label="Palácios Switchers SMW (Expansão Dev)">
+                    {SMW_DEV_ONLY_SWITCH_PALACES.map(palace => (
+                      <option key={palace.id} value={palace.id}>
+                        {palace.title} ({palace.rewardLabel})
+                      </option>
+                    ))}
+                    <option value="wiki-switch-yellow">
+                      Palácio Interruptor Amarelo (Bloco [!] Amarelo · Cogumelo)
+                    </option>
+                  </optgroup>
+                  <optgroup label="Ilha WikiWorldWeb (SMW)">
+                    {SMW_WIKIWORLD_NODES.filter(n => n.id !== 'wiki-switch-yellow').map(node => (
+                      <option key={node.id} value={node.id}>
+                        {node.code} · {node.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Fases Clássicas">
+                    <option value="world-1-1">Mundo 1-1</option>
+                    <option value="secret-vault">Cofre Secreto</option>
+                    <option value="world-1-2">Mundo 1-2 (Caverna)</option>
+                    <option value="world-2-2">Mundo 2-2 (Água)</option>
+                    <option value="world-ghost">Mansão de Fantasmas</option>
+                    <option value="world-1-4">Mundo 1-4 (Castelo)</option>
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onWarpToSpecificStage(selectedStageId);
+                    onClose();
+                  }}
+                  className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-['Press_Start_2P',monospace] text-[9px] font-bold shrink-0 cursor-pointer transition"
+                >
+                  IR ATÉ FASE
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {SMW_DEV_ONLY_SWITCH_PALACES.map(palace => {
+                  const unlocked = switchStates[palace.color];
+                  const styleByColor: Record<Exclude<SmwSwitchColor, 'yellow'>, string> = {
+                    green: 'border-emerald-500/60 bg-emerald-950/60 hover:bg-emerald-900/70 text-emerald-300',
+                    red: 'border-red-500/60 bg-red-950/60 hover:bg-red-900/70 text-red-300',
+                    pink: 'border-pink-500/60 bg-pink-950/60 hover:bg-pink-900/70 text-pink-300',
+                    blue: 'border-sky-500/60 bg-sky-950/60 hover:bg-sky-900/70 text-sky-300',
+                  };
+                  return (
+                    <button
+                      key={palace.id}
+                      type="button"
+                      onClick={() => {
+                        onWarpToSpecificStage(palace.id);
+                        onClose();
+                      }}
+                      className={`p-2 rounded border text-left transition cursor-pointer ${
+                        styleByColor[palace.color as Exclude<SmwSwitchColor, 'yellow'>]
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-[11px]">{palace.code} · {palace.title.replace('Palácio Interruptor ', '')}</span>
+                        <span className="text-[9px] font-mono opacity-85">
+                          {unlocked ? 'ATIVO' : 'DEV'}
+                        </span>
+                      </div>
+                      <span className="block text-[10px] text-stone-300 mt-0.5">
+                        {palace.rewardLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

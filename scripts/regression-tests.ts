@@ -72,17 +72,20 @@ import {
   createSecretVault,
   sanitizeCustomLevelEntities,
   parseImportedLevelFile,
+  isPowerUpBoxContent,
   EDITOR_MAX_ENEMIES,
   EDITOR_MAX_COINS,
   EDITOR_MAX_FLOATING_PLATFORMS,
   EDITOR_MAX_TOTAL_ENTITIES,
   STAGE_W_COINS_COUNT,
 } from '../src/game/levels.ts';
+import { AchievementManager } from '../src/game/achievements.ts';
 import {
   SMW_ISLANDS,
   SMW_ISLAND2_NODES,
   SMW_ISLAND2_UNAVAILABLE_MSG,
   SMW_WIKIWORLD_NODES,
+  SMW_DEV_ONLY_SWITCH_PALACES,
   createSmwWikiWorldStage,
   findSmwMapPath,
   isSmwNodeUnlocked,
@@ -951,6 +954,10 @@ async function runR116FixesTests() {
     const uniqueUids = new Set(uids);
     assert.equal(uniqueUids.size, uids.length, 'Todas as UIDs de correções devem ser únicas');
     for (const requiredUid of [
+      'R1.16.MV.4',
+      'R1.16.SL.4',
+      'R1.16.1B0.4',
+      'R1.16.FH.4',
       'R02.16.PG.4',
       'R1.16.OV.4',
       'R1.16.SW.4',
@@ -1082,21 +1089,30 @@ async function runR116FixesTests() {
       imported.enemies.length + imported.coins.length + (imported.floatingPlatforms?.length || 0);
     assert.ok(totalImported <= EDITOR_MAX_TOTAL_ENTITIES);
 
-    // 3. Execução no motor via playCustomLevel respeita limite e inicia com câmera e estado válidos
+    // 3. Execução no motor via playCustomLevel respeita limite, reseta estado SMW/íris/glitch e inicia com câmera válida
     const engine = new GameEngine();
+    engine.gameMode = 'smw_world_map';
+    engine.smwCastleIrisProgress = 1;
+    engine.smwCastleEntryActive = true;
+    engine.isIllegalInstructionBug = true;
     custom.marioStart = { x: 640, y: 192 };
     engine.playCustomLevel(custom, true);
     assert.equal(engine.isGameStarted, true);
     assert.equal(engine.isPaused, false);
     assert.equal(engine.isGameOver, false);
     assert.equal(engine.level.isCustom, true);
+    assert.equal(engine.gameMode, 'classic');
+    assert.equal(engine.smwCastleIrisProgress, 0);
+    assert.equal(engine.smwCastleEntryActive, false);
+    assert.equal(engine.isIllegalInstructionBug, false);
     assert.ok(engine.enemies.length <= EDITOR_MAX_ENEMIES);
     assert.ok(engine.items.length <= EDITOR_MAX_COINS);
     assert.ok(engine.floatingPlatforms.length <= EDITOR_MAX_FLOATING_PLATFORMS);
     assert.ok(engine.camera.x > 0, 'Câmera deve centralizar quando início customizado está além de 160px');
 
-    // 4. Editor inclui isOpen na re-renderização do canvas e mantém hover fora das dependências de redraw
+    // 4. Editor usa janela virtual limitada (<= 2048px), inclui isOpen no redraw e mantém hover fora das dependências
     const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes('EDITOR_MAX_CANVAS_BACKING_WIDTH = 2048'));
     assert.ok(editorSrc.includes('}, [isOpen, currentLevel, cellSize, showGrid, atlas]);'));
     assert.ok(editorSrc.includes('EDITOR_MAX_TOTAL_ENTITIES'));
     assert.ok(editorSrc.includes('EDITOR_MAX_ENEMIES'));
@@ -1614,6 +1630,527 @@ async function runR116FixesTests() {
     assert.ok(engine.smwCastleBannerProgress > 0.5, 'Bandeira de vitória no castelo deve subir');
     assert.ok(engine.smwCastleIrisProgress > 0.5, 'Transição circular iris-out deve fechar antes do retorno ao mapa');
     assert.equal(completedId, 'wiki-1-overworld');
+  });
+
+  await test('R1.16.1B0.4: Campanha personalizada de múltiplos mapas do editor avança por fase até vitória final', () => {
+    const engine = new GameEngine();
+    const map1 = createBlankCustomLevel('MAPA UM', 'overworld', 60);
+    map1.id = 'custom-camp-1';
+    for (let i = 0; i < 80; i++) {
+      map1.enemies.push({ type: 'goomba', x: (i % 40) * 16 + 32, y: 192 });
+    }
+    const map2 = createBlankCustomLevel('MAPA DOIS', 'underground', 60);
+    map2.id = 'custom-camp-2';
+    const map3 = createBlankCustomLevel('MAPA TRES', 'castle', 60);
+    map3.id = 'custom-camp-3';
+
+    engine.startCustomCampaign([map1, map2, map3], false);
+    assert.equal(engine.isGameStarted, true);
+    assert.equal(engine.isPlayingCustomCampaign(), true);
+    assert.equal(engine.level.id, 'custom-camp-1');
+    assert.equal(engine.stats.world, '1/3');
+    assert.equal(engine.isCampaignVictory, false);
+    assert.ok(engine.enemies.length <= EDITOR_MAX_ENEMIES);
+
+    // Conclui fase 1 -> avança automaticamente para fase 2 preservando pontos
+    engine.stats.score = 1500;
+    engine.stats.coins = 7;
+    engine.advanceToNextLevel();
+    assert.equal(engine.level.id, 'custom-camp-2');
+    assert.equal(engine.stats.world, '2/3');
+    assert.equal(engine.stats.score, 1500);
+    assert.equal(engine.stats.coins, 7);
+    assert.equal(engine.isCampaignVictory, false);
+
+    // Conclui fase 2 -> avança para fase 3
+    engine.advanceToNextLevel();
+    assert.equal(engine.level.id, 'custom-camp-3');
+    assert.equal(engine.stats.world, '3/3');
+    assert.equal(engine.isCampaignVictory, false);
+
+    // Conclui última fase -> ativa vitória da campanha personalizada
+    engine.advanceToNextLevel();
+    assert.equal(engine.isCampaignVictory, true);
+    assert.equal(engine.isStageClear, false);
+
+    // Reiniciar campanha personalizada volta ao mapa 1/3 e limpa vitória
+    engine.restartGame();
+    assert.equal(engine.level.id, 'custom-camp-1');
+    assert.equal(engine.stats.world, '1/3');
+    assert.equal(engine.isCampaignVictory, false);
+    assert.equal(engine.stats.score, 0);
+
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.ok(canvasSrc.includes('startCustomCampaign('));
+    assert.ok(canvasSrc.includes('CAMPANHA CONCLUÍDA!'));
+  });
+
+  await test('R1.16.FH.4: Editor suporta atalhos Ctrl+Z (Desfazer) e Ctrl+Y (Refazer) com histórico limitado', () => {
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes('EDITOR_MAX_HISTORY = 35'));
+    assert.ok(editorSrc.includes("lower === 'z' && !e.shiftKey"));
+    assert.ok(editorSrc.includes("lower === 'y' || (lower === 'z' && e.shiftKey)"));
+    assert.ok(editorSrc.includes('handleUndo'));
+    assert.ok(editorSrc.includes('handleRedo'));
+    assert.ok(editorSrc.includes('Ctrl+Z'));
+    assert.ok(editorSrc.includes('Ctrl+Y'));
+  });
+
+  await test('R1.16.MV.4 & R1.16.SL.4: Modo World dispara conclusão apenas 1x (sem softlock ao salvar), libera movimentação pós-fase e expõe Carregar Progresso', () => {
+    const engine = createFreshEngine();
+    let completionCount = 0;
+    let lastCompletedId = '';
+    engine.onSmwStageCompleted = id => {
+      completionCount++;
+      lastCompletedId = id;
+    };
+
+    // 1. Concluir W-1 no Modo World deve disparar onSmwStageCompleted exatamente 1 vez
+    engine.startSmwStage(createSmwWikiWorldStage('wiki-1-overworld'), true);
+    engine.intermissionTimer = 0;
+    engine.enemies = [];
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 176;
+    engine.update(16.67);
+
+    for (let i = 0; i < 180 && engine.marioState !== 'castle_entered'; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioState, 'castle_entered');
+    engine.stats.time = 0;
+    for (let i = 0; i < 120 && completionCount === 0; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(completionCount, 1);
+    assert.equal(lastCompletedId, 'wiki-1-overworld');
+
+    // Frames subsequentes NÃO podem re-disparar conclusão (evita reset de seleção no mapa e softlock do modal de save)
+    stepEngine(engine, 30);
+    assert.equal(completionCount, 1, 'onSmwStageCompleted não pode disparar em loop após retorno ao mapa');
+    assert.equal(engine.isGameStarted, false);
+    assert.equal(engine.marioState, 'idle');
+    assert.equal(engine.localStageCleared, false);
+
+    // 2. Após vencer W-1, jogador consegue andar no mapa (W-2 <-> W-1) e mover Mario livremente na próxima fase (W-2)
+    const afterW1Progress: SmwBetaProgress = {
+      clearedNodeIds: ['wiki-1-overworld'],
+      selectedNodeId: 'wiki-2-caverna',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: false,
+    };
+    assert.equal(resolveSmwDirectionalStep('wiki-2-caverna', 'left', afterW1Progress, 'wikiworld')?.id, 'wiki-1-overworld');
+    assert.equal(resolveSmwDirectionalStep('wiki-1-overworld', 'up', afterW1Progress, 'wikiworld')?.id, 'wiki-2-caverna');
+
+    engine.startSmwStage(createSmwWikiWorldStage('wiki-2-caverna'), false);
+    engine.intermissionTimer = 0;
+    engine.enemies = [];
+    stepEngine(engine, 10);
+    const startX = engine.marioX;
+    engine.controls.right = true;
+    stepEngine(engine, 20);
+    assert.ok(engine.marioX > startX + 10, 'Mario deve se mover normalmente na próxima fase após concluir uma fase no Modo World');
+    engine.controls.right = false;
+
+    // 3. UI de Carregar Progresso & fechamento seguro sem softlock ao salvar no Modo World
+    const mapSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SmwOverworldMap.tsx'), 'utf8');
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    const settingsSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SettingsModal.tsx'), 'utf8');
+    assert.ok(mapSrc.includes('CARREGAR PROGRESSO'));
+    assert.ok(mapSrc.includes('Carregar Progresso'));
+    assert.ok(mapSrc.includes('onDismissCastleSave?.()'));
+    assert.ok(canvasSrc.includes('handleOpenSmwLoadProgress'));
+    assert.ok(canvasSrc.includes('Carregar World'));
+    assert.ok(canvasSrc.includes('if (!isSmwMapOpen)'));
+    assert.ok(settingsSrc.includes('Carregar Progresso (Modo World)'));
+  });
+
+  await test('R1.16.AC.4: Sistema de Conquistas rastreia Goombas, speedrun < 60s, concede recompensas e persiste', () => {
+    const engine = createFreshEngine();
+    engine.resetAchievements();
+    engine.enemies = [];
+    engine.items = [];
+
+    const unlockedEvents: string[] = [];
+    engine.onAchievementUnlocked = evt => {
+      unlockedEvents.push(evt.achievement.id);
+    };
+
+    const yGround = 12 * GameEngine.TILE_SIZE;
+    // Derrotar 9 Goombas -> conquista ainda não desbloqueada
+    for (let i = 0; i < 9; i++) {
+      const g = makeEnemy(9800 + i, 'goomba', 120, yGround);
+      g.vx = 0;
+      engine.enemies = [g];
+      engine.marioX = 120;
+      engine.marioY = yGround - 18;
+      engine.marioVx = 0;
+      engine.marioVy = 4;
+      engine.marioGrounded = false;
+      engine.update(16.67);
+    }
+    let goombaAch = engine.getAchievements().find(a => a.id === 'defeat_10_goombas')!;
+    assert.equal(goombaAch.progress, 9);
+    assert.equal(goombaAch.unlocked, false);
+
+    // 10º Goomba -> desbloqueia "defeat_10_goombas" e concede +1000 pts e +1 vida
+    const scoreBefore10 = engine.stats.score;
+    const livesBefore10 = engine.stats.lives;
+    const g10 = makeEnemy(9810, 'goomba', 120, yGround);
+    g10.vx = 0;
+    engine.enemies = [g10];
+    engine.marioX = 120;
+    engine.marioY = yGround - 18;
+    engine.marioVx = 0;
+    engine.marioVy = 4;
+    engine.marioGrounded = false;
+    engine.update(16.67);
+
+    goombaAch = engine.getAchievements().find(a => a.id === 'defeat_10_goombas')!;
+    assert.equal(goombaAch.progress, 10);
+    assert.equal(goombaAch.unlocked, true);
+    assert.ok(unlockedEvents.includes('defeat_10_goombas'));
+    assert.equal(engine.stats.lives, livesBefore10 + 1);
+    assert.ok(engine.stats.score >= scoreBefore10 + 1000);
+
+    // 11º Goomba NÃO pode desbloquear novamente nem conceder vida duplicada (zera stompCombo ao pisar no chão antes)
+    const livesAfter10 = engine.stats.lives;
+    engine.enemies = [];
+    engine.marioY = yGround;
+    engine.marioVy = 0;
+    engine.marioGrounded = true;
+    engine.update(16.67);
+
+    const g11 = makeEnemy(9811, 'goomba', 120, yGround);
+    g11.vx = 0;
+    engine.enemies = [g11];
+    engine.marioX = 120;
+    engine.marioY = yGround - 18;
+    engine.marioVx = 0;
+    engine.marioVy = 4;
+    engine.marioGrounded = false;
+    engine.update(16.67);
+    assert.equal(engine.stats.lives, livesAfter10);
+    assert.equal(unlockedEvents.filter(id => id === 'defeat_10_goombas').length, 1);
+
+    // Speedrun >= 60s NÃO desbloqueia "clear_under_60s"
+    engine.enemies = [];
+    engine.stageElapsedMs = 65000;
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 176;
+    engine.update(16.67);
+    for (let i = 0; i < 160 && engine.marioState !== 'castle_entered'; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioState, 'castle_entered');
+    let speedAch = engine.getAchievements().find(a => a.id === 'clear_under_60s')!;
+    assert.equal(speedAch.unlocked, false);
+
+    // Speedrun < 60s DESBLOQUEIA "clear_under_60s" e concede +1500 pts e +1 vida
+    engine.loadLevel(createWorld1_1(), false, false);
+    engine.intermissionTimer = 0;
+    engine.enemies = [];
+    assert.equal(engine.stageElapsedMs, 0);
+    stepEngine(engine, 60, 16.67); // ~1 segundo de fase
+    assert.ok(engine.getStageElapsedSeconds() > 0 && engine.getStageElapsedSeconds() < 60);
+
+    const livesBeforeSpeed = engine.stats.lives;
+    engine.marioX = engine.level.flagX;
+    engine.marioY = 176;
+    engine.update(16.67);
+    for (let i = 0; i < 160 && engine.marioState !== 'castle_entered'; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioState, 'castle_entered');
+    speedAch = engine.getAchievements().find(a => a.id === 'clear_under_60s')!;
+    assert.equal(speedAch.unlocked, true);
+    assert.equal(engine.stats.lives, livesBeforeSpeed + 1);
+
+    // Persistência do AchievementManager com Storage
+    const store = new Map<string, string>();
+    const mockStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+    };
+    const mgr1 = new AchievementManager(mockStorage);
+    const evts = mgr1.recordMetric('goombas_defeated', 10, 123456);
+    assert.equal(evts.length, 1);
+    assert.equal(evts[0].achievement.id, 'defeat_10_goombas');
+
+    const mgr2 = new AchievementManager(mockStorage);
+    const persisted = mgr2.getViews().find(a => a.id === 'defeat_10_goombas')!;
+    assert.equal(persisted.unlocked, true);
+    assert.equal(persisted.unlockedAt, 123456);
+  });
+
+  await test('R1.16.PX.4: Todas as caixas de power-up removidas exceto caixas [!] (exclam_yellow) do Modo Super Mario World', () => {
+    const collectNonSmwPowerUpBoxes = (lvl: ReturnType<typeof createWorld1_1>) => {
+      const found: { tx: number; ty: number; type: string; content: string }[] = [];
+      for (let ty = 0; ty < lvl.height; ty++) {
+        for (let tx = 0; tx < lvl.width; tx++) {
+          const tile = lvl.tiles[ty]?.[tx];
+          if (tile && tile.type !== 'exclam_yellow' && isPowerUpBoxContent(tile.content)) {
+            found.push({ tx, ty, type: tile.type, content: tile.content });
+          }
+        }
+      }
+      return found;
+    };
+
+    const builtInStages = [
+      createWorld1_1(),
+      createSecretVault(),
+      createWorld1_2(),
+      createWorld2_2(),
+      createWorldGhostHouse(),
+      createWorld1_4(),
+      createEndlessLevel(111, 5),
+      createEndlessLevel(222, 6),
+      createEndlessLevel(333, 7),
+      createEndlessLevel(444, 8),
+    ];
+    for (let w = 1; w <= 7; w++) {
+      for (let s = 1; s <= 5; s++) {
+        builtInStages.push(createSingleplayerLevel(w, s));
+      }
+    }
+    for (const node of SMW_WIKIWORLD_NODES) {
+      builtInStages.push(createSmwWikiWorldStage(node.id));
+    }
+
+    for (const stage of builtInStages) {
+      const invalid = collectNonSmwPowerUpBoxes(stage);
+      assert.equal(
+        invalid.length,
+        0,
+        `${stage.id} não deve conter caixas de power-up além de exclam_yellow: ${JSON.stringify(invalid)}`
+      );
+    }
+
+    // Verifica que caixas [!] do Modo Super Mario World permanecem presentes
+    const smwMain = createSmwWikiWorldStage('wiki-1-overworld');
+    let smwExclamCount = 0;
+    for (let ty = 0; ty < smwMain.height; ty++) {
+      for (let tx = 0; tx < smwMain.width; tx++) {
+        if (smwMain.tiles[ty]?.[tx]?.type === 'exclam_yellow') smwExclamCount++;
+      }
+    }
+    assert.ok(smwExclamCount >= 2, 'Modo Super Mario World deve manter suas caixas [!]');
+
+    // Importação de fase JSON remove power-up de blocos ? mas preserva exclam_yellow
+    const legacyLevel = createBlankCustomLevel('LEGADO', 'overworld', 60);
+    legacyLevel.tiles[9][6] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+    legacyLevel.tiles[9][7] = { type: 'brick', content: 'fireflower', bumpOffset: 0, bumpVel: 0 };
+    legacyLevel.tiles[9][8] = { type: 'exclam_yellow', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+    const imported = parseImportedLevelFile(JSON.stringify(legacyLevel));
+    assert.equal(imported.tiles[9][6]?.content, 'coin');
+    assert.equal(imported.tiles[9][7]?.content, 'none');
+    assert.equal(imported.tiles[9][8]?.type, 'exclam_yellow');
+    assert.equal(imported.tiles[9][8]?.content, 'mushroom');
+
+    // Debug Placeables e Editor: apenas exclam_yellow como caixa de power-up
+    assert.ok(GameEngine.DEBUG_PLACEABLES.some(p => p.id === 'exclam_yellow'));
+    assert.ok(!GameEngine.DEBUG_PLACEABLES.some(p => (p.id as string) === 'question_mushroom'));
+  });
+
+  await test('R1.16.GT.4: Poste de pontos só concede pontuação quando o personagem acerta o cursor móvel (fita) no lugar exato', () => {
+    // 1. Cálculo direto: só pontua se marioCenterY tocar a posição do cursor (tapeY)
+    const calcEngine = createFreshEngine();
+    assert.equal(calcEngine.computeGoalGatePoints(56, 178, 16), 0, 'Mario no topo com cursor embaixo não ganha pontos');
+    assert.equal(calcEngine.computeGoalGatePoints(184, 48, 16), 0, 'Mario embaixo com cursor no topo não ganha pontos');
+    assert.equal(calcEngine.computeGoalGatePoints(110, 110, 16), 30, 'Mario acertando o cursor no meio ganha 30 pontos');
+    assert.equal(calcEngine.computeGoalGatePoints(52, 52, 16), 50, 'Mario acertando o cursor no topo ganha 50 pontos');
+
+    // 2. Cruzar o poste no topo quando o cursor está lá embaixo -> passa de fase sem cortar a fita e com 0 pontos
+    const highMissEngine = createFreshEngine();
+    highMissEngine.enemies = [];
+    highMissEngine.goalTapeY = 178;
+    highMissEngine.goalTapeDir = -1;
+    const scoreBeforeHighMiss = highMissEngine.stats.score;
+    const livesBeforeHighMiss = highMissEngine.stats.lives;
+    highMissEngine.marioX = highMissEngine.level.flagX;
+    highMissEngine.marioY = 48;
+    highMissEngine.update(16.67);
+    assert.equal(highMissEngine.marioState, 'castle_walk');
+    assert.equal(highMissEngine.lastGoalGatePoints, 0);
+    assert.equal(highMissEngine.goalPointsWallet, 0);
+    assert.equal(highMissEngine.goalTapeCut, false);
+    assert.equal(highMissEngine.stats.score, scoreBeforeHighMiss);
+    assert.equal(highMissEngine.stats.lives, livesBeforeHighMiss);
+
+    // 3. Cruzar o poste embaixo quando o cursor está no topo -> 0 pontos e fita intacta
+    const lowMissEngine = createFreshEngine();
+    lowMissEngine.enemies = [];
+    lowMissEngine.goalTapeY = 46;
+    lowMissEngine.goalTapeDir = 1;
+    const scoreBeforeLowMiss = lowMissEngine.stats.score;
+    lowMissEngine.marioX = lowMissEngine.level.flagX;
+    lowMissEngine.marioY = 176;
+    lowMissEngine.update(16.67);
+    assert.equal(lowMissEngine.marioState, 'castle_walk');
+    assert.equal(lowMissEngine.lastGoalGatePoints, 0);
+    assert.equal(lowMissEngine.goalPointsWallet, 0);
+    assert.equal(lowMissEngine.goalTapeCut, false);
+    assert.equal(lowMissEngine.stats.score, scoreBeforeLowMiss);
+
+    // 4. Cruzar exatamente na altura do cursor no meio (y=109 -> 30 pts) -> corta a fita, soma 30 na carteira e +3000 no placar
+    const hitMidEngine = createFreshEngine();
+    hitMidEngine.enemies = [];
+    hitMidEngine.goalTapeY = 109;
+    hitMidEngine.goalTapeDir = 1;
+    const scoreBeforeHit = hitMidEngine.stats.score;
+    hitMidEngine.marioX = hitMidEngine.level.flagX;
+    hitMidEngine.marioY = 102;
+    hitMidEngine.update(16.67);
+    assert.equal(hitMidEngine.marioState, 'castle_walk');
+    assert.equal(hitMidEngine.goalTapeCut, true);
+    assert.equal(hitMidEngine.lastGoalGatePoints, 30);
+    assert.equal(hitMidEngine.goalPointsWallet, 30);
+    assert.equal(hitMidEngine.stats.score, scoreBeforeHit + 3000);
+  });
+
+  await test('R1.16.21Z.4: Palácios Switchers Verde, Vermelho, Rosa e Azul só acessíveis via Modo Dev e liberam blocos [!] com power-ups corretos', () => {
+    // 1. Não aparecem no mapa comum (SMW_WIKIWORLD_NODES), apenas no registro exclusivo de expansão Dev
+    assert.equal(SMW_DEV_ONLY_SWITCH_PALACES.length, 4);
+    for (const palace of SMW_DEV_ONLY_SWITCH_PALACES) {
+      assert.equal(
+        SMW_WIKIWORLD_NODES.some(n => n.id === palace.id),
+        false,
+        `${palace.id} não pode aparecer no mapa normal antes da expansão`
+      );
+    }
+
+    // 2. Mapeamento exato de recompensas e ativação de cada interruptor colorido:
+    // Verde -> Pena (feather), Vermelho -> Flor de Fogo (fireflower), Rosa -> Laço Femboy (femboy), Azul -> Tanooki (leaf)
+    const cases: {
+      nodeId: string;
+      color: 'green' | 'red' | 'pink' | 'blue';
+      exclamTile: 'exclam_green' | 'exclam_red' | 'exclam_pink' | 'exclam_blue';
+      switchTile: 'green_switch' | 'red_switch' | 'pink_switch' | 'blue_switch';
+      switchPressedTile:
+        | 'green_switch_pressed'
+        | 'red_switch_pressed'
+        | 'pink_switch_pressed'
+        | 'blue_switch_pressed';
+      expectedItem: 'feather' | 'fireflower' | 'femboy' | 'leaf';
+    }[] = [
+      {
+        nodeId: 'wiki-switch-green',
+        color: 'green',
+        exclamTile: 'exclam_green',
+        switchTile: 'green_switch',
+        switchPressedTile: 'green_switch_pressed',
+        expectedItem: 'feather',
+      },
+      {
+        nodeId: 'wiki-switch-red',
+        color: 'red',
+        exclamTile: 'exclam_red',
+        switchTile: 'red_switch',
+        switchPressedTile: 'red_switch_pressed',
+        expectedItem: 'fireflower',
+      },
+      {
+        nodeId: 'wiki-switch-pink',
+        color: 'pink',
+        exclamTile: 'exclam_pink',
+        switchTile: 'pink_switch',
+        switchPressedTile: 'pink_switch_pressed',
+        expectedItem: 'femboy',
+      },
+      {
+        nodeId: 'wiki-switch-blue',
+        color: 'blue',
+        exclamTile: 'exclam_blue',
+        switchTile: 'blue_switch',
+        switchPressedTile: 'blue_switch_pressed',
+        expectedItem: 'leaf',
+      },
+    ];
+
+    for (const c of cases) {
+      // a) Bloco [!] bloqueado antes do Switch é intangível; após ativar, fica sólido e gera o item exato
+      const testEngine = createFreshEngine();
+      testEngine.enemies = [];
+      const tx = 5;
+      const ty = 9;
+      testEngine.level.tiles[ty][tx] = {
+        type: c.exclamTile,
+        content: c.expectedItem,
+        bumpOffset: 0,
+        bumpVel: 0,
+      };
+
+      testEngine.setSwitchUnlocked(c.color, false);
+      testEngine.items = [];
+      testEngine.marioX = tx * 16;
+      testEngine.marioY = ty * 16 + 14;
+      testEngine.marioVy = -5.5;
+      testEngine.marioGrounded = false;
+      stepEngine(testEngine, 3);
+      assert.ok(testEngine.marioY < ty * 16 + 8 || testEngine.items.length === 0);
+      assert.equal(testEngine.items.length, 0, `${c.exclamTile} bloqueado não deve gerar item`);
+
+      testEngine.setSwitchUnlocked(c.color, true);
+      testEngine.items = [];
+      testEngine.marioX = tx * 16;
+      testEngine.marioY = ty * 16 + 17;
+      testEngine.marioVy = -5.5;
+      testEngine.marioGrounded = false;
+      stepEngine(testEngine, 3);
+      assert.equal(
+        testEngine.items[0]?.type,
+        c.expectedItem,
+        `${c.exclamTile} ativo deve gerar exatamente ${c.expectedItem}`
+      );
+
+      // b) Entrar no palácio, pisar no interruptor gigante e concluir ativa a cor correspondente
+      const palaceEngine = createFreshEngine();
+      const stage = createSmwWikiWorldStage(c.nodeId);
+      palaceEngine.startSmwStage(stage, true);
+      palaceEngine.intermissionTimer = 0;
+      palaceEngine.enemies = [];
+      assert.equal(palaceEngine.isSwitchUnlocked(c.color), false);
+
+      let swTx = -1;
+      let swTy = -1;
+      for (let y = 0; y < palaceEngine.level.height; y++) {
+        for (let x = 0; x < palaceEngine.level.width; x++) {
+          if (palaceEngine.level.tiles[y]?.[x]?.type === c.switchTile) {
+            swTx = x;
+            swTy = y;
+          }
+        }
+      }
+      assert.ok(swTx > 0 && swTy > 0, `${c.nodeId} deve conter tile ${c.switchTile}`);
+
+      let activatedColor = '';
+      palaceEngine.onSmwSwitchActivated = col => {
+        activatedColor = col;
+      };
+      palaceEngine.marioX = swTx * 16;
+      palaceEngine.marioY = swTy * 16 - 18;
+      palaceEngine.marioVy = 4.0;
+      palaceEngine.marioGrounded = false;
+      stepEngine(palaceEngine, 3);
+
+      assert.equal(palaceEngine.level.tiles[swTy][swTx]?.type, c.switchPressedTile);
+      assert.equal(palaceEngine.isSwitchUnlocked(c.color), true);
+      assert.equal(activatedColor, c.color);
+      assert.equal(palaceEngine.isStageClear, true);
+    }
+
+    // 3. UI do Modo Desenvolvedor expõe "IR ATÉ A FASE ESPECÍFICA" com acesso aos 4 palácios
+    const cheatSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/CheatMenuModal.tsx'), 'utf8');
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.ok(cheatSrc.includes('IR ATÉ A FASE ESPECÍFICA'));
+    assert.ok(cheatSrc.includes('SMW_DEV_ONLY_SWITCH_PALACES'));
+    assert.ok(canvasSrc.includes('handleWarpToSpecificStage'));
   });
 }
 

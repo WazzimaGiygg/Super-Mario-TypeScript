@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug, Tv } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug, Tv, FolderOpen } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorldGhostHouse, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -32,6 +32,8 @@ interface SettingsModalProps {
   onOpenLevelEditor?: () => void;
   onStartSingleplayer?: () => void;
   onStartSmwWorldMap?: () => void;
+  onLoadSmwWorldProgress?: () => void;
+  smwSavedSlotsCount?: number;
   isDebugMode?: boolean;
   onToggleDebugMode?: () => void;
   smartTvMode?: boolean;
@@ -66,6 +68,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenLevelEditor,
   onStartSingleplayer,
   onStartSmwWorldMap,
+  onLoadSmwWorldProgress,
+  smwSavedSlotsCount = 0,
   isDebugMode = false,
   onToggleDebugMode,
   smartTvMode = false,
@@ -229,6 +233,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
                   <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-300 shrink-0">MAPA</span>
+                </button>
+              )}
+
+              {onLoadSmwWorldProgress && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLoadSmwWorldProgress();
+                  }}
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/65 hover:border-amber-300 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <FolderOpen className="w-4 h-4 text-amber-300 shrink-0" />
+                    <div>
+                      <span className="block font-bold text-amber-200">Carregar Progresso (Modo World)</span>
+                      <span className="text-[10px] text-amber-100/75">
+                        Continuar de um dos 3 slots salvos manualmente ({smwSavedSlotsCount}/3 ocupados)
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-200 shrink-0">CARREGAR</span>
                 </button>
               )}
             </div>

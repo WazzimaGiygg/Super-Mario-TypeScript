@@ -25,6 +25,94 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.16.21Z.4',
+    version: 'R1.16.21Z.4',
+    label: 'Correção · Switch Palaces',
+    title: 'Palácios Switchers Verde, Vermelho, Rosa e Azul (Acesso Exclusivo Modo Desenvolvedor)',
+    isFix: true,
+    items: [
+      'Adicionados os 4 novos Palácios Interruptores (Verde, Vermelho, Rosa e Azul) com interruptores gigantes próprios e seus respectivos blocos "[!]": Verde (Pena), Vermelho (Flor de Fogo), Rosa (Laço Femboy) e Azul (Tanooki).',
+      'Como o Modo Super Mario World ainda está em expansão, esses 4 palácios não aparecem no mapa comum e só podem ser acessados pela opção "Ir até a fase específica" dentro da Página do Desenvolvedor.',
+    ],
+  },
+  {
+    uid: 'R1.16.GT.4',
+    version: 'R1.16.GT.4',
+    label: 'Correção · Poste SMW',
+    title: 'Poste de Pontos Exige Acertar o Cursor (Fita Móvel) na Altura Exata',
+    isFix: true,
+    items: [
+      'Igual ao Super Mario World original, o jogador só recebe os pontos do poste final quando o personagem atinge exatamente a altura em que o cursor (fita amarela móvel) estiver posicionado.',
+      'Se atravessar o poste acima ou abaixo do cursor sem tocá-lo, a fase continua normalmente até o castelo, porém a fita permanece intacta e nenhum ponto é adicionado à carteira.',
+    ],
+  },
+  {
+    uid: 'R1.16.AC.4',
+    version: 'R1.16.AC.4',
+    label: 'Recurso · Motor',
+    title: 'Sistema de Conquistas com Metas e Recompensas no Motor do Jogo',
+    isFix: true,
+    items: [
+      'Implementado sistema completo de rastreamento de conquistas no GameEngine para marcos como "Caçador de Goombas" (10 Goombas), "Velocista" (concluir fase em menos de 60 segundos), moedas, blocos, moedas W e chefes.',
+      'Desbloquear conquistas concede automaticamente pontos bônus e vidas extras, exibe notificação animada em tempo real e salva o progresso localmente.',
+    ],
+  },
+  {
+    uid: 'R1.16.PX.4',
+    version: 'R1.16.PX.4',
+    label: 'Correção · Fases',
+    title: 'Remoção das Caixas de Power-Up Exceto Blocos [!] do Modo Super Mario World',
+    isFix: true,
+    items: [
+      'Removidas todas as caixas de power-up de blocos "?" e tijolos secretos em todas as fases, geradores procedurais, importação, modo debug e paleta do editor.',
+      'Mantidas exclusivamente as caixas do tipo "[!]" do Modo Super Mario World (exclam_yellow), liberadas pelo Palácio do Interruptor Amarelo.',
+    ],
+  },
+  {
+    uid: 'R1.16.MV.4',
+    version: 'R1.16.MV.4',
+    label: 'Correção · World',
+    title: 'Movimentação Livre no Mapa e nas Fases Após Concluir Estágio no Modo World',
+    isFix: true,
+    items: [
+      'Corrigido o erro que mantinha o gatilho de conclusão da fase ativo em loop no motor após retornar ao Overworld, impedindo o jogador de mover o personagem pelas estradas do mapa ou após vencer fases.',
+      'Ao concluir qualquer estágio no Modo World, o estado do personagem e os controles são limpos de forma única e o loop de fase pausa enquanto o mapa está aberto.',
+    ],
+  },
+  {
+    uid: 'R1.16.SL.4',
+    version: 'R1.16.SL.4',
+    label: 'Correção · World',
+    title: 'Correção do Softlock ao Salvar Progresso e Nova Opção Carregar Progresso (Modo World)',
+    isFix: true,
+    items: [
+      'Corrigido o softlock que reabria infinitamente o modal de salvamento após salvar ou fechar o prompt de castelo concluído no Modo World.',
+      'Adicionada a opção explícita "Carregar Progresso" no menu inicial, nas Configurações e na barra superior do Overworld para carregar diretamente qualquer um dos 3 slots salvos.',
+    ],
+  },
+  {
+    uid: 'R1.16.1B0.4',
+    version: 'R1.16.1B0.4',
+    label: 'Recurso · Editor',
+    title: 'Campanha Personalizada em Sequência com Vários Mapas do Editor',
+    isFix: true,
+    items: [
+      'Adicionado montador de Campanha Personalizada no Editor de Fases, permitindo selecionar, ordenar e reorganizar várias fases criadas ou importadas.',
+      'Ao jogar a campanha personalizada, concluir cada fase avança automaticamente para a próxima fase criada na sequência até a tela de vitória final da campanha.',
+    ],
+  },
+  {
+    uid: 'R1.16.FH.4',
+    version: 'R1.16.FH.4',
+    label: 'Recurso · Editor',
+    title: 'Atalhos Ctrl+Z e Ctrl+Y (Desfazer e Refazer) no Editor de Fases',
+    isFix: true,
+    items: [
+      'Adicionado suporte completo a Ctrl+Z / Cmd+Z (Desfazer) e Ctrl+Y / Ctrl+Shift+Z (Refazer) no Editor de Fases, além de botões dedicados na barra de ferramentas.',
+      'Pinceladas contínuas agrupam a edição inteira em um único passo reversível com histórico limitado para manter o uso de memória seguro.',
+    ],
+  },
+  {
     uid: 'R02.16.PG.4',
     version: 'R02.16.PG.4',
     label: 'Correção · World',
@@ -129,8 +217,8 @@ export const GAME_UPDATES: UpdateEntry[] = [
     title: 'Tela Preta ao Testar Fase Editada & Limite Seguro de Entidades no Editor',
     isFix: true,
     items: [
-      'Corrigido bug que deixava o canvas do Editor de Fases preto ao reabrir ou alternar durante o teste de uma fase editada, além de remover redesenhos completos do canvas a cada movimento do cursor.',
-      'Aplicados limites seguros de entidades no Editor e na importação de fases (máx. 60 inimigos, 120 moedas, 16 plataformas e 180 entidades no total) com contador visível e proteção de memória volátil.',
+      'Corrigida renderização em janela virtual (canvas limitado a 2048px de largura em memória) e reset completo de modo/efeitos ao testar fases editadas, eliminando telas pretas em fases largas ou após alternar com o Modo World.',
+      'Aplicados limites seguros de entidades no Editor, na importação e no histórico de ações (máx. 60 inimigos, 120 moedas, 16 plataformas, 180 entidades no total e histórico limitado) para proteger a memória volátil do navegador.',
     ],
   },
   {
