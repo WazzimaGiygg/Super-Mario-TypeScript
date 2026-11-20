@@ -132,6 +132,63 @@ export interface Enemy {
   originX?: number;
   fireTimer?: number;
   shellKillStreak?: number;
+  bossName?: string;
+}
+
+export interface YoshiEntity {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  width: number;
+  height: number;
+  facing: 'left' | 'right';
+  state: 'idle' | 'runaway';
+  animFrame: number;
+  animTimer: number;
+  remountCooldown: number;
+}
+
+export type CarryableKind = 'key' | 'p_switch_blue' | 'p_switch_cyan';
+
+export interface CarryablePlacement {
+  kind: CarryableKind;
+  x: number;
+  y: number;
+}
+
+export interface CarryableObject {
+  id: number;
+  kind: CarryableKind;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  width: number;
+  height: number;
+  grounded: boolean;
+  consumed: boolean;
+  pressed: boolean;
+  pressTimer: number;
+  pickupCooldown: number;
+  spawnX: number;
+  spawnY: number;
+}
+
+export interface KeyholePlacement {
+  x: number;
+  y: number;
+}
+
+export interface KeyholeEntity {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  activated: boolean;
+  animTimer: number;
 }
 
 export type ReservePowerItem = 'mushroom' | 'fireflower' | 'leaf' | 'feather' | 'femboy';
@@ -219,6 +276,9 @@ export interface LevelData {
   coins: Point[];
   wCoins?: Point[];
   marioStart: Point;
+  yoshis?: Point[];
+  carryables?: CarryablePlacement[];
+  keyholes?: KeyholePlacement[];
   flagX: number;
   castleX: number;
   dryFinishStartX?: number;
@@ -235,6 +295,7 @@ export interface LevelData {
   seed?: number;
   enemySpeedMultiplier?: number;
   biomeLabel?: string;
+  bossName?: string;
   checkpoints?: { x: number; respawnPos: Point }[];
   floatingPlatforms?: FloatingPlatformSpec[];
   isCustom?: boolean;
@@ -272,7 +333,12 @@ export type DebugPlaceableId =
   | 'paratroopa'
   | 'hammer_bro'
   | 'boo'
-  | 'dry_bones';
+  | 'dry_bones'
+  | 'yoshi'
+  | 'key'
+  | 'keyhole'
+  | 'p_switch_blue'
+  | 'p_switch_cyan';
 
 export interface DebugPlaceableSpec {
   id: DebugPlaceableId;
@@ -303,9 +369,10 @@ export interface GameStats {
   reservePowerUp?: ReservePowerItem | null;
   wCoinsCollected?: number;
   wCoinsTotal?: number;
+  onYoshi?: boolean;
 }
 
-export type BonusBlockFace = '1up' | 'mushroom' | 'flower';
+export type BonusBlockFace = '1up' | 'mushroom' | 'flower' | 'feather' | 'leaf' | 'femboy';
 
 export interface BonusStageBlock {
   tx: number;

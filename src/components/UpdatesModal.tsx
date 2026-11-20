@@ -25,6 +25,71 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.19.29D.5',
+    version: 'R1.19.29D.5',
+    label: 'Recurso · Saída Secreta SMW',
+    title: 'Cano Secreto em W-1 com Subsolo, Chave e Fechadura para Abrir o Palácio Amarelo',
+    isFix: true,
+    items: [
+      'No modo Super Mario World, concluir W-1 pelo poste normal agora desbloqueia apenas W-2 (Caverna), mantendo o Palácio Interruptor Amarelo trancado até descobrir a saída secreta.',
+      'Um dos canos de W-1 leva a um subsolo secreto contendo uma Chave e um Buraco de Chave (além de cano de retorno): segure Corrida para pegar a Chave e levá-la até a Fechadura para abrir o caminho até o Palácio Interruptor Amarelo.',
+    ],
+  },
+  {
+    uid: 'R1.19.14C.5',
+    version: 'R1.19.14C.5',
+    label: 'Correção · Bonus Stage',
+    title: 'Bonus Stage dos 100 Pontos Concede o Power-Up Selecionado no Lugar da Vida',
+    isFix: true,
+    items: [
+      'No Bonus Stage liberado ao alcançar 100 pontos no poste final, selecionar um bloco quando ele exibe um power-up (Cogumelo, Flor de Fogo, Pena, Tanooki ou Laço Femboy) no lugar da vida 1-UP agora equipa o power-up correspondente no personagem (e guarda reservas na carteira, mantendo o poder ao avançar de fase).',
+    ],
+  },
+  {
+    uid: 'R1.19.1GX.5',
+    version: 'R1.19.1GX.5',
+    label: 'Recurso · Objetos SMW',
+    title: 'Chaves, Buracos de Chave, Botões Móveis (Azul/Ciano) e Carregamento de Cascos',
+    isFix: true,
+    items: [
+      'Agora é possível segurar e carregar Chaves, Botões Móveis (Azul e Ciano) e cascos parados de Koopa mantendo o botão de Corrida pressionado, soltando ou chutando ao soltar o botão (igual ao Super Mario World original).',
+      'Botão Móvel Azul transforma temporariamente as moedas próximas em blocos sólidos e depois reverte em moedas; Botão Móvel Ciano transforma inimigos próximos em moedas coletáveis (exceto o boss final do castelo).',
+      'Levar uma Chave até o Buraco de Chave destranca a fechadura com a transição clássica de conclusão da fase.',
+    ],
+  },
+  {
+    uid: 'R1.19.SQ.6',
+    version: 'R1.19.SQ.6',
+    label: 'Correção · Visual SMW',
+    title: 'Poste de Fim de Fase Refinado com Visual Clássico do Super Mario World',
+    isFix: true,
+    items: [
+      'Redesenhado o poste duplo de fim de fase com estética 2.5D inspirada no Super Mario World original: pilares cilíndricos segmentados, cúpulas metálicas com colar dourado, viga superior em perspectiva com brasão e pedestal firme apoiado no chão.',
+      'O pilar frontal agora é desenhado em camada à frente do personagem e acompanha a fita xadrez branco-e-dourada animada junto com marcadores de pontuação mais legíveis.',
+    ],
+  },
+  {
+    uid: 'R1.19.F5.6',
+    version: 'R1.19.F5.6',
+    label: 'Correção · Castelo SMW',
+    title: 'Nomeação do 1º Boss do Primeiro Castelo de Johannnnes89 (Lorde Ignis Koopa)',
+    isFix: true,
+    items: [
+      'O chefe do primeiro castelo de Johannnnes89 (W-5) agora possui nome próprio oficial: "Lorde Ignis Koopa", exibido no Mapa Overworld, na placa de identificação dentro da batalha e nos diálogos de vitória.',
+    ],
+  },
+  {
+    uid: 'R1.16.1RZ.4',
+    version: 'R1.16.1RZ.4',
+    label: 'Recurso · Expansão SMW',
+    title: 'Yoshi Adicionado ao Modo Debug e Editor de Fases (Bloqueado em Castelos)',
+    isFix: true,
+    items: [
+      'Adicionado o Yoshi com montaria completa, ataque de língua para engolir inimigos e itens, salto para desmontar e absorção de dano com fuga.',
+      'Enquanto o Super Mario World segue em expansão, o Yoshi só pode ser encontrado e usado pelo Modo Debug ou pelo Editor de Fases. Se houver tentativa de inseri-lo ou spawná-lo dentro de qualquer castelo, ele não será spawnado.',
+    ],
+  },
+  {
     uid: 'R1.16.21Z.4',
     version: 'R1.16.21Z.4',
     label: 'Correção · Switch Palaces',

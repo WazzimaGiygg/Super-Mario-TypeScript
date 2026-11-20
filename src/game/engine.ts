@@ -30,6 +30,10 @@ import {
   BonusBlockFace,
   BonusStageBlock,
   ReservePowerItem,
+  YoshiEntity,
+  CarryableKind,
+  CarryableObject,
+  KeyholeEntity,
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
@@ -51,8 +55,9 @@ import {
   sanitizeCustomLevelEntities,
   computeStageWCoins,
   stripNonSmwPowerUpBoxes,
+  isCastleStageForYoshi,
 } from './levels.ts';
-import { createSmwWikiWorldStage } from './smwWorldMap.ts';
+import { createSmwWikiWorldStage, createSmwWiki1SecretRoom } from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 import {
   AchievementManager,
@@ -172,6 +177,14 @@ export class GameEngine {
   public bonusStageLivesWon: number = 0;
   public bonusStageFinishDelay: number = 0;
   public bonusStageTimeFrames: number = 0;
+  public static readonly BONUS_BLOCK_FACES: readonly BonusBlockFace[] = [
+    '1up',
+    'mushroom',
+    'flower',
+    'feather',
+    'leaf',
+    'femboy',
+  ];
   public onSmwGoalWalletChanged?: (wallet: number) => void;
   // R1.16.13U.4: Carteira de Power-UPs (SMW Reserve Item Box)
   public reservePowerUp: ReservePowerItem | null = null;
@@ -210,6 +223,20 @@ export class GameEngine {
   // Entities
   public enemies: Enemy[] = [];
   public items: Item[] = [];
+  public yoshis: YoshiEntity[] = [];
+  public carryables: CarryableObject[] = [];
+  public keyholes: KeyholeEntity[] = [];
+  public heldCarryableId: number | null = null;
+  public heldShellEnemyId: number | null = null;
+  public pSwitchBlueTimer: number = 0;
+  private pSwitchTransformedBlocks: { tx: number; ty: number; origX: number; origY: number }[] = [];
+  public keyholeClearTimer: number = 0;
+  public activeKeyholeId: number | null = null;
+  private keyholeHintCooldown: number = 0;
+  public marioOnYoshi: boolean = false;
+  public yoshiTongueTimer: number = 0;
+  public yoshiTongueCooldown: number = 0;
+  public yoshiRemountGraceTimer: number = 0;
   public fireballs: Fireball[] = [];
   public bossFireballs: { id: number; x: number; y: number; vx: number; animTimer: number }[] = [];
   public hammerProjectiles: { id: number; x: number; y: number; vx: number; vy: number; animTimer: number }[] = [];
@@ -256,7 +283,8 @@ export class GameEngine {
   public singleplayerWorld: number = 1;
   public singleplayerStage: number = 1;
   public isCampaignVictory: boolean = false;
-  public onSmwStageCompleted?: (nodeId: string) => void;
+  public lastClearWasSecretExit: boolean = false;
+  public onSmwStageCompleted?: (nodeId: string, meta?: { secretExit?: boolean }) => void;
   public yellowSwitchUnlocked: boolean = false;
   public greenSwitchUnlocked: boolean = false;
   public redSwitchUnlocked: boolean = false;
@@ -339,6 +367,11 @@ export class GameEngine {
     { id: 'hammer_bro', label: 'HAMMER BRO', category: 'enemy' },
     { id: 'boo', label: 'FANTASMA BOO', category: 'enemy' },
     { id: 'dry_bones', label: 'DRY BONES', category: 'enemy' },
+    { id: 'yoshi', label: 'YOSHI', category: 'item' },
+    { id: 'key', label: 'CHAVE SMW', category: 'item' },
+    { id: 'keyhole', label: 'BURACO CHAVE', category: 'item' },
+    { id: 'p_switch_blue', label: 'BOTÃO AZUL', category: 'item' },
+    { id: 'p_switch_cyan', label: 'BOTÃO CIANO', category: 'item' },
   ];
   public isDebugMode: boolean = false;
   public isDebugPlacementActive: boolean = false;
@@ -413,6 +446,7 @@ export class GameEngine {
       }
     }
     this.isStageClear = false;
+    this.lastClearWasSecretExit = false;
     this.isGameOver = false;
     this.isIllegalInstructionBug = false;
     this.illegalInstructionTimer = 0;
@@ -596,7 +630,44 @@ export class GameEngine {
         hitFlashTimer: 0,
         originX: e.x,
         fireTimer: e.type === 'bowser' ? 50 : e.type === 'hammer_bro' ? 42 : undefined,
+        bossName: e.type === 'bowser' ? newLevel.bossName : undefined,
       }));
+
+    // R1.16.1RZ.4: Yoshi (only from custom editor/debug; NEVER spawns inside castles)
+    this.yoshis = [];
+    this.yoshiTongueTimer = 0;
+    this.yoshiTongueCooldown = 0;
+    this.yoshiRemountGraceTimer = 0;
+    if (isCastleStageForYoshi(resolvedLevel) || isRespawn) {
+      this.marioOnYoshi = false;
+    }
+    this.stats.onYoshi = this.marioOnYoshi;
+    if (!isCastleStageForYoshi(resolvedLevel) && Array.isArray(resolvedLevel.yoshis)) {
+      resolvedLevel.yoshis.forEach(yPos => {
+        this.spawnYoshiAt(yPos.x, yPos.y);
+      });
+    }
+
+    // R1.19.1GX.5: Keys, Keyholes, and Portable Blue/Cyan P-Switches
+    this.carryables = [];
+    this.keyholes = [];
+    this.heldCarryableId = null;
+    this.heldShellEnemyId = null;
+    this.pSwitchBlueTimer = 0;
+    this.pSwitchTransformedBlocks = [];
+    this.keyholeClearTimer = 0;
+    this.activeKeyholeId = null;
+    this.keyholeHintCooldown = 0;
+    if (Array.isArray(resolvedLevel.carryables)) {
+      resolvedLevel.carryables.forEach(c => {
+        this.spawnCarryableObject(c.kind, c.x, c.y);
+      });
+    }
+    if (Array.isArray(resolvedLevel.keyholes)) {
+      resolvedLevel.keyholes.forEach(k => {
+        this.spawnKeyhole(k.x, k.y);
+      });
+    }
 
     // Place standalone coins as items
     this.items = [];
@@ -621,6 +692,7 @@ export class GameEngine {
     const skipDefaultWCoins =
       resolvedLevel.id === 'smw-bonus-stage' ||
       resolvedLevel.id === 'secret-vault' ||
+      resolvedLevel.id === 'smw-wiki-1-secret' ||
       Boolean(resolvedLevel.isCustom);
     const stageWCoins =
       resolvedLevel.wCoins !== undefined
@@ -682,7 +754,13 @@ export class GameEngine {
     // Start background music
     this.startLevelMusic(newLevel.theme);
 
-    if (!isRespawn && notifyNetwork && newLevel.id !== 'secret-vault' && this.onLevelChanged) {
+    if (
+      !isRespawn &&
+      notifyNetwork &&
+      newLevel.id !== 'secret-vault' &&
+      newLevel.id !== 'smw-wiki-1-secret' &&
+      this.onLevelChanged
+    ) {
       this.onLevelChanged(newLevel);
     }
   }
@@ -839,6 +917,9 @@ export class GameEngine {
     if (this.isBonusStageActive) {
       if (this.bonusStageFinishDelay > 0) {
         this.bonusStageFinishDelay--;
+        if (this.marioGrowthTimer > 0) {
+          this.marioGrowthTimer--;
+        }
         this.particleSystem.update();
         this.updateBlocks();
         this.updateCamera();
@@ -854,7 +935,7 @@ export class GameEngine {
           b.timer++;
           if (b.timer >= 20) {
             b.timer = 0;
-            b.faceIndex = (b.faceIndex + 1) % 3;
+            b.faceIndex = (b.faceIndex + 1) % GameEngine.BONUS_BLOCK_FACES.length;
           }
         }
       }
@@ -950,6 +1031,36 @@ export class GameEngine {
       return;
     }
 
+    // SMW Keyhole Secret Exit transition sequence (R1.19.1GX.5)
+    if (this.keyholeClearTimer > 0) {
+      this.keyholeClearTimer++;
+      const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
+      if (activeKh) {
+        activeKh.animTimer++;
+      }
+      this.marioVx = 0;
+      this.marioVy = 0;
+      this.particleSystem.update();
+      this.updateCamera();
+      if (this.keyholeClearTimer >= 42) {
+        this.keyholeClearTimer = 0;
+        this.finishStage();
+      }
+      this.prevControls = { ...this.controls };
+      return;
+    }
+
+    // Update Blue P-Switch temporary coin->block timer (R1.19.1GX.5)
+    if (this.pSwitchBlueTimer > 0 && !this.isStageClear && this.marioState !== 'dead') {
+      this.pSwitchBlueTimer--;
+      if (this.pSwitchBlueTimer <= 0) {
+        this.revertBluePSwitchBlocks();
+      }
+    }
+    if (this.keyholeHintCooldown > 0) {
+      this.keyholeHintCooldown--;
+    }
+
     // Update Floating Platforms (and carry Mario smoothly if riding one)
     this.updateFloatingPlatforms();
 
@@ -988,8 +1099,14 @@ export class GameEngine {
     // Update Enemies
     this.updateEnemies();
 
+    // Update Yoshis (R1.16.1RZ.4)
+    this.updateYoshis();
+
     // Update Items
     this.updateItems();
+
+    // Update Carryables (Keys, Blue/Cyan P-Switches) & Keyholes (R1.19.1GX.5)
+    this.updateCarryablesAndKeyholes();
 
     // Update Fireballs & Enemy Projectiles
     this.updateFireballs();
@@ -1048,6 +1165,17 @@ export class GameEngine {
 
     if (this.marioFireThrowTimer > 0) {
       this.marioFireThrowTimer--;
+    }
+    if (this.yoshiRemountGraceTimer > 0) {
+      this.yoshiRemountGraceTimer--;
+    }
+    if (this.yoshiTongueCooldown > 0) {
+      this.yoshiTongueCooldown--;
+    }
+    if (this.isCastleLevel() && this.marioOnYoshi) {
+      this.marioOnYoshi = false;
+      this.yoshiTongueTimer = 0;
+      this.stats.onYoshi = false;
     }
 
     // 2. Growth / Shrink freeze animations (pause post-damage invulnerability countdown until control resumes)
@@ -1393,79 +1521,88 @@ export class GameEngine {
 
     // Jumping / Swimming
     const jumpPressed = this.controls.jump && !this.prevControls.jump;
-    const jumpMult = this.marioPower === 'femboy' ? Math.SQRT2 : 1;
-    if (isUnderwater) {
-      if (jumpPressed && !this.isStatue) {
-        this.marioVy = (isRunning ? -2.9 : -2.55) * jumpMult;
-        this.marioGrounded = false;
-        this.marioState = 'jumping';
-        this.sound.playSwim();
-        this.particleSystem.emitBubble(
-          this.marioX + (this.marioFacing === 'right' ? 12 : 2),
-          this.marioY + 4,
-          3,
-          -0.65
-        );
-      }
-
-      // Gentle ambient bubbles while swimming
-      if (Math.random() < 0.03) {
-        this.particleSystem.emitBubble(
-          this.marioX + (this.marioFacing === 'right' ? 12 : 2),
-          this.marioY + 4,
-          2,
-          -0.5
-        );
-      }
-
-      // Buoyant underwater gravity
-      this.isFluttering = false;
-      this.marioVy += 0.085;
-      const maxUnderwaterFall = this.controls.jump ? 1.1 : 1.65;
-      if (this.marioVy > maxUnderwaterFall) this.marioVy = maxUnderwaterFall;
+    if (this.marioOnYoshi && this.controls.down && jumpPressed && this.marioGrounded && !this.isStatue) {
+      // Crouch + Jump dismounts Yoshi with a quick upward hop (SMW spin/dismount boost)
+      this.dismountYoshi(false);
+      this.marioVy = -6.8;
+      this.marioGrounded = false;
+      this.marioState = 'jumping';
+      this.sound.playJumpSuper();
     } else {
-      if (jumpPressed && this.marioGrounded && !this.isStatue) {
-        const capeLaunchMult =
-          this.marioPower === 'cape' && Math.abs(this.marioVx) >= 2.5 ? 1.12 : 1;
-        const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult * capeLaunchMult;
-        this.particleSystem.emitJumpDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
-        if (capeLaunchMult > 1) {
-          this.spawnPowerUpSparkles(this.marioX, this.marioY + this.getMarioHeight() - 8);
+      const jumpMult = this.marioPower === 'femboy' ? Math.SQRT2 : 1;
+      if (isUnderwater) {
+        if (jumpPressed && !this.isStatue) {
+          this.marioVy = (isRunning ? -2.9 : -2.55) * jumpMult;
+          this.marioGrounded = false;
+          this.marioState = 'jumping';
+          this.sound.playSwim();
+          this.particleSystem.emitBubble(
+            this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+            this.marioY + 4,
+            3,
+            -0.65
+          );
         }
-        this.marioVy = jumpImpulse;
-        this.marioGrounded = false;
-        this.marioState = 'jumping';
 
-        if (this.marioPower === 'small') {
-          this.sound.playJumpSmall();
-        } else {
-          this.sound.playJumpSuper();
+        // Gentle ambient bubbles while swimming
+        if (Math.random() < 0.03) {
+          this.particleSystem.emitBubble(
+            this.marioX + (this.marioFacing === 'right' ? 12 : 2),
+            this.marioY + 4,
+            2,
+            -0.5
+          );
         }
-      }
 
-      // Tanooki Flutter & Cape Glide: holding jump while descending slows fall speed cleanly
-      this.isFluttering = false;
-      if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.25) {
-        this.isFluttering = true;
-        this.marioVy = Math.min(this.marioVy, 0.85); // wide buoyant cape glide
-      } else if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
-        this.isFluttering = true;
-        this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
-      } else if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.down) {
-        // Cape Dive: pressing Down in midair accelerates descent
-        this.marioVy = Math.min(7.0, this.marioVy + 0.22);
-      }
+        // Buoyant underwater gravity
+        this.isFluttering = false;
+        this.marioVy += 0.085;
+        const maxUnderwaterFall = this.controls.jump ? 1.1 : 1.65;
+        if (this.marioVy > maxUnderwaterFall) this.marioVy = maxUnderwaterFall;
+      } else {
+        if (jumpPressed && this.marioGrounded && !this.isStatue) {
+          const capeLaunchMult =
+            this.marioPower === 'cape' && Math.abs(this.marioVx) >= 2.5 ? 1.12 : 1;
+          const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult * capeLaunchMult;
+          this.particleSystem.emitJumpDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
+          if (capeLaunchMult > 1) {
+            this.spawnPowerUpSparkles(this.marioX, this.marioY + this.getMarioHeight() - 8);
+          }
+          this.marioVy = jumpImpulse;
+          this.marioGrounded = false;
+          this.marioState = 'jumping';
 
-      // Variable jump height: cut ascent when releasing jump button
-      if (!this.controls.jump && this.marioVy < -2.5) {
-        this.marioVy = -2.5;
-      }
+          if (this.marioPower === 'small') {
+            this.sound.playJumpSmall();
+          } else {
+            this.sound.playJumpSuper();
+          }
+        }
 
-      // Gravity
-      const glideGravity = this.marioPower === 'cape' ? 0.05 : 0.08;
-      const gravity = this.isFluttering ? glideGravity : (this.marioVy < 0 ? 0.38 : 0.62);
-      this.marioVy += gravity;
-      if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
+        // Tanooki Flutter & Cape Glide: holding jump while descending slows fall speed cleanly
+        this.isFluttering = false;
+        if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.25) {
+          this.isFluttering = true;
+          this.marioVy = Math.min(this.marioVy, 0.85); // wide buoyant cape glide
+        } else if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
+          this.isFluttering = true;
+          this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
+        } else if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.down) {
+          // Cape Dive: pressing Down in midair accelerates descent
+          this.marioVy = Math.min(7.0, this.marioVy + 0.22);
+        }
+
+        // Variable jump height: cut ascent when releasing jump button
+        if (!this.controls.jump && this.marioVy < -2.5) {
+          this.marioVy = -2.5;
+        }
+
+        // Gravity
+        const glideGravity = this.marioPower === 'cape' ? 0.05 : 0.08;
+        const gravity = this.isFluttering ? glideGravity : (this.marioVy < 0 ? 0.38 : 0.62);
+        this.marioVy += gravity;
+        if (this.marioVy > 7.0) this.marioVy = 7.0; // Terminal velocity
+      }
     }
 
     // Check Pipe Warp: Down key on vertical pipe (grounded or underwater) or Right key against horizontal pipe
@@ -1478,9 +1615,22 @@ export class GameEngine {
       }
     }
 
+    // R1.19.1GX.5: Release carried object/shell when Run button is released (or forced drop on Yoshi/Statue)
+    if (this.isCarryingAnything()) {
+      if (this.marioOnYoshi || this.isStatue) {
+        this.releaseHeldObject(true);
+      } else if (!this.controls.run) {
+        this.releaseHeldObject(false);
+      }
+    }
+
     // Action button pressed (Run button):
     const runPressed = this.controls.run && !this.prevControls.run;
-    if (runPressed) {
+    if (this.marioOnYoshi && runPressed && this.yoshiTongueCooldown <= 0 && !this.isStatue) {
+      this.yoshiTongueTimer = 14;
+      this.yoshiTongueCooldown = 18;
+      this.sound.playKick();
+    } else if (runPressed && !this.isCarryingAnything()) {
       const activePlayerFireballs = this.fireballs.filter(
         fb => fb.alive && !fb.exploding && fb.color !== 'white'
       ).length;
@@ -1491,6 +1641,11 @@ export class GameEngine {
         this.tailWhipTimer = 18;
         this.sound.playKick();
       }
+    }
+
+    if (this.yoshiTongueTimer > 0) {
+      this.yoshiTongueTimer--;
+      this.checkYoshiTongueCollisions();
     }
 
     // Apply Velocity with AABB Collision
@@ -2306,6 +2461,45 @@ export class GameEngine {
     this.enemies.forEach(e => {
       if (!e.alive && e.state !== 'flipped' && e.state !== 'squashed') return;
 
+      // R1.19.1GX.5: Carried Koopa shell follows Mario's hands and shields against contact enemies
+      if (this.heldShellEnemyId === e.id) {
+        if (!e.alive || (e.type !== 'koopa' && e.type !== 'red_koopa') || e.state !== 'shell_idle') {
+          this.heldShellEnemyId = null;
+        } else {
+          const dir = this.marioFacing === 'right' ? 1 : -1;
+          e.x = this.marioX + dir * 10;
+          e.y = this.marioY + Math.max(2, this.getMarioHeight() - 16);
+          e.vx = 0;
+          e.vy = 0;
+          e.stateTimer = Math.max(e.stateTimer, 180);
+          const shellBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
+          for (const other of this.enemies) {
+            if (
+              other.id !== e.id &&
+              other.alive &&
+              other.type !== 'bowser' &&
+              other.type !== 'lava_bubble' &&
+              this.rectsIntersect(shellBox, { x: other.x, y: other.y, width: other.width, height: other.height })
+            ) {
+              other.alive = false;
+              other.state = 'flipped';
+              other.vy = -5;
+              e.alive = false;
+              e.state = 'flipped';
+              e.vy = -5;
+              this.heldShellEnemyId = null;
+              this.sound.playKick();
+              this.triggerScreenShake(2.8, 6);
+              this.spawnEnemyDefeatParticles(other.x, other.y, other.type);
+              this.addScore(400, other.x, other.y);
+              this.recordEnemyDefeat(other.type);
+              break;
+            }
+          }
+          return;
+        }
+      }
+
       // Squashed Goomba timer
       if (e.state === 'squashed') {
         e.stateTimer++;
@@ -2980,7 +3174,7 @@ export class GameEngine {
       this.triggerLargeEnemyImpactShake(e);
       this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
       if (e.type === 'bowser') {
-        this.addScore(5000, e.x, e.y, 'BOWSER!');
+        this.addScore(5000, e.x, e.y, `${this.getBossDisplayName(e).toUpperCase()}!`);
       } else {
         const step = this.starComboCount;
         this.starComboCount++;
@@ -3103,6 +3297,19 @@ export class GameEngine {
         return;
       }
       if ((e.type === 'koopa' || e.type === 'red_koopa') && e.state === 'shell_idle') {
+        // R1.19.1GX.5: Hold Run to pick up and carry Koopa shell like in SMW!
+        if (
+          this.controls.run &&
+          !this.isCarryingAnything() &&
+          !this.marioOnYoshi &&
+          !this.isStatue
+        ) {
+          this.heldShellEnemyId = e.id;
+          e.vx = 0;
+          e.vy = 0;
+          e.stateTimer = Math.max(e.stateTimer, 240);
+          return;
+        }
         // Kick shell horizontally
         e.state = 'shell_moving';
         e.stateTimer = 8; // Post-kick self-hit grace window
@@ -3149,6 +3356,22 @@ export class GameEngine {
       return;
     }
 
+    // R1.16.1RZ.4: Riding Yoshi absorbs the hit and Yoshi bolts away cleanly
+    if (this.marioOnYoshi) {
+      this.dismountYoshi(true);
+      this.marioInvulnerableTimer = 100;
+      this.sound.playPipe();
+      this.triggerScreenShake(2.2, 6);
+      this.particleSystem.emitScoreText('YOSHI!', this.marioX, Math.max(20, this.marioY - 12), {
+        maxLife: 36,
+        vy: -0.9,
+        color: '#58f898',
+      });
+      this.onMultiplayerSyncNeeded?.();
+      return;
+    }
+
+    this.releaseHeldObject(true);
     if (this.marioPower === 'tanooki' || this.marioPower === 'femboy' || this.marioPower === 'cape') {
       // Tanooki, Femboy, and Cape power-ups downgrade to Super Mario on damage
       this.marioTransitionFrom = this.marioPower;
@@ -3185,8 +3408,12 @@ export class GameEngine {
 
   public killMario(isPitFall: boolean = false) {
     if (this.marioState === 'dead') return;
+    this.releaseHeldObject(true);
     this.marioState = 'dead';
     this.marioPower = 'small'; // Abyss or damage always removes power-ups
+    this.marioOnYoshi = false;
+    this.yoshiTongueTimer = 0;
+    this.stats.onYoshi = false;
     this.marioStarTimer = 0;
     this.marioVx = 0;
     this.sound.stopMusic();
@@ -3256,17 +3483,7 @@ export class GameEngine {
       // Coin collected in air
       if (item.type === 'coin') {
         if (canCollectItems && this.rectsIntersect(marioBox, { x: item.x, y: item.y, width: 16, height: 16 })) {
-          item.collected = true;
-          this.sound.playCoin();
-          this.stats.coins++;
-          if (this.stats.coins >= 100) {
-            this.stats.coins = 0;
-            this.stats.lives++;
-            this.sound.playPowerUpEat();
-          }
-          this.spawnCoinParticles(item.x, item.y);
-          this.addScore(200, item.x, item.y);
-          this.recordAchievementProgress('coins_collected', 1);
+          this.collectFloatingCoinItem(item);
         }
         return;
       }
@@ -3283,28 +3500,7 @@ export class GameEngine {
             height: item.height + 2,
           })
         ) {
-          item.collected = true;
-          const wIdx = item.wCoinIndex ?? this.collectedWCoinIndices.size;
-          if (!this.collectedWCoinIndices.has(wIdx)) {
-            this.collectedWCoinIndices.add(wIdx);
-          }
-          this.wCoinsCollected = this.collectedWCoinIndices.size;
-          this.stats.wCoinsCollected = this.wCoinsCollected;
-          this.stats.wCoinsTotal = this.wCoinsTotal;
-          this.sound.playPowerUpEat();
-          this.spawnCoinParticles(item.x + 2, item.y + 4);
-          this.spawnPowerUpSparkles(item.x + 2, item.y + 4);
-          this.addScore(500, item.x, item.y - 4, `W ${this.wCoinsCollected}/${this.wCoinsTotal}`);
-          if (this.wCoinsTotal >= 4 && this.wCoinsCollected >= 4 && !this.wCoinLifeAwardedThisStage) {
-            this.wCoinLifeAwardedThisStage = true;
-            this.awardExtraLife(this.marioX, Math.max(24, this.marioY - 12));
-            this.particleSystem.emitScoreText('4x W! +1 VIDA!', this.marioX, Math.max(20, this.marioY - 22), {
-              maxLife: 48,
-              vy: -0.9,
-            });
-            this.recordAchievementProgress('w_coin_sets', 1);
-          }
-          this.onMultiplayerSyncNeeded?.();
+          this.collectWCoinItem(item);
         }
         return;
       }
@@ -3504,6 +3700,45 @@ export class GameEngine {
     this.onMultiplayerSyncNeeded?.();
   }
 
+  private collectFloatingCoinItem(item: Item) {
+    item.collected = true;
+    this.sound.playCoin();
+    this.stats.coins++;
+    if (this.stats.coins >= 100) {
+      this.stats.coins = 0;
+      this.stats.lives++;
+      this.sound.playPowerUpEat();
+    }
+    this.spawnCoinParticles(item.x, item.y);
+    this.addScore(200, item.x, item.y);
+    this.recordAchievementProgress('coins_collected', 1);
+  }
+
+  private collectWCoinItem(item: Item) {
+    item.collected = true;
+    const wIdx = item.wCoinIndex ?? this.collectedWCoinIndices.size;
+    if (!this.collectedWCoinIndices.has(wIdx)) {
+      this.collectedWCoinIndices.add(wIdx);
+    }
+    this.wCoinsCollected = this.collectedWCoinIndices.size;
+    this.stats.wCoinsCollected = this.wCoinsCollected;
+    this.stats.wCoinsTotal = this.wCoinsTotal;
+    this.sound.playPowerUpEat();
+    this.spawnCoinParticles(item.x + 2, item.y + 4);
+    this.spawnPowerUpSparkles(item.x + 2, item.y + 4);
+    this.addScore(500, item.x, item.y - 4, `W ${this.wCoinsCollected}/${this.wCoinsTotal}`);
+    if (this.wCoinsTotal >= 4 && this.wCoinsCollected >= 4 && !this.wCoinLifeAwardedThisStage) {
+      this.wCoinLifeAwardedThisStage = true;
+      this.awardExtraLife(this.marioX, Math.max(24, this.marioY - 12));
+      this.particleSystem.emitScoreText('4x W! +1 VIDA!', this.marioX, Math.max(20, this.marioY - 22), {
+        maxLife: 48,
+        vy: -0.9,
+      });
+      this.recordAchievementProgress('w_coin_sets', 1);
+    }
+    this.onMultiplayerSyncNeeded?.();
+  }
+
   private collectItem(item: Item) {
     if (item.type === 'leaf') {
       this.transitionMarioPower('tanooki', item.x, item.y, 'TANOOKI!');
@@ -3657,7 +3892,7 @@ export class GameEngine {
               e.state = 'flipped';
               e.vy = -5.5;
               this.triggerScreenShake(4.0, 12);
-              this.addScore(5000, e.x, e.y, 'BOWSER!');
+              this.addScore(5000, e.x, e.y, `${this.getBossDisplayName(e).toUpperCase()}!`);
               this.recordEnemyDefeat('bowser');
               if (fb.color === 'white') {
                 this.spawnFemboyHeartParticle(e.x + e.width / 2, e.y + 4);
@@ -3826,7 +4061,7 @@ export class GameEngine {
         e.vy = -1.5;
         e.vx = 0;
         this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-        this.addScore(5000, e.x, e.y, 'BOWSER!');
+        this.addScore(5000, e.x, e.y, `${this.getBossDisplayName(e).toUpperCase()}!`);
         this.recordEnemyDefeat('bowser');
       }
     });
@@ -4349,6 +4584,38 @@ export class GameEngine {
       return false;
     }
 
+    // R1.16.1RZ.4: Yoshi cannot be inserted or spawned inside castle stages
+    if (spec.id === 'yoshi') {
+      if (this.isCastleLevel()) {
+        this.sound.playBump();
+        this.particleSystem.emitScoreText('PROIBIDO NO CASTELO!', Math.max(8, px - 34), Math.max(20, py - 14), {
+          maxLife: 45,
+          vy: -1.0,
+          color: '#ff6868',
+        });
+        return false;
+      }
+      const spawnY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 20, py));
+      this.spawnYoshiAt(px, spawnY);
+      this.sound.playPowerUpAppear();
+      this.spawnPowerUpSparkles(px, spawnY);
+      return true;
+    }
+
+    if (spec.id === 'key' || spec.id === 'p_switch_blue' || spec.id === 'p_switch_cyan') {
+      this.spawnCarryableObject(spec.id, px, py);
+      this.sound.playPowerUpAppear();
+      this.spawnPowerUpSparkles(px, py);
+      return true;
+    }
+
+    if (spec.id === 'keyhole') {
+      this.spawnKeyhole(px, py);
+      this.sound.playPowerUpAppear();
+      this.spawnPowerUpSparkles(px, py);
+      return true;
+    }
+
     if (spec.category === 'item') {
       const itemType = spec.id as Item['type'];
       const dir = this.marioFacing === 'left' ? -1 : 1;
@@ -4656,6 +4923,7 @@ export class GameEngine {
           if (marioBottom > rimY + 6) continue;
         }
 
+        this.releaseHeldObject(true);
         this.marioState = 'pipe_entering';
         this.isStatue = false;
         this.stompComboCount = 0;
@@ -4694,10 +4962,15 @@ export class GameEngine {
 
     const targetLevelId = this.warpTarget.toLevel;
     const destPos = { ...this.warpTarget.toPos };
-    const returningFromSubArea = this.level.id === 'secret-vault';
+    const returningFromSubArea =
+      this.level.id === 'secret-vault' || this.level.id === 'smw-wiki-1-secret';
 
-    if (targetLevelId === 'secret-vault') {
-      this.loadLevel(createSecretVault(), false, false, false);
+    if (targetLevelId === 'secret-vault' || targetLevelId === 'smw-wiki-1-secret') {
+      const subAreaLevel =
+        targetLevelId === 'smw-wiki-1-secret'
+          ? createSmwWiki1SecretRoom()
+          : createSecretVault();
+      this.loadLevel(subAreaLevel, false, false, false);
       this.marioX = destPos.x;
       this.marioY = destPos.y;
       this.marioVx = 0;
@@ -4712,10 +4985,18 @@ export class GameEngine {
       targetLevelId === this.level.id ||
       targetLevelId === 'world-1-1' ||
       targetLevelId === 'world-1-2' ||
-      targetLevelId === 'world-2-2'
+      targetLevelId === 'world-2-2' ||
+      targetLevelId === 'wiki-1-overworld'
     ) {
       if (targetLevelId === 'world-1-1') {
         this.loadLevel(createWorld1_1(), false, false, !returningFromSubArea);
+      } else if (targetLevelId === 'wiki-1-overworld') {
+        this.loadLevel(
+          createSmwWikiWorldStage('wiki-1-overworld'),
+          false,
+          false,
+          !returningFromSubArea
+        );
       } else if (targetLevelId === 'world-1-2' && this.level.id !== 'world-1-2') {
         this.loadLevel(createWorld1_2(), false, false, true);
       } else if (targetLevelId === 'world-2-2' && this.level.id !== 'world-2-2') {
@@ -4790,7 +5071,7 @@ export class GameEngine {
             e.alive = false;
             e.state = 'flipped';
             e.vy = -5.5;
-            this.addScore(5000, e.x, e.y, 'BOWSER!');
+            this.addScore(5000, e.x, e.y, `${this.getBossDisplayName(e).toUpperCase()}!`);
             this.recordEnemyDefeat('bowser');
           } else {
             this.addScore(100, e.x, e.y);
@@ -4827,6 +5108,653 @@ export class GameEngine {
         this.triggerScreenShake(2.0, 5);
       }
     }
+  }
+
+  public isCastleLevel(): boolean {
+    return isCastleStageForYoshi(this.level);
+  }
+
+  private getBossDisplayName(enemy?: Enemy): string {
+    return enemy?.bossName || this.level?.bossName || 'BOWSER';
+  }
+
+  public spawnYoshiAt(x: number, y: number): YoshiEntity | null {
+    if (this.isCastleLevel()) {
+      return null;
+    }
+    const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 20);
+    const yoshi: YoshiEntity = {
+      id: this.nextEntityId++,
+      x: Math.max(0, Math.min(maxPxX, x)),
+      y: Math.max(16, Math.min(GameEngine.NES_HEIGHT - 20, y)),
+      vx: 0,
+      vy: 0,
+      width: 20,
+      height: 20,
+      facing: this.marioFacing,
+      state: 'idle',
+      animFrame: 0,
+      animTimer: 0,
+      remountCooldown: 0,
+    };
+    this.yoshis.push(yoshi);
+    return yoshi;
+  }
+
+  private dismountYoshi(panicked: boolean) {
+    if (!this.marioOnYoshi) return;
+    this.marioOnYoshi = false;
+    this.yoshiTongueTimer = 0;
+    this.yoshiRemountGraceTimer = panicked ? 32 : 22;
+    this.stats.onYoshi = false;
+    if (this.isCastleLevel()) return;
+
+    const footY = this.marioY + this.getMarioHeight();
+    const spawnY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 20, footY - 20));
+    const dir = this.marioFacing === 'left' ? -1 : 1;
+    const spawned = this.spawnYoshiAt(this.marioX - 2, spawnY);
+    if (spawned) {
+      spawned.state = panicked ? 'runaway' : 'idle';
+      spawned.vx = panicked ? dir * 2.2 : 0;
+      spawned.vy = panicked ? -2.4 : 0;
+      spawned.facing = this.marioFacing;
+      spawned.remountCooldown = panicked ? 26 : 18;
+    }
+  }
+
+  private updateYoshis() {
+    if (this.isCastleLevel()) {
+      if (this.yoshis.length > 0) this.yoshis = [];
+      if (this.marioOnYoshi) {
+        this.marioOnYoshi = false;
+        this.stats.onYoshi = false;
+      }
+      return;
+    }
+
+    if (this.yoshis.length === 0) return;
+
+    const marioBox = this.getMarioHitbox();
+    const canMount =
+      !this.marioOnYoshi &&
+      this.yoshiRemountGraceTimer <= 0 &&
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting' &&
+      !this.isStageClear &&
+      !(this.isDebugMode && this.isDebugPlacementActive);
+
+    const levelPixelWidth = this.level.width * GameEngine.TILE_SIZE;
+
+    for (let i = this.yoshis.length - 1; i >= 0; i--) {
+      const yoshi = this.yoshis[i];
+      if (yoshi.remountCooldown > 0) yoshi.remountCooldown--;
+
+      if (yoshi.state === 'runaway') {
+        yoshi.animTimer++;
+        if (yoshi.animTimer % 8 === 0) {
+          yoshi.animFrame = (yoshi.animFrame + 1) % 2;
+        }
+        yoshi.x += yoshi.vx;
+        if (yoshi.x < 0) {
+          yoshi.x = 0;
+          yoshi.vx = Math.abs(yoshi.vx);
+          yoshi.facing = 'right';
+        } else if (yoshi.x + yoshi.width > levelPixelWidth) {
+          yoshi.x = levelPixelWidth - yoshi.width;
+          yoshi.vx = -Math.abs(yoshi.vx);
+          yoshi.facing = 'left';
+        }
+        const hBox: Rect = { x: yoshi.x, y: yoshi.y, width: yoshi.width, height: yoshi.height - 2 };
+        const hTiles = this.getTilesIntersecting(hBox);
+        for (const t of hTiles) {
+          if (this.isSolidTile(t.tile.type)) {
+            if (yoshi.vx > 0) {
+              yoshi.x = t.tileX * GameEngine.TILE_SIZE - yoshi.width;
+              yoshi.vx = -Math.abs(yoshi.vx);
+              yoshi.facing = 'left';
+            } else if (yoshi.vx < 0) {
+              yoshi.x = (t.tileX + 1) * GameEngine.TILE_SIZE;
+              yoshi.vx = Math.abs(yoshi.vx);
+              yoshi.facing = 'right';
+            }
+            break;
+          }
+        }
+      }
+
+      // Gravity & vertical floor collision
+      yoshi.vy = Math.min(5.5, yoshi.vy + 0.35);
+      yoshi.y += yoshi.vy;
+      const vBox: Rect = { x: yoshi.x + 2, y: yoshi.y, width: yoshi.width - 4, height: yoshi.height };
+      const vTiles = this.getTilesIntersecting(vBox);
+      for (const t of vTiles) {
+        if (this.isSolidTile(t.tile.type) && yoshi.vy >= 0) {
+          yoshi.y = t.tileY * GameEngine.TILE_SIZE - yoshi.height;
+          yoshi.vy = 0;
+          break;
+        }
+      }
+
+      if (yoshi.y > GameEngine.NES_HEIGHT + 32) {
+        this.yoshis.splice(i, 1);
+        continue;
+      }
+
+      if (canMount && yoshi.remountCooldown <= 0) {
+        const yBox: Rect = { x: yoshi.x, y: yoshi.y, width: yoshi.width, height: yoshi.height };
+        if (this.rectsIntersect(marioBox, yBox)) {
+          this.yoshis.splice(i, 1);
+          this.marioOnYoshi = true;
+          this.stats.onYoshi = true;
+          this.marioVy = Math.min(this.marioVy, -2.0);
+          this.sound.playPowerUpEat();
+          this.spawnPowerUpSparkles(yoshi.x + 4, yoshi.y);
+          this.particleSystem.emitScoreText('YOSHI!', yoshi.x, Math.max(20, yoshi.y - 10), {
+            maxLife: 38,
+            vy: -0.9,
+            color: '#58f898',
+          });
+          this.onMultiplayerSyncNeeded?.();
+          break;
+        }
+      }
+    }
+  }
+
+  public isCarryingAnything(): boolean {
+    return this.heldCarryableId !== null || this.heldShellEnemyId !== null;
+  }
+
+  public spawnCarryableObject(kind: CarryableKind, x: number, y: number): CarryableObject {
+    const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 16);
+    const clampedX = Math.max(0, Math.min(maxPxX, Math.round(x)));
+    const clampedY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 16, Math.round(y)));
+    const obj: CarryableObject = {
+      id: this.nextEntityId++,
+      kind,
+      x: clampedX,
+      y: clampedY,
+      vx: 0,
+      vy: 0,
+      width: 16,
+      height: 16,
+      grounded: false,
+      consumed: false,
+      pressed: false,
+      pressTimer: 0,
+      pickupCooldown: 0,
+      spawnX: clampedX,
+      spawnY: clampedY,
+    };
+    this.carryables.push(obj);
+    return obj;
+  }
+
+  public spawnKeyhole(x: number, y: number): KeyholeEntity {
+    const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 16);
+    const clampedX = Math.max(0, Math.min(maxPxX, Math.round(x)));
+    const clampedY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 16, Math.round(y)));
+    const kh: KeyholeEntity = {
+      id: this.nextEntityId++,
+      x: clampedX,
+      y: clampedY,
+      width: 16,
+      height: 16,
+      activated: false,
+      animTimer: 0,
+    };
+    this.keyholes.push(kh);
+    return kh;
+  }
+
+  public releaseHeldObject(forceDrop: boolean = false) {
+    const dir = this.marioFacing === 'right' ? 1 : -1;
+    const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 16);
+
+    if (this.heldShellEnemyId !== null) {
+      const shellId = this.heldShellEnemyId;
+      this.heldShellEnemyId = null;
+      const shell = this.enemies.find(e => e.id === shellId && e.alive);
+      if (shell && (shell.type === 'koopa' || shell.type === 'red_koopa') && shell.state === 'shell_idle') {
+        if (forceDrop || this.controls.down) {
+          shell.x = Math.max(0, Math.min(maxPxX, this.marioX + dir * 14));
+          shell.vx = 0;
+          shell.vy = 0;
+          shell.state = 'shell_idle';
+          shell.stateTimer = Math.max(shell.stateTimer, 240);
+        } else {
+          shell.state = 'shell_moving';
+          shell.stateTimer = 8;
+          shell.shellKillStreak = 0;
+          shell.vx = dir * 4.8;
+          shell.vy = 0;
+          this.sound.playKick();
+          this.triggerScreenShake(2.6, 6);
+          this.spawnEnemyDefeatParticles(shell.x, shell.y, shell.type);
+        }
+      }
+    }
+
+    if (this.heldCarryableId !== null) {
+      const objId = this.heldCarryableId;
+      this.heldCarryableId = null;
+      const obj = this.carryables.find(c => c.id === objId && !c.consumed);
+      if (obj) {
+        obj.pickupCooldown = 14;
+        if (forceDrop || this.controls.down) {
+          obj.x = Math.max(0, Math.min(maxPxX, this.marioX + dir * 12));
+          obj.vx = dir * 0.4;
+          obj.vy = 0;
+        } else if (this.controls.up) {
+          obj.vx = dir * 1.4 + this.marioVx * 0.45;
+          obj.vy = -4.8;
+          this.sound.playKick();
+        } else {
+          obj.vx = dir * 3.4 + this.marioVx * 0.4;
+          obj.vy = -1.8;
+          this.sound.playKick();
+        }
+      }
+    }
+  }
+
+  private updateCarryablesAndKeyholes() {
+    if (this.heldCarryableId !== null) {
+      const heldExists = this.carryables.some(
+        c => c.id === this.heldCarryableId && !c.consumed && !c.pressed
+      );
+      if (!heldExists) {
+        this.heldCarryableId = null;
+      }
+    }
+
+    const canInteractMario =
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting' &&
+      this.marioState !== 'pole_slide' &&
+      this.marioState !== 'castle_walk' &&
+      this.marioState !== 'castle_entered';
+    const marioBox = this.getMarioHitbox();
+    const maxPxX = Math.max(0, this.level.width * GameEngine.TILE_SIZE - 16);
+
+    for (const obj of this.carryables) {
+      if (obj.consumed) continue;
+      if (obj.pressed) {
+        obj.pressTimer++;
+        if (obj.pressTimer >= 32) {
+          obj.consumed = true;
+        }
+        continue;
+      }
+      if (obj.pickupCooldown > 0) {
+        obj.pickupCooldown--;
+      }
+
+      if (this.heldCarryableId === obj.id) {
+        const dir = this.marioFacing === 'right' ? 1 : -1;
+        obj.x = Math.max(0, Math.min(maxPxX, this.marioX + dir * 10));
+        obj.y = this.marioY + Math.max(2, this.getMarioHeight() - 16);
+        obj.vx = 0;
+        obj.vy = 0;
+        obj.grounded = false;
+      } else {
+        // Physics for unheld carryable objects (Keys & Portable P-Switches)
+        obj.vy = Math.min(5.8, obj.vy + 0.32);
+        if (obj.grounded) {
+          obj.vx *= 0.82;
+          if (Math.abs(obj.vx) < 0.08) obj.vx = 0;
+        }
+
+        // Horizontal movement & collision
+        obj.x += obj.vx;
+        if (obj.x < 0) {
+          obj.x = 0;
+          obj.vx = -obj.vx * 0.45;
+        } else if (obj.x > maxPxX) {
+          obj.x = maxPxX;
+          obj.vx = -obj.vx * 0.45;
+        }
+        const hTiles = this.getTilesIntersecting({
+          x: obj.x,
+          y: obj.y + 2,
+          width: obj.width,
+          height: obj.height - 4,
+        });
+        for (const t of hTiles) {
+          if (this.isSolidTile(t.tile.type)) {
+            if (obj.vx > 0) {
+              obj.x = t.tileX * GameEngine.TILE_SIZE - obj.width;
+            } else if (obj.vx < 0) {
+              obj.x = (t.tileX + 1) * GameEngine.TILE_SIZE;
+            }
+            obj.vx = -obj.vx * 0.45;
+            break;
+          }
+        }
+
+        // Vertical movement & collision
+        const prevObjY = obj.y;
+        obj.y += obj.vy;
+        obj.grounded = false;
+        const vTiles = this.getTilesIntersecting({
+          x: obj.x + 2,
+          y: obj.y,
+          width: obj.width - 4,
+          height: obj.height,
+        });
+        for (const t of vTiles) {
+          if (this.isSolidTile(t.tile.type)) {
+            if (obj.vy >= 0) {
+              obj.y = t.tileY * GameEngine.TILE_SIZE - obj.height;
+              obj.vy = 0;
+              obj.grounded = true;
+              break;
+            } else {
+              obj.y = (t.tileY + 1) * GameEngine.TILE_SIZE;
+              obj.vy = 0;
+              break;
+            }
+          }
+        }
+
+        // Ride floating platforms
+        if (!obj.grounded && obj.vy >= 0 && this.floatingPlatforms.length > 0) {
+          const prevBottom = prevObjY + obj.height;
+          const nextBottom = obj.y + obj.height;
+          for (const plat of this.floatingPlatforms) {
+            const horizOverlap = obj.x + obj.width - 2 > plat.x && obj.x + 2 < plat.x + plat.width;
+            if (horizOverlap && prevBottom <= plat.y + 5 && nextBottom >= plat.y) {
+              obj.y = plat.y - obj.height;
+              obj.x += plat.dx;
+              obj.vy = 0;
+              obj.grounded = true;
+              break;
+            }
+          }
+        }
+
+        // Respawn at original spawn point if dropped into an abyss
+        if (obj.y > GameEngine.NES_HEIGHT + 32) {
+          obj.x = obj.spawnX;
+          obj.y = obj.spawnY;
+          obj.vx = 0;
+          obj.vy = 0;
+          obj.grounded = false;
+        }
+
+        // Mario interaction: stomp P-Switch OR pick up while holding Run
+        if (canInteractMario && obj.pickupCooldown <= 0) {
+          const objBox: Rect = { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
+          if (this.rectsIntersect(marioBox, objBox)) {
+            const prevMarioBottom = marioBox.y + marioBox.height - this.marioVy;
+            const isPSwitch = obj.kind === 'p_switch_blue' || obj.kind === 'p_switch_cyan';
+            const isStomp =
+              isPSwitch &&
+              ((this.marioVy > 0 && prevMarioBottom <= obj.y + 10) ||
+                (!this.controls.run && this.marioVy >= 0 && prevMarioBottom <= obj.y + 10));
+
+            if (isStomp) {
+              this.activatePSwitch(obj);
+            } else if (
+              this.controls.run &&
+              !this.isCarryingAnything() &&
+              !this.marioOnYoshi &&
+              !this.isStatue
+            ) {
+              this.heldCarryableId = obj.id;
+              obj.vx = 0;
+              obj.vy = 0;
+              obj.grounded = false;
+            } else if (!this.controls.run) {
+              // Gentle nudge when walking into unheld carryable without Run
+              obj.vx = this.marioX + 7 < obj.x + 8 ? 1.1 : -1.1;
+            }
+          }
+        }
+      }
+    }
+
+    // Keyhole unlock check (key can be carried OR thrown directly into the keyhole!)
+    for (const kh of this.keyholes) {
+      if (kh.activated || this.keyholeClearTimer > 0) continue;
+      const khBox: Rect = {
+        x: kh.x - 3,
+        y: kh.y - 3,
+        width: kh.width + 6,
+        height: kh.height + 6,
+      };
+
+      const matchingKey = this.carryables.find(c => {
+        if (c.consumed || c.kind !== 'key') return false;
+        const keyBox: Rect = { x: c.x, y: c.y, width: c.width, height: c.height };
+        return this.rectsIntersect(khBox, keyBox);
+      });
+
+      if (matchingKey) {
+        this.triggerKeyholeUnlock(matchingKey, kh);
+        break;
+      }
+
+      if (canInteractMario && this.keyholeHintCooldown <= 0 && this.rectsIntersect(marioBox, khBox)) {
+        this.keyholeHintCooldown = 90;
+        this.particleSystem.emitScoreText('PRECISA CHAVE!', Math.max(8, kh.x - 16), Math.max(20, kh.y - 12), {
+          maxLife: 45,
+          vy: -0.7,
+          color: '#fce078',
+        });
+      }
+    }
+
+    this.carryables = this.carryables.filter(c => !c.consumed);
+  }
+
+  private activatePSwitch(obj: CarryableObject) {
+    obj.pressed = true;
+    obj.pressTimer = 0;
+    obj.vx = 0;
+    obj.vy = 0;
+    if (this.heldCarryableId === obj.id) {
+      this.heldCarryableId = null;
+    }
+    this.marioVy = Math.min(this.marioVy, -3.5);
+    this.sound.playBump();
+    this.triggerScreenShake(2.8, 8);
+
+    if (obj.kind === 'p_switch_blue') {
+      this.activateBluePSwitch(obj.x, obj.y);
+    } else if (obj.kind === 'p_switch_cyan') {
+      this.activateCyanPSwitch(obj.x, obj.y);
+    }
+  }
+
+  private activateBluePSwitch(originX: number, originY: number) {
+    let converted = 0;
+    for (const item of this.items) {
+      if (item.collected || item.type !== 'coin') continue;
+      if (Math.abs(item.x - originX) > 360) continue;
+
+      const tx = Math.floor((item.x + 4) / GameEngine.TILE_SIZE);
+      const ty = Math.floor((item.y + 4) / GameEngine.TILE_SIZE);
+      if (
+        ty >= 0 &&
+        ty < this.level.height &&
+        tx >= 0 &&
+        tx < this.level.width &&
+        !this.level.tiles[ty][tx]
+      ) {
+        this.level.tiles[ty][tx] = {
+          type: 'brick',
+          content: 'none',
+          bumpOffset: 0,
+          bumpVel: 0,
+        };
+        this.pSwitchTransformedBlocks.push({
+          tx,
+          ty,
+          origX: item.x,
+          origY: item.y,
+        });
+        item.collected = true;
+        this.spawnCoinParticles(item.x, item.y);
+        converted++;
+      }
+    }
+    this.items = this.items.filter(i => !i.collected);
+    this.pSwitchBlueTimer = 600;
+    this.sound.playPowerUpAppear();
+    this.particleSystem.emitScoreText(
+      converted > 0 ? `BLOCO P! x${converted}` : 'BLOCO P!',
+      Math.max(8, originX - 12),
+      Math.max(20, originY - 12),
+      { maxLife: 45, vy: -0.9, color: '#58a8f8' }
+    );
+  }
+
+  private revertBluePSwitchBlocks() {
+    this.pSwitchBlueTimer = 0;
+    for (const entry of this.pSwitchTransformedBlocks) {
+      const tile = this.level.tiles[entry.ty]?.[entry.tx];
+      if (tile && tile.type === 'brick') {
+        this.level.tiles[entry.ty][entry.tx] = null;
+        this.items.push({
+          id: this.nextEntityId++,
+          type: 'coin',
+          x: entry.origX,
+          y: entry.origY,
+          vx: 0,
+          vy: 0,
+          width: 16,
+          height: 16,
+          grounded: true,
+          collected: false,
+          emerging: false,
+          emergeY: entry.origY,
+        });
+        this.spawnCoinParticles(entry.origX, entry.origY);
+      }
+    }
+    this.pSwitchTransformedBlocks = [];
+  }
+
+  private activateCyanPSwitch(originX: number, originY: number) {
+    let converted = 0;
+    for (const e of this.enemies) {
+      if (!e.alive || e.type === 'bowser' || e.id === this.heldShellEnemyId) {
+        continue;
+      }
+      const inRange =
+        Math.abs(e.x - originX) <= 320 ||
+        (e.x >= this.cameraX - 48 && e.x <= this.cameraX + GameEngine.NES_WIDTH + 48);
+      if (!inRange) continue;
+
+      const coinX = Math.max(0, Math.min(this.level.width * GameEngine.TILE_SIZE - 16, Math.round(e.x)));
+      const coinY = Math.max(16, Math.min(GameEngine.NES_HEIGHT - 32, Math.round(e.y)));
+      e.alive = false;
+      e.state = 'flipped';
+      e.y = GameEngine.NES_HEIGHT + 96;
+      this.items.push({
+        id: this.nextEntityId++,
+        type: 'coin',
+        x: coinX,
+        y: coinY,
+        vx: 0,
+        vy: 0,
+        width: 16,
+        height: 16,
+        grounded: true,
+        collected: false,
+        emerging: false,
+        emergeY: coinY,
+      });
+      this.spawnCoinParticles(coinX, coinY);
+      this.recordEnemyDefeat(e.type);
+      converted++;
+    }
+    this.sound.playCoin();
+    this.particleSystem.emitScoreText(
+      converted > 0 ? `MOEDA P! x${converted}` : 'MOEDA P!',
+      Math.max(8, originX - 12),
+      Math.max(20, originY - 12),
+      { maxLife: 45, vy: -0.9, color: '#58f8f8' }
+    );
+  }
+
+  private triggerKeyholeUnlock(keyObj: CarryableObject, kh: KeyholeEntity) {
+    keyObj.consumed = true;
+    if (this.heldCarryableId === keyObj.id) {
+      this.heldCarryableId = null;
+    }
+    this.releaseHeldObject(true);
+    kh.activated = true;
+    kh.animTimer = 0;
+    this.activeKeyholeId = kh.id;
+    this.keyholeClearTimer = 1;
+    this.lastClearWasSecretExit = true;
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.sound.stopMusic();
+    this.sound.playStageClear();
+    this.addScore(1000, kh.x, kh.y, 'CHAVE!');
+    this.spawnPowerUpSparkles(kh.x, kh.y);
+    this.enforceStageEndDebugLock(false);
+  }
+
+  private getYoshiTongueRect(): Rect | null {
+    if (!this.marioOnYoshi || this.yoshiTongueTimer <= 0) return null;
+    const progress = Math.sin(((14 - this.yoshiTongueTimer) / 14) * Math.PI);
+    const reach = Math.max(8, Math.round(28 * progress));
+    const mouthY = this.marioY + this.getMarioHeight() - 14;
+    if (this.marioFacing === 'right') {
+      return { x: this.marioX + 14, y: mouthY, width: reach, height: 8 };
+    }
+    return { x: this.marioX + 2 - reach, y: mouthY, width: reach, height: 8 };
+  }
+
+  private checkYoshiTongueCollisions() {
+    const tongueBox = this.getYoshiTongueRect();
+    if (!tongueBox) return;
+
+    // 1. Eat coins, W-coins & items
+    this.items.forEach(item => {
+      if (item.collected || item.emerging) return;
+      const itemBox: Rect = { x: item.x, y: item.y, width: item.width, height: item.height };
+      if (this.rectsIntersect(tongueBox, itemBox)) {
+        if (item.type === 'coin') {
+          this.collectFloatingCoinItem(item);
+        } else if (item.type === 'w_coin') {
+          this.collectWCoinItem(item);
+        } else {
+          item.collected = true;
+          this.collectItem(item);
+        }
+      }
+    });
+    this.items = this.items.filter(i => !i.collected);
+
+    // 2. Eat regular enemies (not Bowser, ghosts, skeletons, or lava sparks)
+    this.enemies.forEach(e => {
+      if (
+        !e.alive ||
+        e.type === 'bowser' ||
+        e.type === 'lava_bubble' ||
+        e.type === 'boo' ||
+        e.type === 'dry_bones'
+      ) {
+        return;
+      }
+      const eBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
+      if (this.rectsIntersect(tongueBox, eBox)) {
+        e.alive = false;
+        e.state = 'flipped';
+        e.y = GameEngine.NES_HEIGHT + 96;
+        this.sound.playPowerUpEat();
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+        this.addScore(200, e.x, e.y);
+        this.recordEnemyDefeat(e.type);
+      }
+    });
   }
 
   public hasGoalPointsPost(): boolean {
@@ -4956,7 +5884,7 @@ export class GameEngine {
           x: tx * GameEngine.TILE_SIZE,
           y: ty * GameEngine.TILE_SIZE,
           timer: (idx * 7) % 20,
-          faceIndex: idx % 3,
+          faceIndex: idx % GameEngine.BONUS_BLOCK_FACES.length,
           resolved: false,
           result: null,
         });
@@ -4978,7 +5906,7 @@ export class GameEngine {
       castleX: 999999,
       bgColor: '#0c1230',
       timeLimit: 60,
-      biomeLabel: 'BONUS STAGE · 9 VIDAS',
+      biomeLabel: 'BONUS STAGE · VIDAS & POWER-UPS',
     };
 
     this.level = bonusLevel;
@@ -5039,8 +5967,7 @@ export class GameEngine {
       return false;
     }
 
-    const faces: BonusBlockFace[] = ['1up', 'mushroom', 'flower'];
-    const chosen = faces[entry.faceIndex % faces.length];
+    const chosen = GameEngine.BONUS_BLOCK_FACES[entry.faceIndex % GameEngine.BONUS_BLOCK_FACES.length];
     entry.resolved = true;
     entry.result = chosen;
 
@@ -5056,11 +5983,20 @@ export class GameEngine {
       this.addScore(1000, entry.x, entry.y, '+1 VIDA!');
       this.spawnPowerUpSparkles(entry.x, entry.y - 8);
     } else if (chosen === 'mushroom') {
-      this.sound.playPowerUpEat();
-      this.addScore(1000, entry.x, entry.y, '+1000');
-    } else {
-      this.sound.playCoin();
-      this.addScore(500, entry.x, entry.y, '+500');
+      this.transitionMarioPower('super', entry.x, entry.y, 'SUPER!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
+    } else if (chosen === 'flower') {
+      this.transitionMarioPower('fire', entry.x, entry.y, 'FIRE!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
+    } else if (chosen === 'feather') {
+      this.transitionMarioPower('cape', entry.x, entry.y, 'PENA!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
+    } else if (chosen === 'leaf') {
+      this.transitionMarioPower('tanooki', entry.x, entry.y, 'TANOOKI!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
+    } else if (chosen === 'femboy') {
+      this.transitionMarioPower('femboy', entry.x, entry.y, 'FEMBOY!');
+      this.spawnPowerUpSparkles(entry.x, entry.y - 8);
     }
 
     const remaining = this.bonusStageBlocks.filter(b => !b.resolved).length;
@@ -5070,8 +6006,12 @@ export class GameEngine {
     if (remaining === 0) {
       this.bonusStageFinishDelay = 85;
       this.sound.playStageClear();
+      const summaryLabel =
+        this.bonusStageLivesWon > 0
+          ? `BONUS FIM! +${this.bonusStageLivesWon} VIDAS`
+          : 'BONUS FIM! POWER-UP!';
       this.particleSystem.emitScoreText(
-        `BONUS FIM! +${this.bonusStageLivesWon} VIDAS`,
+        summaryLabel,
         24,
         36,
         { maxLife: 85, vy: -0.25, color: '#58f898' }
@@ -5222,6 +6162,7 @@ export class GameEngine {
 
   private finishStage() {
     if (this.marioState === 'castle_entered') return;
+    this.releaseHeldObject(true);
     this.isStageClear = true;
     this.marioState = 'castle_entered';
     this.stageClearTallyDelay = 40;
@@ -5422,6 +6363,8 @@ export class GameEngine {
     }
     if (this.gameMode === 'smw_world_map' && this.level.smwNodeId) {
       const clearedNodeId = this.level.smwNodeId;
+      const wasSecretExit = this.lastClearWasSecretExit;
+      this.lastClearWasSecretExit = false;
       this.isStageClear = false;
       this.localStageCleared = false;
       this.waitingForPlayersFinish = false;
@@ -5440,7 +6383,7 @@ export class GameEngine {
       this.syncHighScore(true);
       this.persistRunScoreToRanking();
       this.sound.stopMusic();
-      this.onSmwStageCompleted?.(clearedNodeId);
+      this.onSmwStageCompleted?.(clearedNodeId, { secretExit: wasSecretExit });
       return;
     }
     if (this.level.isFinalCastle) {
@@ -6207,8 +7150,10 @@ export class GameEngine {
       }
     }
 
-    // 5. Items
+    // 5. Items & Keyholes + Unheld Carryables (R1.19.1GX.5)
+    this.renderKeyholes(ctx);
     this.renderItems(ctx);
+    this.renderCarryables(ctx, false);
 
     // 6. Enemies
     this.renderEnemies(ctx);
@@ -6223,11 +7168,18 @@ export class GameEngine {
     this.renderCastleToodle(ctx);
     this.renderCastlePrincess(ctx);
 
+    // 9b. Unmounted Yoshis (R1.16.1RZ.4)
+    this.renderYoshis(ctx);
+
     // 10. Mario / WazzimaGiygg (or Sonic Debug Placement Cursor)
     this.renderMario(ctx);
+    this.renderCarryables(ctx, true);
     if (this.isDebugMode && this.isDebugPlacementActive) {
       this.renderDebugCursor(ctx);
     }
+
+    // 10b. Foreground right pillar of the SMW Goal Gate (Mario passes behind it!)
+    this.renderFlagpoleForeground(ctx);
 
     // 11. Particles & Floating Scores
     this.particleSystem.render(ctx, camX, GameEngine.NES_WIDTH, this.atlas);
@@ -6239,7 +7191,27 @@ export class GameEngine {
     this.renderCastlePrincessDialogue(ctx);
     this.renderInCanvasHUD(ctx);
 
-    // 13. SMW Castle Circular Iris-Out Transition (R02.16.PG.4)
+    // 13. SMW Keyhole Secret Exit Iris-Out Transition (R1.19.1GX.5)
+    if (this.keyholeClearTimer > 0) {
+      const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
+      const khScreenX = activeKh ? Math.round(activeKh.x + 8 - camX) : Math.round(this.marioX + 8 - camX);
+      const khScreenY = activeKh ? Math.round(activeKh.y + 8) : Math.round(this.marioY + 8);
+      const prog = Math.min(1, Math.max(0, (this.keyholeClearTimer - 8) / 30));
+      if (prog > 0) {
+        const radius = Math.max(0, 260 * (1 - prog));
+        ctx.save();
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.rect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+        if (radius > 0.5) {
+          ctx.arc(khScreenX, khScreenY, radius, 0, Math.PI * 2, true);
+        }
+        ctx.fill('evenodd');
+        ctx.restore();
+      }
+    }
+
+    // 13b. SMW Castle Circular Iris-Out Transition (R02.16.PG.4)
     if (this.gameMode === 'smw_world_map' && this.smwCastleIrisProgress > 0) {
       const doorScreenX =
         this.level.castleX > 0 && this.level.castleX < 99000
@@ -6922,9 +7894,21 @@ export class GameEngine {
           case 'underground_ground':
             ctx.drawImage(this.atlas.tileGroundUnderground, screenX, screenY);
             break;
-          case 'brick':
-            ctx.drawImage(this.atlas.tileBrick, screenX, screenY);
+          case 'brick': {
+            const isTempPSwitchBrick =
+              this.pSwitchBlueTimer > 0 &&
+              this.pSwitchBlueTimer < 120 &&
+              this.pSwitchTransformedBlocks.some(b => b.tx === tx && b.ty === ty);
+            if (isTempPSwitchBrick && Math.floor(this.pSwitchBlueTimer / 6) % 2 === 0) {
+              ctx.save();
+              ctx.globalAlpha = 0.45;
+              ctx.drawImage(this.atlas.tileBrick, screenX, screenY);
+              ctx.restore();
+            } else {
+              ctx.drawImage(this.atlas.tileBrick, screenX, screenY);
+            }
             break;
+          }
           case 'underground_brick':
             ctx.drawImage(this.atlas.tileBrickUnderground, screenX, screenY);
             break;
@@ -7108,48 +8092,177 @@ export class GameEngine {
     }
   }
 
+  private getGoalFrontPostGroundY(): number {
+    const T = GameEngine.TILE_SIZE;
+    const frontCenterTx = Math.floor((this.level.flagX + 28) / T);
+    for (let ty = 12; ty < this.level.height; ty++) {
+      const tile = this.level.tiles[ty]?.[frontCenterTx];
+      if (tile && tile.type !== 'lava' && this.isSolidTile(tile.type)) {
+        return ty * T;
+      }
+    }
+    return 13 * T;
+  }
+
   private renderFlagpole(ctx: CanvasRenderingContext2D) {
     if (!this.hasGoalPointsPost()) return;
     const poleScreenX = Math.round(this.level.flagX - this.camera.renderX);
-    if (poleScreenX < -40 || poleScreenX > GameEngine.NES_WIDTH + 40) return;
+    if (poleScreenX < -44 || poleScreenX > GameEngine.NES_WIDTH + 44) return;
 
-    // Front right pillar of the SMW Goal Gate (left pillar is rendered by 'pole'/'pole_top' tiles)
-    const frontPostX = poleScreenX + 20;
-    for (let y = 3 * GameEngine.TILE_SIZE; y <= 11 * GameEngine.TILE_SIZE; y += GameEngine.TILE_SIZE) {
-      ctx.drawImage(this.atlas.flagPoleBody, frontPostX, y);
+    const T = GameEngine.TILE_SIZE;
+
+    // Back pillar pedestal collar resting on its base block (row 12 = y:192)
+    ctx.fillStyle = '#181828';
+    ctx.fillRect(poleScreenX + 2, 12 * T - 5, 12, 5);
+    ctx.fillStyle = '#8494b0';
+    ctx.fillRect(poleScreenX + 3, 12 * T - 4, 10, 1);
+    ctx.fillStyle = '#4e5c78';
+    ctx.fillRect(poleScreenX + 3, 12 * T - 3, 10, 2);
+    ctx.fillStyle = '#f8d838';
+    ctx.fillRect(poleScreenX + 4, 12 * T - 4, 2, 1);
+
+    // 2.5D angled top crossbeam arch connecting back cap (x+8, y:39) to front cap (x+28, y:45)
+    const archStartX = poleScreenX + 9;
+    const archStartY = 2 * T + 7; // 39
+    const archSteps = 20;
+    for (let i = 0; i <= archSteps; i++) {
+      const px = archStartX + i;
+      const py = archStartY + Math.round((i / archSteps) * 6);
+      // Crisp 1px top & bottom border
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(px, py - 1, 1, 7);
+      // Silver-white beveled arch bar
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(px, py, 1, 1);
+      ctx.fillStyle = '#dce4f2';
+      ctx.fillRect(px, py + 1, 1, 2);
+      ctx.fillStyle = '#647490';
+      ctx.fillRect(px, py + 3, 1, 2);
     }
-    ctx.drawImage(this.atlas.flagPoleTop, frontPostX, 2 * GameEngine.TILE_SIZE);
 
-    // Horizontal top crossbeam connecting the dual SMW pillars
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(poleScreenX + 8, 2 * GameEngine.TILE_SIZE + 6, 20, 4);
-    ctx.fillStyle = '#d8e4f4';
-    ctx.fillRect(poleScreenX + 8, 2 * GameEngine.TILE_SIZE + 7, 20, 2);
+    // Centered SMW Golden Goal Crest / Checkered Header Plaque on top arch
+    const crestX = poleScreenX + 14;
+    const crestY = 2 * T + 5;
+    ctx.fillStyle = '#181828';
+    ctx.fillRect(crestX, crestY, 10, 9);
+    ctx.fillStyle = '#f8d838';
+    ctx.fillRect(crestX + 1, crestY + 1, 8, 7);
+    ctx.fillStyle = '#182444';
+    ctx.fillRect(crestX + 2, crestY + 2, 6, 5);
+    // Checkered diamond/star emblem inside plaque
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(crestX + 4, crestY + 2, 2, 5);
+    ctx.fillRect(crestX + 2, crestY + 4, 6, 1);
+    ctx.fillStyle = '#fce078';
+    ctx.fillRect(crestX + 4, crestY + 4, 2, 1);
 
-    // Subtle height point labels along the right post (50 / 30 / 10)
+    // Moving SMW Goal Tape (checkered white & gold ribbon spanning between both pillars)
+    const tapeY = Math.round(this.goalTapeY);
+    if (!this.goalTapeCut) {
+      const shimmerPhase = Math.floor(Date.now() / 120) % 4;
+      // Back slider ring on left pillar
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(poleScreenX + 4, tapeY - 1, 7, 6);
+      ctx.fillStyle = '#f8d038';
+      ctx.fillRect(poleScreenX + 5, tapeY, 5, 4);
+
+      // Diagonal 2.5D ribbon connecting back slider (x+10, tapeY) to front slider (x+25, tapeY+3)
+      const tapeSpan = 16;
+      for (let i = 0; i < tapeSpan; i++) {
+        const rx = poleScreenX + 10 + i;
+        const ry = tapeY + Math.round((i / tapeSpan) * 3);
+        ctx.fillStyle = '#181828';
+        ctx.fillRect(rx, ry - 1, 1, 6);
+        const isLightSeg = ((i + shimmerPhase) >> 1) % 2 === 0;
+        ctx.fillStyle = isLightSeg ? '#ffffff' : '#fce078';
+        ctx.fillRect(rx, ry, 1, 2);
+        ctx.fillStyle = isLightSeg ? '#dce4f2' : '#e8a820';
+        ctx.fillRect(rx, ry + 2, 1, 2);
+      }
+    } else {
+      // Subtle cut ribbon stub remaining on back slider clip
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(poleScreenX + 4, tapeY - 1, 7, 5);
+      ctx.fillStyle = '#f8d038';
+      ctx.fillRect(poleScreenX + 5, tapeY, 5, 3);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(poleScreenX + 10, tapeY, 3, 2);
+    }
+  }
+
+  private renderFlagpoleForeground(ctx: CanvasRenderingContext2D) {
+    if (!this.hasGoalPointsPost()) return;
+    const poleScreenX = Math.round(this.level.flagX - this.camera.renderX);
+    if (poleScreenX < -44 || poleScreenX > GameEngine.NES_WIDTH + 44) return;
+
+    const T = GameEngine.TILE_SIZE;
+    const frontPostX = poleScreenX + 20;
+    const frontCapY = 2 * T + 6; // 38 (6px lower than back cap for 2.5D perspective)
+    const shaftTopY = frontCapY + T; // 54
+    const groundY = this.getGoalFrontPostGroundY();
+    const shaftBottomY = Math.max(shaftTopY, groundY - 5);
+
+    // Front cylindrical pillar shaft extending cleanly down to ground pedestal
+    for (let y = shaftTopY; y < shaftBottomY; y += T) {
+      const remaining = shaftBottomY - y;
+      if (remaining >= T) {
+        ctx.drawImage(this.atlas.flagPoleBody, frontPostX, y);
+      } else {
+        ctx.drawImage(this.atlas.flagPoleBody, 0, 0, T, remaining, frontPostX, y, T, remaining);
+      }
+    }
+
+    // Front dome finial cap
+    ctx.drawImage(this.atlas.flagPoleTop, frontPostX, frontCapY);
+
+    // Front slider ring on tape height
+    const tapeY = Math.round(this.goalTapeY) + 3;
+    if (tapeY >= shaftTopY && tapeY <= shaftBottomY - 4) {
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(frontPostX + 4, tapeY - 1, 8, 6);
+      ctx.fillStyle = '#f8d038';
+      ctx.fillRect(frontPostX + 5, tapeY, 6, 4);
+      ctx.fillStyle = '#fff8c8';
+      ctx.fillRect(frontPostX + 6, tapeY + 1, 2, 2);
+    }
+
+    // Solid stepped stone & iron pedestal base resting cleanly on groundY (no floating pillar)
+    ctx.fillStyle = '#181828';
+    ctx.fillRect(frontPostX + 2, groundY - 6, 12, 6);
+    ctx.fillRect(frontPostX + 1, groundY - 4, 14, 4);
+    ctx.fillStyle = '#dce4f2';
+    ctx.fillRect(frontPostX + 3, groundY - 5, 10, 1);
+    ctx.fillStyle = '#8494b0';
+    ctx.fillRect(frontPostX + 2, groundY - 3, 12, 1);
+    ctx.fillStyle = '#4e5c78';
+    ctx.fillRect(frontPostX + 2, groundY - 2, 12, 1);
+    ctx.fillStyle = '#f8d838';
+    ctx.fillRect(frontPostX + 4, groundY - 5, 2, 1);
+
+    // Refined height tick markers & compact SMW point tags (50 / 30 / 10)
+    const markers: { label: string; y: number; color: string }[] = [
+      { label: '50', y: 56, color: '#fce078' },
+      { label: '30', y: 110, color: '#ffffff' },
+      { label: '10', y: 162, color: '#d8e4f4' },
+    ];
     ctx.save();
     ctx.font = '5px "Press Start 2P", monospace';
-    ctx.fillStyle = '#000000';
-    ctx.fillText('50', frontPostX + 13, 56);
-    ctx.fillText('30', frontPostX + 13, 110);
-    ctx.fillText('10', frontPostX + 13, 162);
-    ctx.fillStyle = '#fce078';
-    ctx.fillText('50', frontPostX + 12, 55);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('30', frontPostX + 12, 109);
-    ctx.fillText('10', frontPostX + 12, 161);
-    ctx.restore();
-
-    // Moving SMW Goal Tape crossbar between both pillars
-    if (!this.goalTapeCut) {
-      const tapeY = Math.round(this.goalTapeY);
+    for (const m of markers) {
+      if (m.y >= groundY - 10) continue;
+      // Subtle gold-rimmed tick notch on the front pillar
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(frontPostX + 11, m.y - 3, 4, 3);
+      ctx.fillStyle = m.color;
+      ctx.fillRect(frontPostX + 11, m.y - 2, 3, 1);
+      // Compact translucent backing for crisp legibility against any sky/scenery
+      ctx.fillStyle = 'rgba(16, 20, 36, 0.55)';
+      ctx.fillRect(frontPostX + 14, m.y - 6, 13, 8);
       ctx.fillStyle = '#000000';
-      ctx.fillRect(poleScreenX + 7, tapeY - 1, 18, 6);
-      ctx.fillStyle = '#f8d838';
-      ctx.fillRect(poleScreenX + 8, tapeY, 16, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(poleScreenX + 9, tapeY + 1, 14, 2);
+      ctx.fillText(m.label, frontPostX + 16, m.y + 1);
+      ctx.fillStyle = m.color;
+      ctx.fillText(m.label, frontPostX + 15, m.y);
     }
+    ctx.restore();
   }
 
   private renderBonusStage(ctx: CanvasRenderingContext2D) {
@@ -7170,9 +8283,9 @@ export class GameEngine {
     ctx.textAlign = 'center';
     ctx.font = '7px "Press Start 2P", monospace';
     ctx.fillStyle = '#000000';
-    ctx.fillText('BONUS STAGE · 9 VIDAS', GameEngine.NES_WIDTH / 2 + 1, 45);
+    ctx.fillText('BONUS STAGE · VIDAS & POWER-UPS', GameEngine.NES_WIDTH / 2 + 1, 45);
     ctx.fillStyle = '#fce078';
-    ctx.fillText('BONUS STAGE · 9 VIDAS', GameEngine.NES_WIDTH / 2, 44);
+    ctx.fillText('BONUS STAGE · VIDAS & POWER-UPS', GameEngine.NES_WIDTH / 2, 44);
     const rem = this.bonusStageBlocks.filter(b => !b.resolved).length;
     ctx.font = '5px "Press Start 2P", monospace';
     ctx.fillStyle = '#58f898';
@@ -7183,7 +8296,14 @@ export class GameEngine {
     this.renderTiles(ctx);
 
     // 4. Active 3x3 rotating SMW Bonus Blocks
-    const faces: BonusBlockFace[] = ['1up', 'mushroom', 'flower'];
+    const resolvedTags: Record<BonusBlockFace, { label: string; color: string }> = {
+      '1up': { label: '1UP', color: '#58f898' },
+      mushroom: { label: 'SUP', color: '#ff6868' },
+      flower: { label: 'FIR', color: '#ffa848' },
+      feather: { label: 'PEN', color: '#58f8f8' },
+      leaf: { label: 'TAN', color: '#f0b868' },
+      femboy: { label: 'FEM', color: '#ff80d8' },
+    };
     for (const b of this.bonusStageBlocks) {
       const tile = this.level.tiles[b.ty]?.[b.tx];
       const bump = tile ? Math.round(tile.bumpOffset) : 0;
@@ -7191,12 +8311,13 @@ export class GameEngine {
       const by = b.y + bump;
 
       if (b.resolved) {
-        if (b.result === '1up') {
+        if (b.result) {
+          const tag = resolvedTags[b.result];
           ctx.save();
           ctx.font = '5px "Press Start 2P", monospace';
           ctx.textAlign = 'center';
-          ctx.fillStyle = '#58f898';
-          ctx.fillText('1UP', bx + 8, by + 11);
+          ctx.fillStyle = tag.color;
+          ctx.fillText(tag.label, bx + 8, by + 11);
           ctx.restore();
         }
         continue;
@@ -7210,13 +8331,19 @@ export class GameEngine {
       ctx.fillStyle = '#182448';
       ctx.fillRect(bx + 2, by + 2, 12, 12);
 
-      const face = faces[b.faceIndex % faces.length];
+      const face = GameEngine.BONUS_BLOCK_FACES[b.faceIndex % GameEngine.BONUS_BLOCK_FACES.length];
       const sprite =
         face === '1up'
           ? this.atlas.itemMushroom1Up
           : face === 'mushroom'
           ? this.atlas.itemMushroomSuper
-          : this.atlas.itemFireFlowerFrames[0];
+          : face === 'flower'
+          ? this.atlas.itemFireFlowerFrames[0]
+          : face === 'feather'
+          ? this.atlas.itemFeather
+          : face === 'leaf'
+          ? this.atlas.itemSuperLeaf
+          : this.atlas.itemFemboy;
       if (sprite) {
         ctx.drawImage(sprite, bx + 2, by + 2, 12, 12);
       }
@@ -7316,6 +8443,78 @@ export class GameEngine {
         ctx.drawImage(sprite, ix, iy);
       }
     });
+  }
+
+  private renderYoshis(ctx: CanvasRenderingContext2D) {
+    if (this.yoshis.length === 0) return;
+    const camX = this.camera.renderX;
+    this.yoshis.forEach(yoshi => {
+      const yx = Math.round(yoshi.x - camX);
+      const yy = Math.round(yoshi.y);
+      if (yx < -28 || yx > GameEngine.NES_WIDTH + 28) return;
+      const sprite =
+        yoshi.state === 'runaway' && yoshi.animFrame === 1 ? this.atlas.yoshiWalk : this.atlas.yoshiIdle;
+      ctx.save();
+      if (yoshi.facing === 'left') {
+        ctx.translate(yx + yoshi.width, yy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(sprite, 0, 0);
+      } else {
+        ctx.drawImage(sprite, yx, yy);
+      }
+      ctx.restore();
+    });
+  }
+
+  private renderKeyholes(ctx: CanvasRenderingContext2D) {
+    if (this.keyholes.length === 0) return;
+    const camX = this.camera.renderX;
+    for (const kh of this.keyholes) {
+      const kx = Math.round(kh.x - camX);
+      const ky = Math.round(kh.y);
+      if (kx < -24 || kx > GameEngine.NES_WIDTH + 24) continue;
+      ctx.save();
+      if (kh.activated && kh.animTimer > 0) {
+        const scale = 1 + Math.min(2.2, kh.animTimer * 0.08);
+        ctx.translate(kx + 8, ky + 8);
+        ctx.scale(scale, scale);
+        ctx.drawImage(this.atlas.itemKeyhole, -8, -8);
+      } else {
+        ctx.drawImage(this.atlas.itemKeyhole, kx, ky);
+      }
+      ctx.restore();
+    }
+  }
+
+  private renderCarryables(ctx: CanvasRenderingContext2D, heldOnly: boolean) {
+    if (this.carryables.length === 0) return;
+    const camX = this.camera.renderX;
+    for (const obj of this.carryables) {
+      if (obj.consumed) continue;
+      const isHeld = this.heldCarryableId === obj.id;
+      if (isHeld !== heldOnly) continue;
+
+      const sx = Math.round(obj.x - camX);
+      const sy = Math.round(obj.y);
+      if (sx < -24 || sx > GameEngine.NES_WIDTH + 24) continue;
+
+      let sprite = this.atlas.itemKey;
+      if (obj.kind === 'p_switch_blue') {
+        sprite = obj.pressed ? this.atlas.itemPSwitchBluePressed : this.atlas.itemPSwitchBlue;
+      } else if (obj.kind === 'p_switch_cyan') {
+        sprite = obj.pressed ? this.atlas.itemPSwitchCyanPressed : this.atlas.itemPSwitchCyan;
+      }
+
+      ctx.save();
+      if (obj.kind === 'key' && isHeld && this.marioFacing === 'left') {
+        ctx.translate(sx + 16, sy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(sprite, 0, 0);
+      } else {
+        ctx.drawImage(sprite, sx, sy);
+      }
+      ctx.restore();
+    }
   }
 
   private renderEnemies(ctx: CanvasRenderingContext2D) {
@@ -7439,6 +8638,24 @@ export class GameEngine {
           } else {
             ctx.drawImage(frame, ex, e.y);
           }
+        }
+        if (e.alive && e.bossName) {
+          ctx.restore();
+          ctx.save();
+          const label = e.bossName.toUpperCase();
+          ctx.font = '5px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          const tw = ctx.measureText(label).width;
+          const bw = tw + 6;
+          const bx = Math.round(ex + 12 - bw / 2);
+          const by = Math.max(26, Math.round(e.y - 12));
+          ctx.fillStyle = 'rgba(20, 4, 8, 0.88)';
+          ctx.fillRect(bx, by, bw, 9);
+          ctx.strokeStyle = '#fce078';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, 8);
+          ctx.fillStyle = '#fce078';
+          ctx.fillText(label, ex + 12, by + 7);
         }
       } else if (e.type === 'boo') {
         ctx.globalAlpha = 0.92;
@@ -7593,9 +8810,10 @@ export class GameEngine {
     // Typewriter dialogue lines
     const heroName = this.playerCharacter === 'wazzima' ? 'WAZZIMAGIYGG' : 'MARIO';
     const isWikiCastle = this.level.smwNodeId === 'wiki-5-castelo';
+    const bossUpper = this.getBossDisplayName().toUpperCase();
     const line1 = `OBRIGADO, ${heroName}!`;
     const line2 = isWikiCastle ? 'CASTELO DE JOHANNNNES89' : 'MAS A NOSSA PRINCESA';
-    const line3 = isWikiCastle ? 'ESTÁ LIVRE DE BOWSER!' : 'ESTÁ EM OUTRO CASTELO!';
+    const line3 = isWikiCastle ? `LIVRE DE ${bossUpper}!` : 'ESTÁ EM OUTRO CASTELO!';
     const fullChars = line1.length + line2.length + line3.length;
     const revealedChars = Math.min(fullChars, Math.floor(this.castleToodleDialogueTimer * 1.6));
 
@@ -7817,6 +9035,22 @@ export class GameEngine {
       case 'dry_bones':
         sprite = this.atlas.dryBonesWalk1;
         drawY = cy - 8;
+        break;
+      case 'yoshi':
+        sprite = this.atlas.yoshiIdle;
+        drawY = cy - 4;
+        break;
+      case 'key':
+        sprite = this.atlas.itemKey;
+        break;
+      case 'keyhole':
+        sprite = this.atlas.itemKeyhole;
+        break;
+      case 'p_switch_blue':
+        sprite = this.atlas.itemPSwitchBlue;
+        break;
+      case 'p_switch_cyan':
+        sprite = this.atlas.itemPSwitchCyan;
         break;
     }
 
@@ -8082,7 +9316,28 @@ export class GameEngine {
       }
     }
 
-    if (spriteCanvas) {
+    if (this.marioOnYoshi) {
+      const yoshiSprite =
+        this.yoshiTongueTimer > 0
+          ? this.atlas.yoshiTongue
+          : Math.abs(this.marioVx) > 0.2 && Math.floor(Date.now() / 110) % 2 === 1
+          ? this.atlas.yoshiWalk
+          : this.atlas.yoshiIdle;
+      const yoshiDrawY = my + this.getMarioHeight() - 20;
+      if (spriteCanvas) {
+        ctx.drawImage(spriteCanvas, mx, my - 7);
+      }
+      ctx.drawImage(yoshiSprite, mx - 2, yoshiDrawY);
+      if (this.yoshiTongueTimer > 0) {
+        const tongueProgress = Math.sin(((14 - this.yoshiTongueTimer) / 14) * Math.PI);
+        const reach = Math.max(4, Math.round(26 * tongueProgress));
+        const tongueY = yoshiDrawY + 7;
+        ctx.fillStyle = '#ff5a96';
+        ctx.fillRect(mx + 17, tongueY, reach, 3);
+        ctx.fillStyle = '#ff2870';
+        ctx.fillRect(mx + 17 + reach - 3, tongueY - 1, 4, 5);
+      }
+    } else if (spriteCanvas) {
       ctx.drawImage(spriteCanvas, mx, my);
     }
 

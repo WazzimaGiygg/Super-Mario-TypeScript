@@ -472,6 +472,12 @@ export class SpriteAtlas {
   public itemSuperLeaf!: HTMLCanvasElement;
   public itemFeather!: HTMLCanvasElement;
   public itemFemboy!: HTMLCanvasElement;
+  public itemKey!: HTMLCanvasElement;
+  public itemKeyhole!: HTMLCanvasElement;
+  public itemPSwitchBlue!: HTMLCanvasElement;
+  public itemPSwitchBluePressed!: HTMLCanvasElement;
+  public itemPSwitchCyan!: HTMLCanvasElement;
+  public itemPSwitchCyanPressed!: HTMLCanvasElement;
   
   // Castle & Scenery
   public castleBrick!: HTMLCanvasElement;
@@ -485,6 +491,11 @@ export class SpriteAtlas {
   public toodleHappySprite!: HTMLCanvasElement;
   public princessFemboySprite!: HTMLCanvasElement;
   public princessFemboyHappySprite!: HTMLCanvasElement;
+
+  // Yoshi Mount Sprites (20x20 facing right)
+  public yoshiIdle!: HTMLCanvasElement;
+  public yoshiWalk!: HTMLCanvasElement;
+  public yoshiTongue!: HTMLCanvasElement;
 
   // Particles & Projectiles
   public fireballFrames: HTMLCanvasElement[] = [];
@@ -2575,6 +2586,98 @@ export class SpriteAtlas {
     const [dbC, ctxDbC] = createOffscreen(16, 16);
     drawPixelGrid(ctxDbC, dryBonesCrumbledPattern, dryBonesPalette);
     this.dryBonesCrumbled = dbC;
+
+    // Yoshi (SMW Green Dinosaur Mount 20x20 facing right)
+    const yoshiPalette = {
+      '.': 'transparent',
+      'K': '#141020',
+      'G': '#28c838',
+      'D': '#108820',
+      'L': '#70f870',
+      'W': '#fcfcfc',
+      'R': '#d82800',
+      'O': '#f87818',
+      'Y': '#fce078',
+      'P': '#ff5a96',
+    };
+    const yoshiIdlePattern = [
+      '.........KKKK.......',
+      '........KWWWWK......',
+      '.......KWWKWWWK.....',
+      '......KGGWKWWGKKKK..',
+      '......KGGGGLLGGGGGK.',
+      '....KRKGGGGGGGGGGWWK',
+      '....KKKGGWWWWWWGGGGK',
+      '.....KRKWWWWWWGGGGKK',
+      '......KKGGWWWWKKKK..',
+      '....KKRRRRGGGKK.....',
+      '..KKGGRRRRWWWGK.....',
+      '.KGGGGKKKKWWWGK.....',
+      'KKDGGGGGGGWWGGK.....',
+      'KGGGGGGGGWWWWGK.....',
+      '.KKKKGGGGGGDDKK.....',
+      '....KGGDDGGGGK......',
+      '....KGGK..KGGK......',
+      '....KOOK..KOOK......',
+      '...KOOOYK.KOOOYK....',
+      '...KKKKKK.KKKKKK....',
+    ];
+    const yoshiWalkPattern = [
+      '.........KKKK.......',
+      '........KWWWWK......',
+      '.......KWWKWWWK.....',
+      '......KGGWKWWGKKKK..',
+      '......KGGGGLLGGGGGK.',
+      '....KRKGGGGGGGGGGWWK',
+      '....KKKGGWWWWWWGGGGK',
+      '.....KRKWWWWWWGGGGKK',
+      '......KKGGWWWWKKKK..',
+      '....KKRRRRGGGKK.....',
+      '..KKGGRRRRWWWGK.....',
+      '.KGGGGKKKKWWWGK.....',
+      'KKDGGGGGGGWWGGK.....',
+      'KGGGGGGGGWWWWGK.....',
+      '.KKKKGGGGGGDDKK.....',
+      '....KGGDDGGGGK......',
+      '.....KGGK.KGGK......',
+      '.....KOOK..KOOK.....',
+      '....KOOOYK.KOOOYK...',
+      '....KKKKKK.KKKKKK...',
+    ];
+    const yoshiTonguePattern = [
+      '.........KKKK.......',
+      '........KWWWWK......',
+      '.......KWWKWWWK.....',
+      '......KGGWKWWGKKKK..',
+      '......KGGGGLLGGGGGK.',
+      '....KRKGGGGGGGGGGWWK',
+      '....KKKGGWWWWWWPPPPK',
+      '.....KRKWWWWWWPPPPKK',
+      '......KKGGWWWWKKKK..',
+      '....KKRRRRGGGKK.....',
+      '..KKGGRRRRWWWGK.....',
+      '.KGGGGKKKKWWWGK.....',
+      'KKDGGGGGGGWWGGK.....',
+      'KGGGGGGGGWWWWGK.....',
+      '.KKKKGGGGGGDDKK.....',
+      '....KGGDDGGGGK......',
+      '....KGGK..KGGK......',
+      '....KOOK..KOOK......',
+      '...KOOOYK.KOOOYK....',
+      '...KKKKKK.KKKKKK....',
+    ];
+
+    const [cYoshiIdle, ctxYoshiIdle] = createOffscreen(20, 20);
+    drawPixelGrid(ctxYoshiIdle, yoshiIdlePattern, yoshiPalette);
+    this.yoshiIdle = cYoshiIdle;
+
+    const [cYoshiWalk, ctxYoshiWalk] = createOffscreen(20, 20);
+    drawPixelGrid(ctxYoshiWalk, yoshiWalkPattern, yoshiPalette);
+    this.yoshiWalk = cYoshiWalk;
+
+    const [cYoshiTongue, ctxYoshiTongue] = createOffscreen(20, 20);
+    drawPixelGrid(ctxYoshiTongue, yoshiTonguePattern, yoshiPalette);
+    this.yoshiTongue = cYoshiTongue;
   }
 
   private generateTiles() {
@@ -3488,6 +3591,137 @@ export class SpriteAtlas {
       drawPixelGrid(ctxStar, starPattern, starPalette);
       this.itemStarFrames.push(cStar);
     }
+
+    // 8. SMW Golden Key (16x16 carryable key)
+    const keyPalette = {
+      '.': 'transparent',
+      'K': '#181828',
+      'G': '#f8d038',
+      'L': '#fff8b8',
+      'D': '#b87008',
+    };
+    const keyPattern = [
+      '....KKKKKKKK....',
+      '...KLLLLGGGGK...',
+      '..KLLGGGGGGGGK..',
+      '..KLLGGKKGGGGK..',
+      '..KGGGGKKGGGGK..',
+      '..KGGGGGGDDDDK..',
+      '...KDDDDDDDDK...',
+      '....KKKGGKKKK...',
+      '......KGGK......',
+      '......KGGKKK....',
+      '......KGGLLK....',
+      '......KGGK......',
+      '......KGGKKKK...',
+      '......KGGLLDK...',
+      '......KDDKKKK...',
+      '.......KK.......',
+    ];
+    const [cKey, ctxKey] = createOffscreen(16, 16);
+    drawPixelGrid(ctxKey, keyPattern, keyPalette);
+    this.itemKey = cKey;
+
+    // 9. SMW Keyhole (16x24 golden-trimmed black keyhole emblem)
+    const keyholePalette = {
+      '.': 'transparent',
+      'K': '#080814',
+      'G': '#f8d038',
+      'L': '#fff8c8',
+      'D': '#985808',
+    };
+    const keyholePattern = [
+      '.....GGGGGG.....',
+      '...GGLLLLLLGG...',
+      '..GLLKKKKKKLLG..',
+      '.GLKKKKKKKKKKLG.',
+      '.GLKKKKKKKKKKLG.',
+      '.GKKKKKKKKKKKKG.',
+      '.GKKKKKKKKKKKKG.',
+      '.GDKKKKKKKKKKDG.',
+      '..GDKKKKKKKKDG..',
+      '...GDKKKKKKDG...',
+      '....GDKKKKDG....',
+      '....GKKKKKKG....',
+      '...GKKKKKKKKG...',
+      '...GKKKKKKKKG...',
+      '..GKKKKKKKKKKG..',
+      '..GKKKKKKKKKKG..',
+      '.GKKKKKKKKKKKKG.',
+      '.GKKKKKKKKKKKKG.',
+      '.GKKKKKKKKKKKKG.',
+      '.GDKKKKKKKKKKDG.',
+      '..GDDDDDDDDDDG..',
+      '...GGGGGGGGGG...',
+      '................',
+      '................',
+    ];
+    const [cKeyhole, ctxKeyhole] = createOffscreen(16, 24);
+    drawPixelGrid(ctxKeyhole, keyholePattern, keyholePalette);
+    this.itemKeyhole = cKeyhole;
+
+    // 10. Portable P-Switches (Blue & Cyan, 16x16 active & pressed)
+    const buildPSwitch = (capMain: string, capLight: string, capDark: string) => {
+      const pPal = {
+        '.': 'transparent',
+        'K': '#181828',
+        'M': capMain,
+        'L': capLight,
+        'D': capDark,
+        'W': '#ffffff',
+        'S': '#dce4f2',
+        'G': '#647490',
+      };
+      const activePat = [
+        '..KKKKKKKKKKKK..',
+        '.KLLLLLLLLLLMMK.',
+        '.KLMMMMMMMMMMDK.',
+        '.KMLLWWWWMMMMDK.',
+        '.KMLLWKKKWMMMDK.',
+        '.KMLLWKKKWMMMDK.',
+        '.KMLLWWWWMMMMDK.',
+        '.KMLLWMMMMMMMDK.',
+        '.KMLLWMMMMMMMDK.',
+        '.KDDDDDDDDDDDDK.',
+        'KKKKKKKKKKKKKKKK',
+        'KSSSSSSSSSSSSGGK',
+        'KSSWWWWSSSSGGGGK',
+        'KSSSSSSSSGGGGGGK',
+        'KGGGGGGGGGGGGGGK',
+        'KKKKKKKKKKKKKKKK',
+      ];
+      const pressedPat = [
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '..KKKKKKKKKKKK..',
+        '.KLLMMMMMMMMDDK.',
+        'KKKKKKKKKKKKKKKK',
+        'KSSSSSSSSGGGGGGK',
+        'KGGGGGGGGGGGGGGK',
+        'KKKKKKKKKKKKKKKK',
+      ];
+      const [cAct, ctxAct] = createOffscreen(16, 16);
+      drawPixelGrid(ctxAct, activePat, pPal);
+      const [cPrs, ctxPrs] = createOffscreen(16, 16);
+      drawPixelGrid(ctxPrs, pressedPat, pPal);
+      return [cAct, cPrs] as const;
+    };
+
+    const [pBlue, pBluePrs] = buildPSwitch('#2868f0', '#70b8ff', '#1038a8');
+    this.itemPSwitchBlue = pBlue;
+    this.itemPSwitchBluePressed = pBluePrs;
+
+    const [pCyan, pCyanPrs] = buildPSwitch('#10b8d8', '#78f4ff', '#087090');
+    this.itemPSwitchCyan = pCyan;
+    this.itemPSwitchCyanPressed = pCyanPrs;
   }
 
   private generateCastle() {
@@ -3513,44 +3747,79 @@ export class SpriteAtlas {
     ctxDoor.fillRect(2, 6, 12, 10);
     this.castleDoor = cDoor;
 
-    // SMW Goal Gate Cap Top (16x16 golden sphere finial)
+    // SMW Goal Gate Cap Top (16x16 sleek metallic dome finial with golden collar)
     const [cBall, ctxBall] = createOffscreen(16, 16);
-    ctxBall.fillStyle = '#000000';
-    ctxBall.beginPath();
-    ctxBall.arc(8, 8, 6.5, 0, Math.PI * 2);
-    ctxBall.fill();
+    // Top crown pin
+    ctxBall.fillStyle = '#181828';
+    ctxBall.fillRect(6, 1, 4, 3);
+    ctxBall.fillStyle = '#fce078';
+    ctxBall.fillRect(7, 2, 2, 2);
+    // Dome outline
+    ctxBall.fillStyle = '#181828';
+    ctxBall.fillRect(4, 3, 8, 10);
+    ctxBall.fillRect(3, 5, 10, 8);
+    // Metallic dome body & cylindrical shading
+    ctxBall.fillStyle = '#647490';
+    ctxBall.fillRect(4, 4, 8, 8);
+    ctxBall.fillStyle = '#dce4f2';
+    ctxBall.fillRect(4, 4, 6, 8);
+    ctxBall.fillRect(4, 5, 7, 6);
+    // Specular highlight
+    ctxBall.fillStyle = '#ffffff';
+    ctxBall.fillRect(5, 5, 2, 4);
+    ctxBall.fillRect(6, 4, 2, 1);
+    // Golden collar ring at the base of the dome
+    ctxBall.fillStyle = '#181828';
+    ctxBall.fillRect(3, 12, 10, 4);
     ctxBall.fillStyle = '#c88010';
-    ctxBall.beginPath();
-    ctxBall.arc(8, 8, 5.5, 0, Math.PI * 2);
-    ctxBall.fill();
+    ctxBall.fillRect(4, 13, 8, 2);
     ctxBall.fillStyle = '#f8d838';
-    ctxBall.beginPath();
-    ctxBall.arc(7.5, 7.5, 4, 0, Math.PI * 2);
-    ctxBall.fill();
+    ctxBall.fillRect(4, 13, 6, 2);
     ctxBall.fillStyle = '#fff8c8';
-    ctxBall.fillRect(5, 5, 2, 2);
+    ctxBall.fillRect(5, 13, 2, 1);
     this.flagPoleTop = cBall;
 
-    // SMW Goal Gate Post Body (16x16 sleek metallic silver pillar)
+    // SMW Goal Gate Post Body (16x16 shaded cylindrical pillar with subtle segment bands)
     const [cPole, ctxPole] = createOffscreen(16, 16);
-    ctxPole.fillStyle = '#202838';
-    ctxPole.fillRect(5, 0, 6, 16);
-    ctxPole.fillStyle = '#687890';
-    ctxPole.fillRect(6, 0, 4, 16);
-    ctxPole.fillStyle = '#d8e4f4';
+    ctxPole.fillStyle = '#181828';
+    ctxPole.fillRect(4, 0, 8, 16);
+    ctxPole.fillStyle = '#a8b8d0';
+    ctxPole.fillRect(5, 0, 1, 16);
+    ctxPole.fillStyle = '#ffffff';
+    ctxPole.fillRect(6, 0, 1, 16);
+    ctxPole.fillStyle = '#dce4f2';
     ctxPole.fillRect(7, 0, 2, 16);
+    ctxPole.fillStyle = '#8494b0';
+    ctxPole.fillRect(9, 0, 1, 16);
+    ctxPole.fillStyle = '#4e5c78';
+    ctxPole.fillRect(10, 0, 1, 16);
+    // Subtle SMW cylindrical ring seams every 4px
+    for (let sy = 0; sy < 16; sy += 4) {
+      ctxPole.fillStyle = '#9aaac4';
+      ctxPole.fillRect(5, sy, 4, 1);
+      ctxPole.fillStyle = '#3c4862';
+      ctxPole.fillRect(9, sy, 2, 1);
+    }
     this.flagPoleBody = cPole;
 
-    // SMW Goal Gate Moving Tape / Star Banner Icon (16x16)
+    // SMW Goal Gate Moving Tape / Ribbon Icon (16x16)
     const [cFlag, ctxFlag] = createOffscreen(16, 16);
-    ctxFlag.fillStyle = '#000000';
+    ctxFlag.fillStyle = '#181828';
     ctxFlag.fillRect(0, 4, 16, 8);
-    ctxFlag.fillStyle = '#f8d838';
+    ctxFlag.fillStyle = '#f8d038';
     ctxFlag.fillRect(1, 5, 14, 6);
-    ctxFlag.fillStyle = '#ffffff';
-    ctxFlag.fillRect(2, 6, 12, 4);
-    ctxFlag.fillStyle = '#fc9838';
-    ctxFlag.fillRect(6, 6, 4, 4);
+    // White & gold checkered tape stripe
+    for (let sx = 1; sx < 15; sx += 2) {
+      ctxFlag.fillStyle = (sx >> 1) % 2 === 0 ? '#ffffff' : '#fce078';
+      ctxFlag.fillRect(sx, 6, 2, 4);
+    }
+    // Central star/diamond clasp
+    ctxFlag.fillStyle = '#181828';
+    ctxFlag.fillRect(6, 5, 4, 6);
+    ctxFlag.fillStyle = '#fff8c8';
+    ctxFlag.fillRect(7, 6, 2, 4);
+    ctxFlag.fillStyle = '#f8a820';
+    ctxFlag.fillRect(7, 7, 2, 2);
     this.flagTriangle = cFlag;
 
     // Toodle (Toad) 16x24 NES Pixel Art Sprite (Standing & Cheering frames facing left)

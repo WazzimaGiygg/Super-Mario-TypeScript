@@ -45,12 +45,15 @@ export const SMW_ISLANDS: SmwIslandInfo[] = [
   },
 ];
 
+export const JOHANNNNES_CASTLE_1_BOSS_NAME = 'Lorde Ignis Koopa';
+
 export interface SmwMapNode {
   id: string;
   order: number;
   code: string;
   title: string;
   subtitle: string;
+  bossName?: string;
   theme: LevelData['theme'];
   mapX: number;
   mapY: number;
@@ -58,6 +61,7 @@ export interface SmwMapNode {
   isSwitchPalace?: boolean;
   switchColor?: SmwSwitchColor;
   unlocksAfterNodeId?: string;
+  unlocksAfterSecretNodeId?: string;
   betaPlaceholderMessage?: string;
 }
 
@@ -149,7 +153,8 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     order: 4,
     code: 'W-5',
     title: 'Castelo de Johannnnes89',
-    subtitle: 'Fortaleza final da ilha · Guardada por Bowser',
+    subtitle: `Fortaleza final da ilha · 1º Chefe: ${JOHANNNNES_CASTLE_1_BOSS_NAME}`,
+    bossName: JOHANNNNES_CASTLE_1_BOSS_NAME,
     theme: 'castle',
     mapX: 85,
     mapY: 53,
@@ -161,13 +166,13 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     order: 5,
     code: 'PA',
     title: 'Palácio Interruptor Amarelo',
-    subtitle: 'Ative o interruptor amarelo para liberar blocos [!] com cogumelos',
+    subtitle: 'Saída secreta de W-1 (cano do subsolo · Chave + Fechadura). Ativa blocos [!] amarelos',
     theme: 'underground',
     mapX: 29,
     mapY: 72,
     isSwitchPalace: true,
     switchColor: 'yellow',
-    unlocksAfterNodeId: 'wiki-1-overworld',
+    unlocksAfterSecretNodeId: 'wiki-1-overworld',
   },
 ];
 
@@ -797,6 +802,90 @@ export function createBlueSwitchPalaceStage(): LevelData {
   return createColoredSwitchPalaceStage('blue');
 }
 
+export function createSmwWiki1SecretRoom(): LevelData {
+  const width = 32;
+  const height = 15;
+  const tiles: (BlockTile | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
+
+  // Underground brick ceiling & solid stone floor
+  for (let x = 0; x < width; x++) {
+    tiles[0][x] = makeTile('underground_brick');
+    tiles[1][x] = makeTile('underground_brick');
+    tiles[13][x] = makeTile('underground_ground');
+    tiles[14][x] = makeTile('underground_ground');
+  }
+
+  // Left & right enclosing walls
+  for (let y = 2; y <= 12; y++) {
+    tiles[y][0] = makeTile('underground_brick');
+    tiles[y][width - 1] = makeTile('underground_brick');
+  }
+
+  // Step & elevated ledge holding the Secret Key
+  tiles[11][7] = makeTile('underground_brick');
+  tiles[11][8] = makeTile('underground_brick');
+  for (let x = 9; x <= 13; x++) {
+    tiles[9][x] = makeTile('underground_brick');
+  }
+
+  // Return pipe back to W-1 Overworld on the right
+  tiles[9][28] = makeTile('pipe_warp_top_left');
+  tiles[9][29] = makeTile('pipe_warp_top_right');
+  for (let y = 10; y <= 12; y++) {
+    tiles[y][28] = makeTile('pipe_body_left');
+    tiles[y][29] = makeTile('pipe_body_right');
+  }
+
+  const coins: { x: number; y: number }[] = [];
+  for (let x = 9; x <= 13; x++) {
+    coins.push({ x: x * 16 + 4, y: 7 * 16 });
+  }
+  for (let x = 17; x <= 20; x++) {
+    coins.push({ x: x * 16 + 4, y: 11 * 16 });
+  }
+
+  return {
+    id: 'smw-wiki-1-secret',
+    name: 'W-1 SUBSOLO',
+    theme: 'underground',
+    width,
+    height,
+    tiles,
+    enemies: [
+      { type: 'goomba', x: 16 * 16, y: 12 * 16 },
+      { type: 'koopa', x: 20 * 16, y: 11 * 16 },
+    ],
+    coins,
+    marioStart: { x: 2 * 16 + 8, y: 4 * 16 },
+    flagX: 999999,
+    castleX: 999999,
+    bgColor: '#000000',
+    timeLimit: 200,
+    biomeLabel: 'WIKIWORLDWEB · SUBSOLO SECRETO',
+    smwNodeId: 'wiki-1-overworld',
+    smwWorldName: SMW_WORLD_ISLAND_NAME,
+    isFinalCastle: false,
+    carryables: [{ kind: 'key', x: 11 * 16, y: 8 * 16 }],
+    keyholes: [{ x: 24 * 16, y: 11 * 16 + 8 }],
+    pipeWarps: [
+      {
+        from: { x: 28 * 16, y: 8 * 16, width: 32, height: 16 },
+        toLevel: 'wiki-1-overworld',
+        toPos: { x: 33 * 16 + 8, y: 10 * 16 },
+        type: 'down',
+      },
+      {
+        from: { x: 28 * 16 - 6, y: 9 * 16, width: 8, height: 64 },
+        toLevel: 'wiki-1-overworld',
+        toPos: { x: 33 * 16 + 8, y: 10 * 16 },
+        type: 'right',
+      },
+    ],
+  };
+}
+
 export function createSmwWikiWorldStage(nodeId: string): LevelData {
   switch (nodeId) {
     case 'wiki-switch-yellow':
@@ -820,6 +909,7 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      level.carryables = [{ kind: 'p_switch_cyan', x: 10 * 16, y: 12 * 16 }];
       return placeYellowExclamBlocks(level, [22, 54, 92, 134], 9);
     }
 
@@ -846,6 +936,12 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwNodeId: 'wiki-4-mansao',
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
+        carryables: [
+          { kind: 'p_switch_blue', x: 50 * 16, y: 12 * 16 },
+          { kind: 'key', x: 58 * 16, y: 7 * 16 },
+          { kind: 'p_switch_cyan', x: 140 * 16, y: 12 * 16 },
+        ],
+        keyholes: [{ x: 158 * 16, y: 11 * 16 + 8 }],
       };
       return placeYellowExclamBlocks(level, [22, 48, 78, 104], 9);
     }
@@ -860,6 +956,7 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      level.bossName = JOHANNNNES_CASTLE_1_BOSS_NAME;
       return placeYellowExclamBlocks(level, [20, 50, 82, 114], 9);
     }
 
@@ -874,6 +971,22 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
         smwWorldName: SMW_WORLD_ISLAND_NAME,
         isFinalCastle: false,
       });
+      level.carryables = [{ kind: 'p_switch_blue', x: 9 * 16, y: 12 * 16 }];
+      level.coins.push(
+        { x: 11 * 16 + 8, y: 10 * 16 },
+        { x: 12 * 16 + 8, y: 10 * 16 },
+        { x: 13 * 16 + 8, y: 10 * 16 }
+      );
+      // Pipe #2 (x=33, top at row 11) leads to the underground secret Key & Keyhole room
+      level.pipeWarps = [
+        ...(level.pipeWarps ?? []),
+        {
+          from: { x: 33 * 16, y: 10 * 16, width: 32, height: 16 },
+          toLevel: 'smw-wiki-1-secret',
+          toPos: { x: 2 * 16 + 8, y: 4 * 16 },
+          type: 'down',
+        },
+      ];
       return placeYellowExclamBlocks(level, [18, 46, 84, 128], 9);
     }
   }
@@ -881,6 +994,7 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
 
 export interface SmwBetaProgress {
   clearedNodeIds: string[];
+  secretClearedNodeIds?: string[];
   selectedNodeId: string;
   selectedIslandId?: SmwIslandId;
   storySeen: boolean;
@@ -901,6 +1015,7 @@ export interface SmwSaveSlotData {
   savedAt: number;
   stageName: string;
   clearedNodeIds: string[];
+  secretClearedNodeIds?: string[];
   selectedNodeId: string;
   selectedIslandId: SmwIslandId;
   yellowSwitchUnlocked: boolean;
@@ -916,6 +1031,7 @@ export interface SmwSaveSlotData {
 export function createFreshSmwProgress(): SmwBetaProgress {
   return {
     clearedNodeIds: [],
+    secretClearedNodeIds: [],
     selectedNodeId: 'wiki-1-overworld',
     selectedIslandId: 'wikiworld',
     storySeen: false,
@@ -968,6 +1084,9 @@ function sanitizeSaveSlot(raw: unknown, expectedIndex: number): SmwSaveSlotData 
   const clearedNodeIds = Array.isArray(obj.clearedNodeIds)
     ? obj.clearedNodeIds.filter((id): id is string => typeof id === 'string' && validAllIds.has(id))
     : [];
+  const secretClearedNodeIds = Array.isArray(obj.secretClearedNodeIds)
+    ? obj.secretClearedNodeIds.filter((id): id is string => typeof id === 'string' && validAllIds.has(id))
+    : [];
   const selectedNodeId =
     typeof obj.selectedNodeId === 'string' && validMapIds.has(obj.selectedNodeId)
       ? obj.selectedNodeId
@@ -995,6 +1114,7 @@ function sanitizeSaveSlot(raw: unknown, expectedIndex: number): SmwSaveSlotData 
         ? obj.stageName.trim()
         : 'Castelo Concluído',
     clearedNodeIds,
+    secretClearedNodeIds,
     selectedNodeId,
     selectedIslandId,
     yellowSwitchUnlocked: Boolean(
@@ -1049,6 +1169,7 @@ export function saveSmwToSlot(
     ...SMW_DEV_ONLY_SWITCH_PALACES.map(p => p.id),
   ]);
   const clearedNodeIds = progress.clearedNodeIds.filter(id => validAllIds.has(id));
+  const secretClearedNodeIds = (progress.secretClearedNodeIds ?? []).filter(id => validAllIds.has(id));
   const selectedNodeId = validMapIds.has(progress.selectedNodeId)
     ? progress.selectedNodeId
     : 'wiki-1-overworld';
@@ -1058,6 +1179,7 @@ export function saveSmwToSlot(
     savedAt: Date.now(),
     stageName: meta.stageName?.trim() || 'Castelo de Johannnnes89',
     clearedNodeIds,
+    secretClearedNodeIds,
     selectedNodeId,
     selectedIslandId: progress.selectedIslandId === 'island2' ? 'island2' : 'wikiworld',
     yellowSwitchUnlocked: Boolean(
@@ -1114,6 +1236,7 @@ export function deleteSmwSlot(
 export function applySmwSlotToProgress(slot: SmwSaveSlotData): SmwBetaProgress {
   return {
     clearedNodeIds: [...slot.clearedNodeIds],
+    secretClearedNodeIds: [...(slot.secretClearedNodeIds ?? [])],
     selectedNodeId: slot.selectedNodeId,
     selectedIslandId: slot.selectedIslandId,
     storySeen: true,
@@ -1145,7 +1268,15 @@ export function isSmwNodeUnlocked(
       ? SMW_WIKIWORLD_NODES.find(n => n.id === nodeIdOrOrder)
       : SMW_WIKIWORLD_NODES.find(n => n.order === nodeIdOrOrder) || SMW_WIKIWORLD_NODES[nodeIdOrOrder];
   if (!node) return false;
-  if (node.order === 0 || !node.unlocksAfterNodeId) return true;
+  if (node.order === 0) return true;
+  if (node.unlocksAfterSecretNodeId) {
+    return Boolean(
+      progress.secretClearedNodeIds?.includes(node.unlocksAfterSecretNodeId) ||
+        progress.clearedNodeIds.includes(node.id) ||
+        (node.id === 'wiki-switch-yellow' && progress.yellowSwitchUnlocked)
+    );
+  }
+  if (!node.unlocksAfterNodeId) return true;
   return progress.clearedNodeIds.includes(node.unlocksAfterNodeId);
 }
 

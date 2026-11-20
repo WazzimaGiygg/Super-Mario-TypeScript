@@ -3,7 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LevelData, BlockTile, TileType, Point, EnemyType, ItemContent, FloatingPlatformSpec } from './types.ts';
+import {
+  LevelData,
+  BlockTile,
+  TileType,
+  Point,
+  EnemyType,
+  ItemContent,
+  FloatingPlatformSpec,
+  CarryableKind,
+  CarryablePlacement,
+  KeyholePlacement,
+} from './types.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 
 // Helper to create empty grid
@@ -2121,13 +2132,26 @@ export function createSingleplayerLevel(
 export const EDITOR_MAX_ENEMIES = 60;
 export const EDITOR_MAX_COINS = 120;
 export const EDITOR_MAX_FLOATING_PLATFORMS = 16;
+export const EDITOR_MAX_YOSHIS = 4;
+export const EDITOR_MAX_CARRYABLES = 16;
+export const EDITOR_MAX_KEYHOLES = 4;
 export const EDITOR_MAX_TOTAL_ENTITIES = 180;
 export const EDITOR_MAX_CUSTOM_LEVELS = 10;
+
+export function isCastleStageForYoshi(
+  level: Pick<LevelData, 'theme' | 'isFinalCastle'> | null | undefined
+): boolean {
+  if (!level) return false;
+  return level.theme === 'castle' || Boolean(level.isFinalCastle);
+}
 
 export interface CustomLevelEntityCounts {
   enemies: number;
   coins: number;
   floatingPlatforms: number;
+  yoshis: number;
+  carryables: number;
+  keyholes: number;
   total: number;
 }
 
@@ -2135,11 +2159,17 @@ export function getCustomLevelEntityCounts(level: LevelData): CustomLevelEntityC
   const enemies = Array.isArray(level.enemies) ? level.enemies.length : 0;
   const coins = Array.isArray(level.coins) ? level.coins.length : 0;
   const floatingPlatforms = Array.isArray(level.floatingPlatforms) ? level.floatingPlatforms.length : 0;
+  const yoshis = Array.isArray(level.yoshis) ? level.yoshis.length : 0;
+  const carryables = Array.isArray(level.carryables) ? level.carryables.length : 0;
+  const keyholes = Array.isArray(level.keyholes) ? level.keyholes.length : 0;
   return {
     enemies,
     coins,
     floatingPlatforms,
-    total: enemies + coins + floatingPlatforms,
+    yoshis,
+    carryables,
+    keyholes,
+    total: enemies + coins + floatingPlatforms + yoshis + carryables + keyholes,
   };
 }
 
@@ -2245,11 +2275,30 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
   const rawEnemies = Array.isArray(cloned.enemies) ? cloned.enemies : [];
   const rawCoins = Array.isArray(cloned.coins) ? cloned.coins : [];
   const rawPlatforms = Array.isArray(cloned.floatingPlatforms) ? cloned.floatingPlatforms : [];
+  const rawYoshis = isCastleStageForYoshi(cloned)
+    ? []
+    : Array.isArray(cloned.yoshis)
+    ? cloned.yoshis
+    : [];
+  const rawCarryables = Array.isArray(cloned.carryables) ? cloned.carryables : [];
+  const rawKeyholes = Array.isArray(cloned.keyholes) ? cloned.keyholes : [];
 
   let truncated = false;
+  if (isCastleStageForYoshi(cloned) && Array.isArray(level.yoshis) && level.yoshis.length > 0) {
+    truncated = true;
+  }
 
   let floatingPlatforms = rawPlatforms.slice(0, EDITOR_MAX_FLOATING_PLATFORMS);
   if (rawPlatforms.length > floatingPlatforms.length) truncated = true;
+
+  let yoshis = rawYoshis.slice(0, EDITOR_MAX_YOSHIS);
+  if (rawYoshis.length > yoshis.length) truncated = true;
+
+  let carryables = rawCarryables.slice(0, EDITOR_MAX_CARRYABLES);
+  if (rawCarryables.length > carryables.length) truncated = true;
+
+  let keyholes = rawKeyholes.slice(0, EDITOR_MAX_KEYHOLES);
+  if (rawKeyholes.length > keyholes.length) truncated = true;
 
   let enemies = rawEnemies.slice(0, EDITOR_MAX_ENEMIES);
   if (rawEnemies.length > enemies.length) truncated = true;
@@ -2257,13 +2306,31 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
   let coins = rawCoins.slice(0, EDITOR_MAX_COINS);
   if (rawCoins.length > coins.length) truncated = true;
 
-  // Enforce combined entity budget cleanly (floatingPlatforms -> enemies -> coins)
+  // Enforce combined entity budget cleanly
   let remainingTotal = EDITOR_MAX_TOTAL_ENTITIES;
   if (floatingPlatforms.length > remainingTotal) {
     floatingPlatforms = floatingPlatforms.slice(0, remainingTotal);
     truncated = true;
   }
   remainingTotal -= floatingPlatforms.length;
+
+  if (yoshis.length > remainingTotal) {
+    yoshis = yoshis.slice(0, remainingTotal);
+    truncated = true;
+  }
+  remainingTotal -= yoshis.length;
+
+  if (carryables.length > remainingTotal) {
+    carryables = carryables.slice(0, remainingTotal);
+    truncated = true;
+  }
+  remainingTotal -= carryables.length;
+
+  if (keyholes.length > remainingTotal) {
+    keyholes = keyholes.slice(0, remainingTotal);
+    truncated = true;
+  }
+  remainingTotal -= keyholes.length;
 
   if (enemies.length > remainingTotal) {
     enemies = enemies.slice(0, remainingTotal);
@@ -2278,6 +2345,9 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
 
   cloned.enemies = enemies;
   cloned.coins = coins;
+  cloned.yoshis = yoshis.length > 0 ? yoshis : undefined;
+  cloned.carryables = carryables.length > 0 ? carryables : undefined;
+  cloned.keyholes = keyholes.length > 0 ? keyholes : undefined;
   if (Array.isArray(cloned.wCoins)) {
     cloned.wCoins = cloned.wCoins.slice(0, STAGE_W_COINS_COUNT);
   }
@@ -2294,6 +2364,9 @@ export function cloneLevelData(level: LevelData): LevelData {
     coins: level.coins.map(c => ({ ...c })),
     wCoins: level.wCoins ? level.wCoins.map(c => ({ ...c })) : undefined,
     marioStart: { ...level.marioStart },
+    yoshis: level.yoshis ? level.yoshis.map(y => ({ ...y })) : undefined,
+    carryables: level.carryables ? level.carryables.map(c => ({ ...c })) : undefined,
+    keyholes: level.keyholes ? level.keyholes.map(k => ({ ...k })) : undefined,
     checkpoints: level.checkpoints
       ? level.checkpoints.map(cp => ({ x: cp.x, respawnPos: { ...cp.respawnPos } }))
       : undefined,
@@ -2737,6 +2810,51 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     }
   }
 
+  const yoshis: { x: number; y: number }[] = [];
+  if (!isCastleStageForYoshi({ theme }) && Array.isArray(candidateObj.yoshis)) {
+    for (const item of candidateObj.yoshis) {
+      if (!item || typeof item !== 'object') continue;
+      const yPos = item as Record<string, unknown>;
+      if (typeof yPos.x !== 'number' || typeof yPos.y !== 'number') continue;
+      if (!Number.isFinite(yPos.x) || !Number.isFinite(yPos.y)) continue;
+      yoshis.push({
+        x: Math.max(0, Math.min(width * 16 - 20, yPos.x)),
+        y: Math.max(16, Math.min(height * 16 - 20, yPos.y)),
+      });
+    }
+  }
+
+  const carryables: CarryablePlacement[] = [];
+  if (Array.isArray(candidateObj.carryables)) {
+    for (const item of candidateObj.carryables) {
+      if (!item || typeof item !== 'object') continue;
+      const c = item as Record<string, unknown>;
+      const kind = String(c.kind || '') as CarryableKind;
+      if (kind !== 'key' && kind !== 'p_switch_blue' && kind !== 'p_switch_cyan') continue;
+      if (typeof c.x !== 'number' || typeof c.y !== 'number') continue;
+      if (!Number.isFinite(c.x) || !Number.isFinite(c.y)) continue;
+      carryables.push({
+        kind,
+        x: Math.max(0, Math.min(width * 16 - 16, c.x)),
+        y: Math.max(16, Math.min(height * 16 - 16, c.y)),
+      });
+    }
+  }
+
+  const keyholes: KeyholePlacement[] = [];
+  if (Array.isArray(candidateObj.keyholes)) {
+    for (const item of candidateObj.keyholes) {
+      if (!item || typeof item !== 'object') continue;
+      const k = item as Record<string, unknown>;
+      if (typeof k.x !== 'number' || typeof k.y !== 'number') continue;
+      if (!Number.isFinite(k.x) || !Number.isFinite(k.y)) continue;
+      keyholes.push({
+        x: Math.max(0, Math.min(width * 16 - 16, k.x)),
+        y: Math.max(16, Math.min(height * 16 - 24, k.y)),
+      });
+    }
+  }
+
   return stripNonSmwPowerUpBoxes(
     sanitizeCustomLevelEntities({
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -2748,6 +2866,9 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       tiles,
       enemies,
       coins,
+      yoshis: yoshis.length > 0 ? yoshis : undefined,
+      carryables: carryables.length > 0 ? carryables : undefined,
+      keyholes: keyholes.length > 0 ? keyholes : undefined,
       floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
       marioStart: { x: marioStartX, y: marioStartY },
       flagX,

@@ -348,22 +348,39 @@ export const GameCanvas: React.FC = () => {
         blueSwitchUnlocked: Boolean(prev.blueSwitchUnlocked) || color === 'blue',
       }));
     };
-    engine.onSmwStageCompleted = (nodeId: string) => {
+    engine.onSmwStageCompleted = (nodeId: string, meta?: { secretExit?: boolean }) => {
       const currNode = SMW_WIKIWORLD_NODES.find(n => n.id === nodeId);
       const isDevOnlyPalace = SMW_DEV_ONLY_SWITCH_PALACES.some(p => p.id === nodeId);
+      const isW1SecretExit = Boolean(meta?.secretExit && nodeId === 'wiki-1-overworld');
       setSmwProgress(prev => {
-        const nextCleared = prev.clearedNodeIds.includes(nodeId)
+        const prevSecret = prev.secretClearedNodeIds ?? [];
+        const nextSecret =
+          meta?.secretExit && !prevSecret.includes(nodeId)
+            ? [...prevSecret, nodeId]
+            : prevSecret;
+        const nextCleared = isW1SecretExit
+          ? prev.clearedNodeIds
+          : prev.clearedNodeIds.includes(nodeId)
           ? prev.clearedNodeIds
           : [...prev.clearedNodeIds, nodeId];
         const nextNode =
           nodeId === 'wiki-switch-yellow'
-            ? SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-2-caverna')
+            ? nextCleared.includes('wiki-1-overworld')
+              ? SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-2-caverna')
+              : SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-1-overworld')
             : currNode && currNode.order < 4
             ? SMW_WIKIWORLD_NODES[currNode.order + 1]
             : undefined;
+        const yellowPalaceCompleted = Boolean(
+          prev.yellowSwitchUnlocked || nextCleared.includes('wiki-switch-yellow')
+        );
         const nextSelected = isDevOnlyPalace
           ? SMW_WIKIWORLD_NODES.some(n => n.id === prev.selectedNodeId)
             ? prev.selectedNodeId
+            : 'wiki-1-overworld'
+          : isW1SecretExit
+          ? !yellowPalaceCompleted
+            ? 'wiki-switch-yellow'
             : 'wiki-1-overworld'
           : nextNode && !nextCleared.includes(nextNode.id)
           ? nextNode.id
@@ -371,6 +388,7 @@ export const GameCanvas: React.FC = () => {
         return {
           ...prev,
           clearedNodeIds: nextCleared,
+          secretClearedNodeIds: nextSecret,
           selectedNodeId: nextSelected,
           yellowSwitchUnlocked:
             prev.yellowSwitchUnlocked || nodeId === 'wiki-switch-yellow',

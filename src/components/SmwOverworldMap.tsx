@@ -23,8 +23,10 @@ import {
   Save,
   FolderOpen,
   Trash2,
+  KeyRound,
 } from 'lucide-react';
 import {
+  JOHANNNNES_CASTLE_1_BOSS_NAME,
   SMW_BETA_VERSION,
   SMW_WORLD_ISLAND_NAME,
   SMW_INTRO_STORY,
@@ -1117,9 +1119,15 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
               <div style={{ left: `${booX}%`, top: `${booY}%` }} className="absolute -translate-x-1/2 -translate-y-1/2 opacity-90">
                 <PixelSpriteView sprite={booSprite} displayWidth={22} displayHeight={22} facing={booFacing} />
               </div>
-              <div style={{ left: `${bowserX}%`, top: '67.5%' }} className="absolute -translate-x-1/2 -translate-y-1/2">
-                <div className="w-7 h-2 rounded-full bg-black/45 mx-auto translate-y-7" />
+              <div
+                style={{ left: `${bowserX}%`, top: '67.5%' }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+              >
+                <span className="mb-0.5 px-1.5 py-0.5 rounded bg-red-950/90 border border-amber-400/70 text-[8px] font-bold text-amber-200 whitespace-nowrap shadow">
+                  {JOHANNNNES_CASTLE_1_BOSS_NAME}
+                </span>
                 <PixelSpriteView sprite={bowserSprite} displayWidth={30} displayHeight={30} facing={bowserFacing} />
+                <div className="w-7 h-2 rounded-full bg-black/45 mx-auto -mt-1" />
               </div>
             </div>
           </>
@@ -1226,6 +1234,8 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
           const isIsland2 = activeIsland === 'island2';
           const unlocked = isIsland2 ? false : isSmwNodeUnlocked(node.id, progress);
           const cleared = isIsland2 ? false : progress.clearedNodeIds.includes(node.id);
+          const secretCleared =
+            !isIsland2 && Boolean(progress.secretClearedNodeIds?.includes(node.id));
           const lockedCompleted = isIsland2
             ? false
             : isSmwNodeCompletedAndLocked(node.id, progress);
@@ -1309,6 +1319,14 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
                 {cleared && (
                   <span className="w-4 h-4 rounded-full bg-amber-300 text-stone-950 flex items-center justify-center shrink-0">
                     <Check className="w-3 h-3 stroke-[3]" />
+                  </span>
+                )}
+                {secretCleared && (
+                  <span
+                    title="Saída secreta (Chave) concluída"
+                    className="w-4 h-4 rounded-full bg-yellow-300 text-stone-950 flex items-center justify-center shrink-0"
+                  >
+                    <KeyRound className="w-2.5 h-2.5 stroke-[2.75]" />
                   </span>
                 )}
               </button>
@@ -1441,6 +1459,10 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
               ? SMW_ISLAND2_UNAVAILABLE_MSG
               : selectedLockedCompleted
               ? 'Interruptor Amarelo já ativado! Não é possível jogar novamente este palácio.'
+              : selectedNode.id === 'wiki-1-overworld' &&
+                !progress.yellowSwitchUnlocked &&
+                !progress.secretClearedNodeIds?.includes('wiki-1-overworld')
+              ? `${selectedNode.subtitle} · Dica: procure o cano secreto com Chave e Fechadura para abrir o Palácio Amarelo!`
               : selectedNode.subtitle}
           </p>
         </div>

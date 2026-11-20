@@ -81,6 +81,7 @@ import {
 } from '../src/game/levels.ts';
 import { AchievementManager } from '../src/game/achievements.ts';
 import {
+  JOHANNNNES_CASTLE_1_BOSS_NAME,
   SMW_ISLANDS,
   SMW_ISLAND2_NODES,
   SMW_ISLAND2_UNAVAILABLE_MSG,
@@ -774,9 +775,13 @@ async function runYellowSwitchPalaceTests() {
     };
     assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', baseProgress), false);
 
-    const afterW1: SmwBetaProgress = { ...baseProgress, clearedNodeIds: ['wiki-1-overworld'] };
-    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', afterW1), true);
-    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', afterW1), true);
+    const afterW1Normal: SmwBetaProgress = { ...baseProgress, clearedNodeIds: ['wiki-1-overworld'] };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', afterW1Normal), false);
+    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', afterW1Normal), true);
+
+    const afterW1Secret: SmwBetaProgress = { ...baseProgress, secretClearedNodeIds: ['wiki-1-overworld'] };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', afterW1Secret), true);
+    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', afterW1Secret), false);
 
     const branchWalk = findSmwMapPath('wiki-2-caverna', 'wiki-switch-yellow');
     assert.equal(branchWalk.length, 2);
@@ -1380,6 +1385,7 @@ async function runR116FixesTests() {
   await test('R1.16.O0.4: Palácio Interruptor Amarelo bloqueia reentrada após ser concluído', () => {
     const afterW1: SmwBetaProgress = {
       clearedNodeIds: ['wiki-1-overworld'],
+      secretClearedNodeIds: ['wiki-1-overworld'],
       selectedNodeId: 'wiki-switch-yellow',
       selectedIslandId: 'wikiworld',
       storySeen: true,
@@ -2151,6 +2157,527 @@ async function runR116FixesTests() {
     assert.ok(cheatSrc.includes('IR ATÉ A FASE ESPECÍFICA'));
     assert.ok(cheatSrc.includes('SMW_DEV_ONLY_SWITCH_PALACES'));
     assert.ok(canvasSrc.includes('handleWarpToSpecificStage'));
+  });
+
+  await test('R1.16.1RZ.4: Yoshi disponível apenas no Modo Debug e Editor de Fases, e nunca spawna dentro de castelos', () => {
+    // 1. Nenhuma fase padrão ou do mapa SMW possui Yoshi spawnado naturalmente
+    const builtInStages = [
+      createWorld1_1(),
+      createWorld1_2(),
+      createWorld2_2(),
+      createWorldGhostHouse(),
+      createWorld1_4(),
+      createSmwWikiWorldStage('wiki-1-overworld'),
+      createSmwWikiWorldStage('wiki-2-caverna'),
+      createSmwWikiWorldStage('wiki-3-agua'),
+      createSmwWikiWorldStage('wiki-4-mansao'),
+      createSmwWikiWorldStage('wiki-5-castelo'),
+    ];
+    for (const st of builtInStages) {
+      assert.equal(st.yoshis?.length ?? 0, 0, `${st.id} não deve spawnar Yoshi naturalmente`);
+    }
+
+    // 2. Modo Debug permite inserir Yoshi fora de castelos, montar, usar língua e absorver dano
+    const overworldEngine = createFreshEngine();
+    overworldEngine.enemies = [];
+    overworldEngine.toggleDebugMode(true);
+    const yoshiIdx = GameEngine.DEBUG_PLACEABLES.findIndex(p => p.id === 'yoshi');
+    assert.ok(yoshiIdx >= 0, 'Yoshi deve constar em DEBUG_PLACEABLES');
+    overworldEngine.debugPlaceIndex = yoshiIdx;
+
+    const placed = overworldEngine.placeDebugItemAt(120, 12 * 16 - 4);
+    assert.equal(placed, true);
+    assert.equal(overworldEngine.yoshis.length, 1);
+
+    // Montar no Yoshi
+    overworldEngine.marioX = 120;
+    overworldEngine.marioY = 12 * 16 - 4;
+    overworldEngine.update(16.67);
+    assert.equal(overworldEngine.marioOnYoshi, true);
+    assert.equal(overworldEngine.yoshis.length, 0);
+
+    // Língua do Yoshi come Goomba à frente
+    const goomba = makeEnemy(9801, 'goomba', overworldEngine.marioX + 22, overworldEngine.marioY);
+    goomba.vx = 0;
+    overworldEngine.enemies.push(goomba);
+    overworldEngine.controls.run = true;
+    stepEngine(overworldEngine, 3);
+    overworldEngine.controls.run = false;
+    assert.equal(goomba.alive, false, 'Língua do Yoshi deve derrotar inimigo comum à frente');
+
+    // Dano em cima do Yoshi desmonta e preserva vida/power-up do Mario
+    overworldEngine.yoshiTongueTimer = 0;
+    overworldEngine.yoshiTongueCooldown = 0;
+    overworldEngine.marioPower = 'fire';
+    overworldEngine.marioY = 13 * 16 - 30;
+    overworldEngine.marioVy = 0;
+    overworldEngine.marioGrounded = true;
+    overworldEngine.marioInvulnerableTimer = 0;
+    const hitEnemy = makeEnemy(9802, 'goomba', overworldEngine.marioX + 2, 13 * 16 - 16);
+    hitEnemy.vx = 0;
+    overworldEngine.enemies.push(hitEnemy);
+    overworldEngine.update(16.67);
+    assert.equal(overworldEngine.marioOnYoshi, false);
+    assert.equal(overworldEngine.marioPower, 'fire');
+    assert.equal(overworldEngine.yoshis.length, 1);
+    assert.equal(overworldEngine.yoshis[0].state, 'runaway');
+
+    // 3. Editor customizado fora de castelo carrega Yoshi normalmente
+    const customOverworld = createBlankCustomLevel('FASE YOSHI', 'overworld', 60);
+    customOverworld.yoshis = [{ x: 96, y: 12 * 16 - 4 }];
+    const customEngine = createFreshEngine();
+    customEngine.loadLevel(customOverworld, false, false, false);
+    customEngine.intermissionTimer = 0;
+    assert.equal(customEngine.yoshis.length, 1);
+
+    // 4. Castelo bloqueia Yoshi em TODAS as camadas (Debug, Sanitize, Import JSON e loadLevel)
+    const castleDebugEngine = createFreshEngine();
+    castleDebugEngine.loadLevel(createWorld1_4(), false, false, false);
+    castleDebugEngine.intermissionTimer = 0;
+    castleDebugEngine.toggleDebugMode(true);
+    castleDebugEngine.debugPlaceIndex = yoshiIdx;
+    assert.equal(castleDebugEngine.placeDebugItemAt(96, 128), false);
+    assert.equal(castleDebugEngine.yoshis.length, 0);
+    assert.equal(castleDebugEngine.spawnYoshiAt(96, 128), null);
+    assert.equal(castleDebugEngine.yoshis.length, 0);
+
+    const castleCustom = createBlankCustomLevel('CASTELO TESTE', 'castle', 60);
+    castleCustom.yoshis = [{ x: 80, y: 160 }];
+    const sanitizedCastle = sanitizeCustomLevelEntities(castleCustom);
+    assert.equal(sanitizedCastle.truncated, true);
+    assert.equal(sanitizedCastle.level.yoshis, undefined);
+
+    const importedCastle = parseImportedLevelFile(JSON.stringify(castleCustom));
+    assert.equal(importedCastle.yoshis, undefined);
+
+    castleDebugEngine.loadLevel(castleCustom, false, false, false);
+    assert.equal(castleDebugEngine.yoshis.length, 0);
+    assert.equal(castleDebugEngine.marioOnYoshi, false);
+
+    // 5. Editor de Fases bloqueia pincel do Yoshi em tema castelo
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes("id: 'yoshi_mount'"));
+    assert.ok(editorSrc.includes('isCastleStageForYoshi'));
+  });
+
+  await test('R1.19.F5.6: Primeiro boss do primeiro castelo de Johannnnes89 devidamente nomeado', () => {
+    assert.ok(JOHANNNNES_CASTLE_1_BOSS_NAME.length > 0);
+    assert.notEqual(JOHANNNNES_CASTLE_1_BOSS_NAME.toUpperCase(), 'BOWSER');
+
+    // 1. Nó do mapa SMW nomeia explicitamente o chefe do Castelo de Johannnnes89
+    const castleNode = SMW_WIKIWORLD_NODES.find(n => n.id === 'wiki-5-castelo');
+    assert.ok(castleNode);
+    assert.equal(castleNode.title, 'Castelo de Johannnnes89');
+    assert.equal(castleNode.bossName, JOHANNNNES_CASTLE_1_BOSS_NAME);
+    assert.ok(castleNode.subtitle.includes(JOHANNNNES_CASTLE_1_BOSS_NAME));
+
+    // 2. Fase carregada no motor atribui o nome do chefe à entidade boss no castelo
+    const stage = createSmwWikiWorldStage('wiki-5-castelo');
+    assert.equal(stage.bossName, JOHANNNNES_CASTLE_1_BOSS_NAME);
+
+    const engine = createFreshEngine();
+    engine.startSmwStage(stage, false);
+    engine.intermissionTimer = 0;
+    const bossEnemy = engine.enemies.find(e => e.type === 'bowser');
+    assert.ok(bossEnemy, 'Castelo de Johannnnes89 deve spawnar o chefe');
+    assert.equal(bossEnemy.bossName, JOHANNNNES_CASTLE_1_BOSS_NAME);
+
+    // 3. UI do Overworld e diálogo de vitória usam o nome oficial do chefe
+    const mapSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SmwOverworldMap.tsx'), 'utf8');
+    const engineSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/game/engine.ts'), 'utf8');
+    assert.ok(mapSrc.includes('JOHANNNNES_CASTLE_1_BOSS_NAME'));
+    assert.ok(engineSrc.includes('getBossDisplayName'));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.F5.6'));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.16.1RZ.4'));
+  });
+
+  await test('R1.19.SQ.6: Poste de fim de fase refinado estilo SMW 2.5D com pedestal apoiado no chão', () => {
+    const engineSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/game/engine.ts'), 'utf8');
+    const spritesSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/game/sprites.ts'), 'utf8');
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+
+    // 1. Camada frontal do poste renderizada após o Mario para efeito 2.5D fiel ao SMW
+    const renderMarioIdx = engineSrc.indexOf('this.renderMario(ctx);');
+    const renderFgIdx = engineSrc.indexOf('this.renderFlagpoleForeground(ctx);');
+    assert.ok(renderMarioIdx > 0 && renderFgIdx > renderMarioIdx, 'Pilar frontal deve renderizar após o Mario');
+    assert.ok(engineSrc.includes('getGoalFrontPostGroundY'), 'Pilar frontal deve detectar o chão abaixo para não flutuar');
+
+    // 2. Sprites refinados no SpriteAtlas (cúpula metálica com colar dourado, haste segmentada, fita xadrez)
+    assert.ok(spritesSrc.includes('Golden collar ring at the base of the dome'));
+    assert.ok(spritesSrc.includes('Subtle SMW cylindrical ring seams'));
+    assert.ok(spritesSrc.includes('White & gold checkered tape stripe'));
+
+    // 3. Preview do Editor atualizado e registro no histórico de atualizações
+    assert.ok(editorSrc.includes('Grounded pedestal base under front pillar'));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.SQ.6'));
+
+    // 4. Renderização próxima ao poste executa sem erros (inclusive com fita inteira e fita cortada)
+    const engine = createFreshEngine();
+    engine.loadLevel(createWorld1_1(), false, false, false);
+    engine.intermissionTimer = 0;
+    engine.marioX = engine.level.flagX - 12;
+    engine.camera.snapTo(Math.max(0, engine.level.flagX - 100), engine.level.width * 16);
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+    engine.render(ctx);
+    engine.goalTapeCut = true;
+    engine.render(ctx);
+  });
+
+  await test('R1.19.1GX.5: Chaves, Buraco de Chave, Botões Móveis (Azul/Ciano) e carregamento de cascos com Corrida', () => {
+    // 1. Carregar casco de Koopa mantendo Corrida pressionado, soltar chutando ou depositar com Baixo
+    const shellEngine = createFreshEngine();
+    shellEngine.enemies = [];
+    shellEngine.items = [];
+    stepEngine(shellEngine, 5);
+    const yGround = 13 * GameEngine.TILE_SIZE - 16;
+    const koopaShell = makeEnemy(9910, 'koopa', shellEngine.marioX + 12, yGround);
+    koopaShell.height = 16;
+    koopaShell.state = 'shell_idle';
+    koopaShell.stateTimer = 300;
+    koopaShell.vx = 0;
+    shellEngine.enemies.push(koopaShell);
+
+    shellEngine.controls.run = true;
+    shellEngine.marioFacing = 'right';
+    shellEngine.update(16.67);
+    assert.equal(shellEngine.heldShellEnemyId, koopaShell.id, 'Segurar Corrida deve pegar o casco parado');
+    assert.equal(shellEngine.isCarryingAnything(), true);
+
+    // Enquanto segura Corrida, o casco acompanha a frente do personagem
+    shellEngine.marioX += 16;
+    shellEngine.update(16.67);
+    assert.equal(shellEngine.heldShellEnemyId, koopaShell.id);
+    assert.ok(Math.abs(koopaShell.x - (shellEngine.marioX + 10)) <= 1);
+
+    // Soltar Corrida com Baixo pressionado deposita o casco parado; sem Baixo chuta o casco
+    shellEngine.controls.down = true;
+    shellEngine.controls.run = false;
+    shellEngine.update(16.67);
+    assert.equal(shellEngine.heldShellEnemyId, null);
+    assert.equal(koopaShell.state, 'shell_idle', 'Soltar com Baixo deve depositar o casco suavemente');
+
+    shellEngine.controls.down = false;
+    shellEngine.controls.run = true;
+    shellEngine.marioX = koopaShell.x - 10;
+    shellEngine.marioY = koopaShell.y;
+    shellEngine.update(16.67);
+    assert.equal(shellEngine.heldShellEnemyId, koopaShell.id);
+    shellEngine.controls.run = false;
+    shellEngine.update(16.67);
+    assert.equal(shellEngine.heldShellEnemyId, null);
+    assert.equal(koopaShell.state, 'shell_moving', 'Soltar Corrida deve chutar o casco');
+    assert.ok(Math.abs(koopaShell.vx) > 3);
+
+    // 2. Botão Móvel Azul: pode ser carregado e ao ser pisado transforma moedas em blocos temporários e depois reverte
+    const blueEngine = createFreshEngine();
+    blueEngine.enemies = [];
+    blueEngine.items = [];
+    stepEngine(blueEngine, 5);
+    const coinTx = 10;
+    const coinTy = 10;
+    blueEngine.level.tiles[coinTy][coinTx] = null;
+    blueEngine.items.push(makeItem(9911, 'coin', coinTx * 16, coinTy * 16));
+    const blueSwitch = blueEngine.spawnCarryableObject('p_switch_blue', blueEngine.marioX + 14, yGround);
+
+    // Segurar Corrida carrega o botão azul
+    blueEngine.controls.run = true;
+    blueEngine.marioX = blueSwitch.x - 6;
+    blueEngine.marioY = blueSwitch.y;
+    blueEngine.update(16.67);
+    assert.equal(blueEngine.heldCarryableId, blueSwitch.id, 'Botão Azul deve ser carregável com Corrida');
+    blueEngine.controls.down = true;
+    blueEngine.controls.run = false;
+    blueEngine.update(16.67);
+    blueEngine.controls.down = false;
+
+    // Pisar de cima no Botão Azul ativa conversão moedas -> blocos
+    stepEngine(blueEngine, 16);
+    blueEngine.marioX = blueSwitch.x;
+    blueEngine.marioY = blueSwitch.y - 18;
+    blueEngine.marioVy = 4.0;
+    blueEngine.update(16.67);
+    assert.equal(blueSwitch.pressed, true);
+    assert.ok(blueEngine.pSwitchBlueTimer > 500);
+    const transformedTile = blueEngine.level.tiles[coinTy][coinTx] as { type: string } | null;
+    assert.equal(transformedTile?.type, 'brick', 'Moeda deve virar bloco sólido');
+    assert.equal(blueEngine.items.filter(i => i.type === 'coin').length, 0);
+
+    // Quando o temporizador zera, o bloco volta a ser moeda coletável
+    blueEngine.pSwitchBlueTimer = 1;
+    blueEngine.update(16.67);
+    assert.equal(blueEngine.pSwitchBlueTimer, 0);
+    assert.equal(blueEngine.level.tiles[coinTy][coinTx] as unknown, null, 'Bloco temporário deve sumir após o tempo');
+    assert.equal(blueEngine.items.filter(i => i.type === 'coin').length, 1, 'Moeda original deve retornar');
+
+    // 3. Botão Móvel Ciano: transforma inimigos comuns em moedas, mas preserva o boss final do castelo (bowser)
+    const cyanEngine = createFreshEngine();
+    cyanEngine.enemies = [];
+    cyanEngine.items = [];
+    stepEngine(cyanEngine, 5);
+    const goombaTarget = makeEnemy(9912, 'goomba', 140, yGround);
+    goombaTarget.vx = 0;
+    const koopaTarget = makeEnemy(9913, 'koopa', 172, yGround - 8);
+    koopaTarget.vx = 0;
+    const bossTarget = makeEnemy(9914, 'bowser', 210, yGround - 16);
+    bossTarget.vx = 0;
+    cyanEngine.enemies.push(goombaTarget, koopaTarget, bossTarget);
+
+    const cyanSwitch = cyanEngine.spawnCarryableObject('p_switch_cyan', 96, yGround);
+    cyanEngine.marioX = cyanSwitch.x;
+    cyanEngine.marioY = cyanSwitch.y - 18;
+    cyanEngine.marioVy = 4.0;
+    cyanEngine.update(16.67);
+
+    assert.equal(cyanSwitch.pressed, true);
+    assert.equal(goombaTarget.alive, false, 'Goomba deve ser convertido em moeda pelo botão ciano');
+    assert.equal(koopaTarget.alive, false, 'Koopa deve ser convertido em moeda pelo botão ciano');
+    assert.equal(bossTarget.alive, true, 'Boss final do castelo NÃO pode ser transformado em moeda');
+    assert.equal(cyanEngine.items.filter(i => i.type === 'coin').length, 2);
+
+    // 4. Chave + Buraco de Chave: carregar a chave até o buraco conclui a fase
+    const keyEngine = createFreshEngine();
+    keyEngine.enemies = [];
+    keyEngine.items = [];
+    stepEngine(keyEngine, 5);
+    const keyObj = keyEngine.spawnCarryableObject('key', keyEngine.marioX + 10, yGround);
+    const keyholeObj = keyEngine.spawnKeyhole(keyEngine.marioX + 64, yGround);
+
+    keyEngine.controls.run = true;
+    keyEngine.marioX = keyObj.x - 4;
+    keyEngine.marioY = keyObj.y;
+    keyEngine.update(16.67);
+    assert.equal(keyEngine.heldCarryableId, keyObj.id, 'Chave deve ser carregada com Corrida');
+
+    keyEngine.marioX = keyholeObj.x - 10;
+    keyEngine.marioY = keyholeObj.y;
+    keyEngine.update(16.67);
+    assert.equal(keyholeObj.activated, true);
+    assert.ok(keyEngine.keyholeClearTimer > 0);
+    for (let i = 0; i < 48 && !keyEngine.isStageClear; i++) {
+      keyEngine.update(16.67);
+    }
+    assert.equal(keyEngine.isStageClear, true, 'Destravar buraco de chave deve concluir a fase');
+
+    // 5. Debug Mode, Editor de Fases, Sanitização/Importação e Notas de Atualização
+    for (const id of ['key', 'keyhole', 'p_switch_blue', 'p_switch_cyan'] as const) {
+      assert.ok(
+        GameEngine.DEBUG_PLACEABLES.some(p => p.id === id),
+        `${id} deve estar disponível em DEBUG_PLACEABLES`
+      );
+    }
+    const debugEngine = createFreshEngine();
+    debugEngine.toggleDebugMode(true);
+    debugEngine.debugPlaceIndex = GameEngine.DEBUG_PLACEABLES.findIndex(p => p.id === 'p_switch_blue');
+    assert.equal(debugEngine.placeDebugItemAt(110, 140), true);
+    assert.equal(debugEngine.carryables[0]?.kind, 'p_switch_blue');
+
+    const customPuzzle = createBlankCustomLevel('CHAVE TESTE', 'ghost_house', 60);
+    customPuzzle.carryables = [
+      { kind: 'key', x: 80, y: 176 },
+      { kind: 'p_switch_blue', x: 112, y: 176 },
+      { kind: 'p_switch_cyan', x: 144, y: 176 },
+    ];
+    customPuzzle.keyholes = [{ x: 192, y: 176 }];
+    const importedPuzzle = parseImportedLevelFile(JSON.stringify(customPuzzle));
+    assert.equal(importedPuzzle.carryables?.length, 3);
+    assert.equal(importedPuzzle.keyholes?.length, 1);
+
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes("id: 'key_item'"));
+    assert.ok(editorSrc.includes("id: 'keyhole_goal'"));
+    assert.ok(editorSrc.includes("id: 'p_switch_blue'"));
+    assert.ok(editorSrc.includes("id: 'p_switch_cyan'"));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.1GX.5'));
+  });
+
+  await test('R1.19.14C.5: Bonus Stage dos 100 pontos concede power-up escolhido no lugar da vida e preserva ao sair', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.marioPower = 'small';
+    engine.reservePowerUp = null;
+    engine.goalPointsWallet = 50;
+    engine.applyGoalPointsReward(50, engine.level.flagX, 48);
+    assert.equal(engine.pendingBonusStage, true);
+    engine.startSmwBonusStage();
+    assert.equal(engine.isBonusStageActive, true);
+    assert.equal(engine.bonusStageBlocks.length, 9);
+
+    const livesStart = engine.stats.lives;
+
+    // 1. Selecionar Cogumelo no 1º bloco -> Small vira Super sem ganhar vida
+    const mushroomIdx = GameEngine.BONUS_BLOCK_FACES.indexOf('mushroom');
+    assert.ok(mushroomIdx >= 0);
+    engine.bonusStageBlocks[0].faceIndex = mushroomIdx;
+    assert.equal(engine.resolveBonusStageBlock(engine.bonusStageBlocks[0].tx, engine.bonusStageBlocks[0].ty), true);
+    assert.equal(engine.marioPower, 'super');
+    assert.equal(engine.stats.lives, livesStart);
+    assert.equal(engine.bonusStageLivesWon, 0);
+
+    // 2. Selecionar Flor de Fogo no 2º bloco -> vira Fire e guarda Cogumelo na reserva
+    const flowerIdx = GameEngine.BONUS_BLOCK_FACES.indexOf('flower');
+    assert.ok(flowerIdx >= 0);
+    engine.bonusStageBlocks[1].faceIndex = flowerIdx;
+    assert.equal(engine.resolveBonusStageBlock(engine.bonusStageBlocks[1].tx, engine.bonusStageBlocks[1].ty), true);
+    assert.equal(engine.marioPower, 'fire');
+    assert.equal(engine.reservePowerUp, 'mushroom');
+
+    // 3. Selecionar Pena, Tanooki e Laço Femboy concede cada poder correspondente
+    const featherIdx = GameEngine.BONUS_BLOCK_FACES.indexOf('feather');
+    const leafIdx = GameEngine.BONUS_BLOCK_FACES.indexOf('leaf');
+    const femboyIdx = GameEngine.BONUS_BLOCK_FACES.indexOf('femboy');
+    assert.ok(featherIdx >= 0 && leafIdx >= 0 && femboyIdx >= 0);
+
+    engine.bonusStageBlocks[2].faceIndex = featherIdx;
+    engine.resolveBonusStageBlock(engine.bonusStageBlocks[2].tx, engine.bonusStageBlocks[2].ty);
+    assert.equal(engine.marioPower, 'cape');
+
+    engine.bonusStageBlocks[3].faceIndex = leafIdx;
+    engine.resolveBonusStageBlock(engine.bonusStageBlocks[3].tx, engine.bonusStageBlocks[3].ty);
+    assert.equal(engine.marioPower, 'tanooki');
+
+    engine.bonusStageBlocks[4].faceIndex = femboyIdx;
+    engine.resolveBonusStageBlock(engine.bonusStageBlocks[4].tx, engine.bonusStageBlocks[4].ty);
+    assert.equal(engine.marioPower, 'femboy');
+
+    // 4. Completar os blocos restantes alternando entre power-up e 1-UP -> preserva 'femboy' na próxima fase
+    for (let i = 5; i < engine.bonusStageBlocks.length; i++) {
+      engine.bonusStageBlocks[i].faceIndex = i === 8 ? flowerIdx : 0; // último bloco seleciona Flor de Fogo -> 'fire'
+      engine.resolveBonusStageBlock(engine.bonusStageBlocks[i].tx, engine.bonusStageBlocks[i].ty);
+    }
+    assert.equal(engine.marioPower, 'fire');
+    assert.equal(engine.reservePowerUp, 'femboy');
+    assert.equal(engine.bonusStageLivesWon, 3);
+    assert.equal(engine.stats.lives, livesStart + 3);
+    assert.ok(engine.bonusStageFinishDelay > 0);
+
+    // Renderização durante Bonus Stage funciona sem erros para blocos resolvidos e ativos
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+    engine.render(ctx);
+
+    // Finaliza Bonus Stage e garante que power-up e reserva continuam equipados na fase seguinte
+    stepEngine(engine, engine.bonusStageFinishDelay + 2);
+    assert.equal(engine.isBonusStageActive, false);
+    assert.equal(engine.level.id, 'world-1-2');
+    assert.equal(engine.marioPower, 'fire');
+    assert.equal(engine.reservePowerUp, 'femboy');
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.14C.5'));
+  });
+
+  await test('R1.19.29D.5: Cano secreto de W-1 leva ao subsolo com Chave + Fechadura e abre caminho ao Palácio Amarelo', () => {
+    // 1. Progressão no mapa: saída normal de W-1 abre W-2, mas NÃO abre Palácio Amarelo
+    const base: SmwBetaProgress = {
+      clearedNodeIds: [],
+      secretClearedNodeIds: [],
+      selectedNodeId: 'wiki-1-overworld',
+      selectedIslandId: 'wikiworld',
+      storySeen: true,
+      yellowSwitchUnlocked: false,
+    };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', base), false);
+
+    const onlyNormal: SmwBetaProgress = { ...base, clearedNodeIds: ['wiki-1-overworld'] };
+    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', onlyNormal), true);
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', onlyNormal), false);
+
+    // 2. Entrar no cano secreto de W-1 (x=33*16) pressionando Baixo teleporta ao subsolo
+    const engine = createFreshEngine();
+    let completedEvent: { nodeId: string; secretExit?: boolean } | null = null;
+    engine.onSmwStageCompleted = (nodeId, meta) => {
+      completedEvent = { nodeId, secretExit: meta?.secretExit };
+    };
+    const w1Stage = createSmwWikiWorldStage('wiki-1-overworld');
+    engine.startSmwStage(w1Stage, false);
+    engine.intermissionTimer = 0;
+
+    // Posiciona Mario sobre o cano secreto (x=33*16, topo em row 11 => y=176)
+    engine.marioX = 33 * 16 + 8;
+    engine.marioY = 11 * 16 - 16;
+    engine.marioGrounded = true;
+    engine.controls.down = true;
+    stepEngine(engine, 3);
+    assert.equal(engine.marioState, 'pipe_entering');
+
+    // Avança animação de entrada no cano até concluir o warp para o subsolo
+    engine.controls.down = false;
+    stepEngine(engine, 40);
+    assert.equal(engine.level.id, 'smw-wiki-1-secret');
+    assert.equal(engine.level.theme, 'underground');
+    assert.equal(engine.level.smwNodeId, 'wiki-1-overworld');
+    assert.ok(engine.carryables.some(c => c.kind === 'key'), 'Subsolo deve conter uma Chave');
+    assert.ok(engine.keyholes.length >= 1, 'Subsolo deve conter um Buraco de Chave');
+    assert.ok((engine.level.pipeWarps ?? []).some(pw => pw.toLevel === 'wiki-1-overworld'));
+
+    // 3. Testar também o cano de retorno do subsolo voltando para W-1
+    const returnEngine = createFreshEngine();
+    returnEngine.startSmwStage(createSmwWikiWorldStage('wiki-1-overworld'), false);
+    returnEngine.intermissionTimer = 0;
+    returnEngine.marioX = 33 * 16 + 8;
+    returnEngine.marioY = 11 * 16 - 16;
+    returnEngine.marioGrounded = true;
+    returnEngine.controls.down = true;
+    stepEngine(returnEngine, 40);
+    returnEngine.controls.down = false;
+    assert.equal(returnEngine.level.id, 'smw-wiki-1-secret');
+    returnEngine.marioX = 28 * 16 + 8;
+    returnEngine.marioY = 9 * 16 - 16;
+    returnEngine.marioGrounded = true;
+    returnEngine.controls.down = true;
+    stepEngine(returnEngine, 40);
+    returnEngine.controls.down = false;
+    assert.equal(returnEngine.level.id, 'smw-wiki-1');
+    assert.equal(returnEngine.level.smwNodeId, 'wiki-1-overworld');
+
+    // 4. No subsolo, segurar Corrida pega a Chave e levá-la ao Buraco de Chave conclui com secretExit: true
+    engine.enemies = [];
+    const keyObj = engine.carryables.find(c => c.kind === 'key')!;
+    const keyhole = engine.keyholes[0];
+    engine.marioX = keyObj.x;
+    engine.marioY = keyObj.y;
+    engine.controls.run = true;
+    stepEngine(engine, 3);
+    assert.equal(engine.heldCarryableId, keyObj.id, 'Segurar Corrida deve pegar a Chave no subsolo');
+
+    engine.marioX = keyhole.x - 4;
+    engine.marioY = keyhole.y;
+    stepEngine(engine, 3);
+    assert.equal(keyhole.activated, true);
+    assert.equal(engine.lastClearWasSecretExit, true);
+
+    // Avança animação de fechadura até disparar onSmwStageCompleted
+    stepEngine(engine, 50);
+    assert.equal(engine.isStageClear, true);
+    engine.stats.time = 0;
+    stepEngine(engine, 90);
+    assert.deepEqual(completedEvent, { nodeId: 'wiki-1-overworld', secretExit: true });
+
+    // 5. Saída secreta libera Palácio Amarelo e preserva em Save/Load Slot
+    const secretProgress: SmwBetaProgress = {
+      ...base,
+      secretClearedNodeIds: ['wiki-1-overworld'],
+    };
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', secretProgress), true);
+    assert.equal(isSmwNodeUnlocked('wiki-2-caverna', secretProgress), false);
+
+    const store = new Map<string, string>();
+    const memoryStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+    saveSmwToSlot(0, secretProgress, { stageName: 'Subsolo W-1', lives: 5, score: 2500 }, memoryStorage);
+    const loadedSlots = loadSmwSaveSlots(memoryStorage);
+    assert.ok(loadedSlots[0]);
+    const restored = applySmwSlotToProgress(loadedSlots[0]!);
+    assert.deepEqual(restored.secretClearedNodeIds, ['wiki-1-overworld']);
+    assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', restored), true);
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.29D.5'));
   });
 }
 

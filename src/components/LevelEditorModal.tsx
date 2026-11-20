@@ -34,13 +34,16 @@ import {
   ArrowDown,
   Crown,
 } from 'lucide-react';
-import { EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
+import { CarryableKind, EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
+  EDITOR_MAX_CARRYABLES,
   EDITOR_MAX_COINS,
   EDITOR_MAX_CUSTOM_LEVELS,
   EDITOR_MAX_ENEMIES,
   EDITOR_MAX_FLOATING_PLATFORMS,
+  EDITOR_MAX_KEYHOLES,
   EDITOR_MAX_TOTAL_ENTITIES,
+  EDITOR_MAX_YOSHIS,
   cloneLevelData,
   createBlankCustomLevel,
   createSecretVault,
@@ -51,6 +54,7 @@ import {
   createWorldGhostHouse,
   getCustomLevelEntityCounts,
   getExportLevelFilename,
+  isCastleStageForYoshi,
   parseImportedLevelFile,
   sanitizeCustomLevelEntities,
   serializeLevelToFileJson,
@@ -78,6 +82,9 @@ interface LevelEditorModalProps {
 type EditorBrushKind =
   | { kind: 'erase' }
   | { kind: 'mario_start' }
+  | { kind: 'yoshi' }
+  | { kind: 'carryable'; carryKind: CarryableKind }
+  | { kind: 'keyhole' }
   | { kind: 'coin' }
   | { kind: 'tile'; tileType: TileType; content?: ItemContent; invisible?: boolean }
   | { kind: 'pipe'; height: 2 | 3 | 4; withPiranha?: boolean }
@@ -670,13 +677,48 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.bowser1,
       },
 
-      // Special Tools: Spawn, Goals, Eraser
+      // Special Tools: Spawn, Yoshi, Goals, Eraser
       {
         id: 'mario_start',
         label: 'Início (Mario)',
         tab: 'special',
         brush: { kind: 'mario_start' },
         preview: () => atlas.marioSmallIdle,
+      },
+      {
+        id: 'yoshi_mount',
+        label: 'Yoshi (Fora de Castelos)',
+        tab: 'special',
+        brush: { kind: 'yoshi' },
+        preview: () => atlas.yoshiIdle,
+      },
+      {
+        id: 'key_item',
+        label: 'Chave SMW (Carregável)',
+        tab: 'special',
+        brush: { kind: 'carryable', carryKind: 'key' },
+        preview: () => atlas.itemKey,
+      },
+      {
+        id: 'keyhole_goal',
+        label: 'Buraco de Chave (Saída)',
+        tab: 'special',
+        brush: { kind: 'keyhole' },
+        preview: () => atlas.itemKeyhole,
+      },
+      {
+        id: 'p_switch_blue',
+        label: 'Botão Móvel Azul',
+        tab: 'special',
+        brush: { kind: 'carryable', carryKind: 'p_switch_blue' },
+        preview: () => atlas.itemPSwitchBlue,
+      },
+      {
+        id: 'p_switch_cyan',
+        label: 'Botão Móvel Ciano',
+        tab: 'special',
+        brush: { kind: 'carryable', carryKind: 'p_switch_cyan' },
+        preview: () => atlas.itemPSwitchCyan,
       },
       {
         id: 'flagpole_goal',
@@ -732,7 +774,74 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         const hasPlatform = (currentLevel.floatingPlatforms || []).some(
           fp => cellMaxX > fp.x && cellMinX < fp.x + fp.width && cellMaxY > fp.y && cellMinY < fp.y + 16
         );
-        if (!hasTile && !hasCoin && !hasEnemy && !hasPlatform) return;
+        const hasYoshi = (currentLevel.yoshis || []).some(
+          y => cellMaxX > y.x && cellMinX < y.x + 20 && cellMaxY > y.y && cellMinY < y.y + 20
+        );
+        const hasCarryable = (currentLevel.carryables || []).some(
+          c => cellMaxX > c.x && cellMinX < c.x + 16 && cellMaxY > c.y && cellMinY < c.y + 16
+        );
+        const hasKeyhole = (currentLevel.keyholes || []).some(
+          k => cellMaxX > k.x && cellMinX < k.x + 16 && cellMaxY > k.y && cellMinY < k.y + 24
+        );
+        if (!hasTile && !hasCoin && !hasEnemy && !hasPlatform && !hasYoshi && !hasCarryable && !hasKeyhole) return;
+      }
+
+      if (brush.kind === 'yoshi') {
+        if (isCastleStageForYoshi(currentLevel)) {
+          notifyError('Yoshi não pode ser inserido nem spawnado dentro do castelo!');
+          return;
+        }
+        const spawnX = Math.max(0, Math.min((currentLevel.width - 2) * 16, tx * 16));
+        const spawnY = Math.max(16, (ty + 1) * 16 - 20);
+        const currentYoshis = currentLevel.yoshis || [];
+        const remainingYoshis = currentYoshis.filter(
+          y => !(Math.abs(y.x - spawnX) < 16 && Math.abs(y.y - spawnY) < 20)
+        ).length;
+        const netDelta = 1 - (currentYoshis.length - remainingYoshis);
+        if (remainingYoshis + 1 > EDITOR_MAX_YOSHIS) {
+          notifyError(`Limite seguro de Yoshis (${EDITOR_MAX_YOSHIS}) atingido!`);
+          return;
+        }
+        if (counts.total + netDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+          notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+          return;
+        }
+      }
+
+      if (brush.kind === 'carryable') {
+        const spawnX = tx * 16;
+        const spawnY = ty * 16;
+        const currentCarryables = currentLevel.carryables || [];
+        const remaining = currentCarryables.filter(
+          c => !(Math.abs(c.x - spawnX) < 12 && Math.abs(c.y - spawnY) < 12)
+        ).length;
+        const netDelta = 1 - (currentCarryables.length - remaining);
+        if (remaining + 1 > EDITOR_MAX_CARRYABLES) {
+          notifyError(`Limite seguro de objetos carregáveis (${EDITOR_MAX_CARRYABLES}) atingido!`);
+          return;
+        }
+        if (counts.total + netDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+          notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+          return;
+        }
+      }
+
+      if (brush.kind === 'keyhole') {
+        const spawnX = tx * 16;
+        const spawnY = Math.max(16, (ty + 1) * 16 - 24);
+        const currentKeyholes = currentLevel.keyholes || [];
+        const remaining = currentKeyholes.filter(
+          k => !(Math.abs(k.x - spawnX) < 12 && Math.abs(k.y - spawnY) < 20)
+        ).length;
+        const netDelta = 1 - (currentKeyholes.length - remaining);
+        if (remaining + 1 > EDITOR_MAX_KEYHOLES) {
+          notifyError(`Limite seguro de buracos de chave (${EDITOR_MAX_KEYHOLES}) atingido!`);
+          return;
+        }
+        if (counts.total + netDelta > EDITOR_MAX_TOTAL_ENTITIES) {
+          notifyError(`Limite seguro de entidades (${EDITOR_MAX_TOTAL_ENTITIES}) atingido!`);
+          return;
+        }
       }
 
       if (brush.kind === 'coin') {
@@ -852,6 +961,24 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               fp => !(cellMaxX > fp.x && cellMinX < fp.x + fp.width && cellMaxY > fp.y && cellMinY < fp.y + 16)
             );
           }
+          if (draft.yoshis) {
+            draft.yoshis = draft.yoshis.filter(
+              y => !(cellMaxX > y.x && cellMinX < y.x + 20 && cellMaxY > y.y && cellMinY < y.y + 20)
+            );
+            if (draft.yoshis.length === 0) draft.yoshis = undefined;
+          }
+          if (draft.carryables) {
+            draft.carryables = draft.carryables.filter(
+              c => !(cellMaxX > c.x && cellMinX < c.x + 16 && cellMaxY > c.y && cellMinY < c.y + 16)
+            );
+            if (draft.carryables.length === 0) draft.carryables = undefined;
+          }
+          if (draft.keyholes) {
+            draft.keyholes = draft.keyholes.filter(
+              k => !(cellMaxX > k.x && cellMinX < k.x + 16 && cellMaxY > k.y && cellMinY < k.y + 24)
+            );
+            if (draft.keyholes.length === 0) draft.keyholes = undefined;
+          }
         };
 
         if (brush.kind === 'erase') {
@@ -874,6 +1001,40 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
         if (brush.kind === 'mario_start') {
           draft.marioStart = { x: tx * 16, y: ty * 16 };
+          return draft;
+        }
+
+        if (brush.kind === 'yoshi') {
+          if (isCastleStageForYoshi(draft)) return draft;
+          const spawnX = Math.max(0, Math.min((draft.width - 2) * 16, tx * 16));
+          const spawnY = Math.max(16, (ty + 1) * 16 - 20);
+          const nextYoshis = (draft.yoshis || []).filter(
+            y => !(Math.abs(y.x - spawnX) < 16 && Math.abs(y.y - spawnY) < 20)
+          );
+          nextYoshis.push({ x: spawnX, y: spawnY });
+          draft.yoshis = nextYoshis;
+          return draft;
+        }
+
+        if (brush.kind === 'carryable') {
+          const spawnX = tx * 16;
+          const spawnY = ty * 16;
+          const nextCarryables = (draft.carryables || []).filter(
+            c => !(Math.abs(c.x - spawnX) < 12 && Math.abs(c.y - spawnY) < 12)
+          );
+          nextCarryables.push({ kind: brush.carryKind, x: spawnX, y: spawnY });
+          draft.carryables = nextCarryables;
+          return draft;
+        }
+
+        if (brush.kind === 'keyhole') {
+          const spawnX = tx * 16;
+          const spawnY = Math.max(16, (ty + 1) * 16 - 24);
+          const nextKeyholes = (draft.keyholes || []).filter(
+            k => !(Math.abs(k.x - spawnX) < 12 && Math.abs(k.y - spawnY) < 20)
+          );
+          nextKeyholes.push({ x: spawnX, y: spawnY });
+          draft.keyholes = nextKeyholes;
           return draft;
         }
 
@@ -1238,16 +1399,50 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
     }
 
-    // Draw SMW Points Goal Gate preview (dual pillar + moving crossbar tape)
+    // Draw SMW Points Goal Gate preview (2.5D dual pillar + top arch + grounded pedestal + tape)
     if (currentLevel.flagX > 0 && currentLevel.flagX < currentLevel.width * 16) {
       const fx = (currentLevel.flagX / 16) * cellSize - offsetX;
       if (fx >= -cellSize * 3 && fx <= drawW + cellSize * 2) {
         const frontX = fx + cellSize * 1.25;
-        for (let py = 3; py <= 11; py++) {
-          ctx.drawImage(atlas.flagPoleBody, frontX, py * cellSize, cellSize, cellSize);
+        const frontTopOffset = cellSize * 0.375;
+
+        // Top 2.5D connecting beam between back cap and front cap
+        ctx.save();
+        ctx.strokeStyle = '#181828';
+        ctx.lineWidth = Math.max(3, Math.round(cellSize * 0.35));
+        ctx.beginPath();
+        ctx.moveTo(fx + cellSize * 0.55, 2.45 * cellSize);
+        ctx.lineTo(frontX + cellSize * 0.5, 2.45 * cellSize + frontTopOffset);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#dce4f2';
+        ctx.lineWidth = Math.max(2, Math.round(cellSize * 0.2));
+        ctx.beginPath();
+        ctx.moveTo(fx + cellSize * 0.55, 2.45 * cellSize);
+        ctx.lineTo(frontX + cellSize * 0.5, 2.45 * cellSize + frontTopOffset);
+        ctx.stroke();
+
+        // Moving Goal Tape ribbon between pillars
+        ctx.drawImage(atlas.flagTriangle, fx + cellSize * 0.55, 4.2 * cellSize, cellSize * 1.15, cellSize * 0.9);
+
+        // Front pillar extending cleanly down to row 13 ground pedestal
+        for (let py = 3; py <= 12; py++) {
+          ctx.drawImage(
+            atlas.flagPoleBody,
+            frontX,
+            py * cellSize + (py === 3 ? frontTopOffset : 0),
+            cellSize,
+            py === 3 ? cellSize - frontTopOffset : cellSize
+          );
         }
-        ctx.drawImage(atlas.flagPoleTop, frontX, 2 * cellSize, cellSize, cellSize);
-        ctx.drawImage(atlas.flagTriangle, fx + cellSize * 0.45, 4 * cellSize, cellSize, cellSize);
+        ctx.drawImage(atlas.flagPoleTop, frontX, 2 * cellSize + frontTopOffset, cellSize, cellSize);
+
+        // Grounded pedestal base under front pillar
+        ctx.fillStyle = '#181828';
+        ctx.fillRect(frontX + cellSize * 0.08, 12.7 * cellSize, cellSize * 0.84, cellSize * 0.3);
+        ctx.fillStyle = '#8494b0';
+        ctx.fillRect(frontX + cellSize * 0.14, 12.76 * cellSize, cellSize * 0.72, cellSize * 0.18);
+        ctx.restore();
       }
     }
 
@@ -1340,6 +1535,35 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
 
       ctx.drawImage(sprite, drawX, ey, w * scale, h * scale);
+    });
+
+    // Draw Keyholes & Carryables (Key, Blue P-Switch, Cyan P-Switch)
+    (currentLevel.keyholes || []).forEach(kh => {
+      const kx = kh.x * scale - offsetX;
+      if (kx < -cellSize * 2 || kx > drawW + cellSize * 2) return;
+      const ky = kh.y * scale;
+      ctx.drawImage(atlas.itemKeyhole, kx, ky, 16 * scale, 24 * scale);
+    });
+
+    (currentLevel.carryables || []).forEach(c => {
+      const cx = c.x * scale - offsetX;
+      if (cx < -cellSize * 2 || cx > drawW + cellSize * 2) return;
+      const cy = c.y * scale;
+      const sprite =
+        c.kind === 'key'
+          ? atlas.itemKey
+          : c.kind === 'p_switch_blue'
+          ? atlas.itemPSwitchBlue
+          : atlas.itemPSwitchCyan;
+      ctx.drawImage(sprite, cx, cy, cellSize, cellSize);
+    });
+
+    // Draw Yoshis placed in non-castle editor stages
+    (currentLevel.yoshis || []).forEach(yPos => {
+      const yx = yPos.x * scale - offsetX;
+      if (yx < -cellSize * 2 || yx > drawW + cellSize * 2) return;
+      const yy = yPos.y * scale;
+      ctx.drawImage(atlas.yoshiIdle, yx, yy, 20 * scale, 20 * scale);
     });
 
     // Draw Mario Spawn point marker
@@ -1537,11 +1761,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   const handleThemeChange = (theme: LevelData['theme']) => {
+    const hadYoshis = (currentLevel?.yoshis?.length ?? 0) > 0;
     updateCurrentLevel(
       draft => {
         draft.theme = theme;
         draft.bgColor = THEME_BG_COLORS[theme];
         if (theme === 'castle') {
+          draft.yoshis = undefined;
           const hasAxe = draft.tiles.some(row => row.some(t => t?.type === 'axe'));
           if (!hasAxe) {
             const axeX = Math.max(8, draft.width - 12);
@@ -1555,6 +1781,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       },
       { recordUndo: true }
     );
+    if (theme === 'castle' && hadYoshis) {
+      notify('Yoshi removido: ele não pode entrar dentro de castelos!');
+    }
   };
 
   const handleWidthChange = (newWidth: number) => {
