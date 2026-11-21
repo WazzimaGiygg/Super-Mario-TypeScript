@@ -289,6 +289,8 @@ export interface LevelData {
     type: 'down' | 'right';
   }[];
   bgColor: string;
+  musicTrack?: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'bonus';
+  useBonusBackdrop?: boolean;
   timeLimit: number;
   endlessStage?: number;
   cycleNumber?: number;
@@ -392,6 +394,7 @@ export interface GamepadControls {
   down: boolean;
   jump: boolean;
   run: boolean;
+  spinJump?: boolean;
   pause: boolean;
 }
 

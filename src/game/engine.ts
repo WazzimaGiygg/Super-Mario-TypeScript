@@ -139,10 +139,12 @@ export class GameEngine {
   private static readonly STOMP_COMBO_SCORES = [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000, 8000] as const;
   private static readonly SHELL_STREAK_SCORES = [500, 800, 1000, 2000, 4000, 5000, 8000] as const;
 
-  // Tanooki Suit State
+  // Tanooki Suit State & SMW Spin Jump (R1.19.1CU.5)
   public tailWhipTimer: number = 0;
   public isFluttering: boolean = false;
   public isStatue: boolean = false;
+  public isSpinJumping: boolean = false;
+  public spinJumpTimer: number = 0;
 
   // Screen-Shake Effect (Heavy Landings, Large Enemy Stomps, Pipe Entry, Boss Impacts)
   public screenShakeTimer: number = 0;
@@ -176,6 +178,7 @@ export class GameEngine {
   public bonusStageBlocks: BonusStageBlock[] = [];
   public bonusStageLivesWon: number = 0;
   public bonusStageFinishDelay: number = 0;
+  public bonusStageIrisProgress: number = 0;
   public bonusStageTimeFrames: number = 0;
   public static readonly BONUS_BLOCK_FACES: readonly BonusBlockFace[] = [
     '1up',
@@ -209,6 +212,7 @@ export class GameEngine {
     smwWorldName?: string;
     endlessStage?: number;
     isCustom?: boolean;
+    onYoshi?: boolean;
   } | null = null;
 
   // Intermission & Endless Stage Tracking
@@ -231,7 +235,13 @@ export class GameEngine {
   public pSwitchBlueTimer: number = 0;
   private pSwitchTransformedBlocks: { tx: number; ty: number; origX: number; origY: number }[] = [];
   public keyholeClearTimer: number = 0;
+  public keyholeTransitionActive: boolean = false;
+  public keyholeTotalTimer: number = 0;
   public activeKeyholeId: number | null = null;
+  private keyholeKeyStartX: number = 0;
+  private keyholeKeyStartY: number = 0;
+  private keyholeKeyX: number = 0;
+  private keyholeKeyY: number = 0;
   private keyholeHintCooldown: number = 0;
   public marioOnYoshi: boolean = false;
   public yoshiTongueTimer: number = 0;
@@ -395,6 +405,7 @@ export class GameEngine {
     down: false,
     jump: false,
     run: false,
+    spinJump: false,
     pause: false,
   };
 
@@ -447,6 +458,8 @@ export class GameEngine {
     }
     this.isStageClear = false;
     this.lastClearWasSecretExit = false;
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
     this.isGameOver = false;
     this.isIllegalInstructionBug = false;
     this.illegalInstructionTimer = 0;
@@ -471,6 +484,7 @@ export class GameEngine {
     this.bonusStageBlocks = [];
     this.bonusStageLivesWon = 0;
     this.bonusStageFinishDelay = 0;
+    this.bonusStageIrisProgress = 0;
     this.bonusStageTimeFrames = 0;
     this.bonusReturnLevelMeta = null;
     this.stats.goalPointsWallet = this.goalPointsWallet;
@@ -656,7 +670,13 @@ export class GameEngine {
     this.pSwitchBlueTimer = 0;
     this.pSwitchTransformedBlocks = [];
     this.keyholeClearTimer = 0;
+    this.keyholeTransitionActive = false;
+    this.keyholeTotalTimer = 0;
     this.activeKeyholeId = null;
+    this.keyholeKeyStartX = 0;
+    this.keyholeKeyStartY = 0;
+    this.keyholeKeyX = 0;
+    this.keyholeKeyY = 0;
     this.keyholeHintCooldown = 0;
     if (Array.isArray(resolvedLevel.carryables)) {
       resolvedLevel.carryables.forEach(c => {
@@ -767,6 +787,9 @@ export class GameEngine {
 
   private generateBackgroundScenery() {
     this.sceneries = [];
+    if (this.level.useBonusBackdrop || this.level.smwNodeId?.startsWith('wiki-switch-')) {
+      return;
+    }
     if (this.level.theme === 'underwater') {
       const waterEnd = this.level.dryFinishStartX ?? this.level.width * 16;
       for (let x = 24; x < waterEnd - 32; x += 96 + Math.random() * 64) {
@@ -920,6 +943,52 @@ export class GameEngine {
         if (this.marioGrowthTimer > 0) {
           this.marioGrowthTimer--;
         }
+
+        // Let Mario settle cleanly onto the Bonus Room floor/blocks instead of freezing mid-air
+        const settleHeight = this.getMarioHeight();
+        this.marioVx = 0;
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
+        this.marioVy = Math.min(5.5, this.marioVy + 0.42);
+        this.marioY += this.marioVy;
+
+        const settleBox: Rect = {
+          x: this.marioX + 1,
+          y: this.marioY,
+          width: 14,
+          height: settleHeight,
+        };
+        let landed = false;
+        for (const t of this.getTilesIntersecting(settleBox)) {
+          if (this.isSolidTile(t.tile.type) && this.marioVy >= 0) {
+            this.marioY = t.tileY * GameEngine.TILE_SIZE - settleHeight;
+            this.marioVy = 0;
+            this.marioGrounded = true;
+            this.marioState = 'idle';
+            landed = true;
+            break;
+          }
+        }
+        const maxFloorY = 13 * GameEngine.TILE_SIZE - settleHeight;
+        if (!landed && this.marioY >= maxFloorY) {
+          this.marioY = maxFloorY;
+          this.marioVy = 0;
+          this.marioGrounded = true;
+          this.marioState = 'idle';
+          landed = true;
+        }
+        if (!landed) {
+          this.marioGrounded = false;
+          this.marioState = this.marioVy < 0 ? 'jumping' : 'falling';
+        }
+
+        if (this.bonusStageFinishDelay <= 26) {
+          this.bonusStageIrisProgress = Math.max(
+            this.bonusStageIrisProgress,
+            Math.min(1, (26 - Math.max(0, this.bonusStageFinishDelay)) / 24)
+          );
+        }
+
         this.particleSystem.update();
         this.updateBlocks();
         this.updateCamera();
@@ -944,7 +1013,20 @@ export class GameEngine {
         this.bonusStageTimeFrames--;
         this.stats.time = Math.max(0, Math.ceil(this.bonusStageTimeFrames / 60));
         if (this.bonusStageTimeFrames <= 0) {
-          this.finishSmwBonusStage();
+          this.bonusStageFinishDelay = 85;
+          this.sound.playStageClear();
+          const timeoutLabel =
+            this.bonusStageLivesWon > 0
+              ? `TEMPO! +${this.bonusStageLivesWon} VIDAS`
+              : 'TEMPO! BONUS FIM!';
+          this.particleSystem.emitScoreText(timeoutLabel, 24, 36, {
+            maxLife: 85,
+            vy: -0.25,
+            color: '#fce078',
+          });
+          this.particleSystem.update();
+          this.updateBlocks();
+          this.updateCamera();
           this.prevControls = { ...this.controls };
           return;
         }
@@ -1031,18 +1113,28 @@ export class GameEngine {
       return;
     }
 
-    // SMW Keyhole Secret Exit transition sequence (R1.19.1GX.5)
+    // SMW Keyhole Secret Exit transition sequence (authentic key lock-in + expanding keyhole + keyhole iris)
     if (this.keyholeClearTimer > 0) {
       this.keyholeClearTimer++;
+      this.keyholeTotalTimer++;
       const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
       if (activeKh) {
         activeKh.animTimer++;
+        const slideT = Math.min(1, this.keyholeTotalTimer / 11);
+        const easedSlide = 1 - Math.pow(1 - slideT, 2);
+        this.keyholeKeyX =
+          this.keyholeKeyStartX + (activeKh.x - this.keyholeKeyStartX) * easedSlide;
+        this.keyholeKeyY =
+          this.keyholeKeyStartY + (activeKh.y + 4 - this.keyholeKeyStartY) * easedSlide;
+        if (this.keyholeTotalTimer === 11) {
+          this.spawnPowerUpSparkles(activeKh.x, activeKh.y + 4);
+        }
       }
       this.marioVx = 0;
       this.marioVy = 0;
       this.particleSystem.update();
       this.updateCamera();
-      if (this.keyholeClearTimer >= 42) {
+      if (this.keyholeClearTimer >= 45) {
         this.keyholeClearTimer = 0;
         this.finishStage();
       }
@@ -1362,7 +1454,13 @@ export class GameEngine {
 
     // 7. Castle entered & stage clear time tally countdown sequence
     if (this.marioState === 'castle_entered') {
-      if (this.gameMode === 'smw_world_map') {
+      if (this.keyholeTransitionActive) {
+        this.keyholeTotalTimer++;
+        const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
+        if (activeKh) {
+          activeKh.animTimer++;
+        }
+      } else if (this.gameMode === 'smw_world_map') {
         this.smwCastleBannerProgress = Math.min(1, this.smwCastleBannerProgress + 0.045);
       }
       if (this.castleToodleActive) {
@@ -1403,14 +1501,26 @@ export class GameEngine {
 
         // Establish post-countdown delay once time points reach 0
         if (this.stats.time === 0) {
-          this.stageClearDelayTimer = this.castlePrincessActive ? 260 : this.castleToodleActive ? 210 : 90;
+          this.stageClearDelayTimer = this.keyholeTransitionActive
+            ? 36
+            : this.castlePrincessActive
+            ? 260
+            : this.castleToodleActive
+            ? 210
+            : 90;
         }
         return;
       }
 
       // If time was already 0 before entering castle, wait once
       if (this.stageClearDelayTimer === 0) {
-        this.stageClearDelayTimer = this.castlePrincessActive ? 260 : this.castleToodleActive ? 210 : 60;
+        this.stageClearDelayTimer = this.keyholeTransitionActive
+          ? 36
+          : this.castlePrincessActive
+          ? 260
+          : this.castleToodleActive
+          ? 210
+          : 60;
         return;
       }
 
@@ -1427,7 +1537,7 @@ export class GameEngine {
         this.stageClearDelayTimer--;
       }
 
-      if (this.gameMode === 'smw_world_map' && !this.pendingBonusStage) {
+      if (this.gameMode === 'smw_world_map' && !this.pendingBonusStage && !this.keyholeTransitionActive) {
         if (this.stageClearDelayTimer <= 28) {
           this.smwCastleIrisProgress = Math.max(
             this.smwCastleIrisProgress,
@@ -1519,19 +1629,38 @@ export class GameEngine {
       if (Math.abs(this.marioVx) < 0.2) this.marioVx = 0;
     }
 
-    // Jumping / Swimming
+    // Jumping / Spin Jumping / Swimming
     const jumpPressed = this.controls.jump && !this.prevControls.jump;
-    if (this.marioOnYoshi && this.controls.down && jumpPressed && this.marioGrounded && !this.isStatue) {
-      // Crouch + Jump dismounts Yoshi with a quick upward hop (SMW spin/dismount boost)
+    const isSpinHeld = Boolean(this.controls.spinJump);
+    const spinPressed = isSpinHeld && !Boolean(this.prevControls.spinJump);
+    const jumpMult = this.marioPower === 'femboy' ? Math.SQRT2 : 1;
+
+    if (
+      this.marioOnYoshi &&
+      !this.isStatue &&
+      (spinPressed || (this.controls.down && jumpPressed && this.marioGrounded))
+    ) {
+      // Spin Jump key dismounts Yoshi anytime (even mid-air) with an authentic SMW Spin Jump; Crouch+Jump also dismounts
       this.dismountYoshi(false);
-      this.marioVy = -6.8;
+      this.marioVy = (spinPressed ? -7.2 : -6.8) * jumpMult;
       this.marioGrounded = false;
       this.marioState = 'jumping';
-      this.sound.playJumpSuper();
+      if (spinPressed) {
+        this.isSpinJumping = true;
+        this.spinJumpTimer = 0;
+        this.sound.playSpinJump();
+        this.spawnPowerUpSparkles(this.marioX + 4, this.marioY + this.getMarioHeight() - 8);
+      } else {
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
+        this.sound.playJumpSuper();
+      }
+      this.onMultiplayerSyncNeeded?.();
     } else {
-      const jumpMult = this.marioPower === 'femboy' ? Math.SQRT2 : 1;
       if (isUnderwater) {
-        if (jumpPressed && !this.isStatue) {
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
+        if ((jumpPressed || spinPressed) && !this.isStatue) {
           this.marioVy = (isRunning ? -2.9 : -2.55) * jumpMult;
           this.marioGrounded = false;
           this.marioState = 'jumping';
@@ -1557,10 +1686,24 @@ export class GameEngine {
         // Buoyant underwater gravity
         this.isFluttering = false;
         this.marioVy += 0.085;
-        const maxUnderwaterFall = this.controls.jump ? 1.1 : 1.65;
+        const maxUnderwaterFall = this.controls.jump || isSpinHeld ? 1.1 : 1.65;
         if (this.marioVy > maxUnderwaterFall) this.marioVy = maxUnderwaterFall;
       } else {
-        if (jumpPressed && this.marioGrounded && !this.isStatue) {
+        if (spinPressed && this.marioGrounded && !this.isStatue) {
+          const capeLaunchMult =
+            this.marioPower === 'cape' && Math.abs(this.marioVx) >= 2.5 ? 1.08 : 1;
+          const spinImpulse = (isRunning ? -7.6 : -6.8) * jumpMult * capeLaunchMult;
+          this.particleSystem.emitJumpDust(this.marioX + 8, this.marioY + this.getMarioHeight(), this.marioVx);
+          if (capeLaunchMult > 1) {
+            this.spawnPowerUpSparkles(this.marioX, this.marioY + this.getMarioHeight() - 8);
+          }
+          this.marioVy = spinImpulse;
+          this.marioGrounded = false;
+          this.marioState = 'jumping';
+          this.isSpinJumping = true;
+          this.spinJumpTimer = 0;
+          this.sound.playSpinJump();
+        } else if (jumpPressed && this.marioGrounded && !this.isStatue) {
           const capeLaunchMult =
             this.marioPower === 'cape' && Math.abs(this.marioVx) >= 2.5 ? 1.12 : 1;
           const jumpImpulse = (isRunning ? -8.4 : -7.4) * jumpMult * capeLaunchMult;
@@ -1571,6 +1714,8 @@ export class GameEngine {
           this.marioVy = jumpImpulse;
           this.marioGrounded = false;
           this.marioState = 'jumping';
+          this.isSpinJumping = false;
+          this.spinJumpTimer = 0;
 
           if (this.marioPower === 'small') {
             this.sound.playJumpSmall();
@@ -1579,12 +1724,16 @@ export class GameEngine {
           }
         }
 
-        // Tanooki Flutter & Cape Glide: holding jump while descending slows fall speed cleanly
+        if (!this.marioGrounded && this.isSpinJumping) {
+          this.spinJumpTimer++;
+        }
+
+        // Tanooki Flutter & Cape Glide: holding jump while descending slows fall speed cleanly (disabled during Spin Jump)
         this.isFluttering = false;
-        if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.25) {
+        if (!this.isSpinJumping && this.marioPower === 'cape' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.25) {
           this.isFluttering = true;
           this.marioVy = Math.min(this.marioVy, 0.85); // wide buoyant cape glide
-        } else if (this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
+        } else if (!this.isSpinJumping && this.marioPower === 'tanooki' && !this.marioGrounded && this.controls.jump && this.marioVy > 0.5) {
           this.isFluttering = true;
           this.marioVy = Math.min(this.marioVy, 1.15); // gentle glide / flutter fall
         } else if (this.marioPower === 'cape' && !this.marioGrounded && this.controls.down) {
@@ -1592,8 +1741,8 @@ export class GameEngine {
           this.marioVy = Math.min(7.0, this.marioVy + 0.22);
         }
 
-        // Variable jump height: cut ascent when releasing jump button
-        if (!this.controls.jump && this.marioVy < -2.5) {
+        // Variable jump height: cut ascent when releasing jump / spin button
+        if (!this.controls.jump && !isSpinHeld && this.marioVy < -2.5) {
           this.marioVy = -2.5;
         }
 
@@ -1730,6 +1879,15 @@ export class GameEngine {
           return;
         }
         this.killMario(true);
+        return;
+      }
+      if ((t.tile.type as string) === 'spike') {
+        if (this.isSpinJumping && this.marioVy >= 0) {
+          this.marioY = Math.min(this.marioY, t.tileY * GameEngine.TILE_SIZE - this.getMarioHeight());
+          this.triggerSpinBounce(t.tileX * GameEngine.TILE_SIZE + 8, t.tileY * GameEngine.TILE_SIZE);
+          break;
+        }
+        this.damageMario();
         return;
       }
     }
@@ -1870,9 +2028,16 @@ export class GameEngine {
         if (this.marioVy > 0) {
           // Landing on floor
           const impactVy = this.marioVy;
+          if ((t.tile.type as string) === 'spike' && this.isSpinJumping) {
+            this.marioY = t.tileY * GameEngine.TILE_SIZE - height;
+            this.triggerSpinBounce(t.tileX * GameEngine.TILE_SIZE + 8, t.tileY * GameEngine.TILE_SIZE);
+            break;
+          }
           this.marioY = t.tileY * GameEngine.TILE_SIZE - height;
           this.marioVy = 0;
           this.marioGrounded = true;
+          this.isSpinJumping = false;
+          this.spinJumpTimer = 0;
           this.stompComboCount = 0;
 
           // Heavy Landing Screen-Shake: triggers when falling from high drops (impactVy >= 5.5) or slamming down as Tanooki Statue
@@ -1931,6 +2096,8 @@ export class GameEngine {
             this.marioY = plat.y - height;
             this.marioVy = 0;
             this.marioGrounded = true;
+            this.isSpinJumping = false;
+            this.spinJumpTimer = 0;
             this.ridingPlatformId = plat.id;
             this.stompComboCount = 0;
 
@@ -2096,6 +2263,7 @@ export class GameEngine {
       if (block.coinsLeft && block.coinsLeft > 0) {
         block.coinsLeft--;
         this.spawnCoin(tx * GameEngine.TILE_SIZE, (ty - 1) * GameEngine.TILE_SIZE);
+        this.triggerScreenShake(2.4, 7);
         if (block.coinsLeft === 0) {
           block.type = 'question_empty';
         }
@@ -2105,11 +2273,12 @@ export class GameEngine {
         this.sound.playBrickBreak();
         this.createBrickDebris(tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE);
         this.addScore(50, tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE);
-        this.triggerScreenShake(2.5, 6);
+        this.triggerScreenShake(3.4, 9);
         this.recordAchievementProgress('bricks_broken', 1);
       } else {
         // Small Mario bumps brick
         this.sound.playBump();
+        this.triggerScreenShake(2.4, 7);
       }
     }
   }
@@ -2547,7 +2716,12 @@ export class GameEngine {
             height: protrudingHeight,
           };
           if (this.rectsIntersect(marioBox, piranhaHitbox)) {
-            this.marioHitEnemy(e, false);
+            const prevMarioBottom = marioBox.y + marioBox.height - this.marioVy;
+            const isSpinBounce =
+              this.isSpinJumping &&
+              this.marioVy >= -0.6 &&
+              prevMarioBottom <= e.y + 13;
+            this.marioHitEnemy(e, isSpinBounce);
           }
         }
         return;
@@ -2603,7 +2777,12 @@ export class GameEngine {
         if (canCollideBoo) {
           const booHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: 12, height: 12 };
           if (this.rectsIntersect(marioBox, booHitbox)) {
-            this.marioHitEnemy(e, false);
+            const prevMarioBottom = marioBox.y + marioBox.height - this.marioVy;
+            const isSpinBounce =
+              this.isSpinJumping &&
+              this.marioVy >= -0.6 &&
+              prevMarioBottom <= e.y + 13;
+            this.marioHitEnemy(e, isSpinBounce);
           }
         }
         return;
@@ -2809,8 +2988,16 @@ export class GameEngine {
         const tilesV = this.getTilesIntersecting(bowserBoxV);
         for (const t of tilesV) {
           if (this.isSolidTile(t.tile.type) && e.vy > 0) {
+            const impactVy = e.vy;
             e.y = t.tileY * GameEngine.TILE_SIZE - e.height;
             e.vy = 0;
+            if (impactVy >= 1.2) {
+              this.triggerScreenShake(Math.min(5.2, 2.8 + impactVy * 0.38), 14);
+              this.particleSystem.emitLandingDust(e.x + e.width / 2, e.y + e.height, true);
+              if (Math.abs(this.marioX - e.x) < 260) {
+                this.sound.playBump();
+              }
+            }
             break;
           }
         }
@@ -2837,8 +3024,13 @@ export class GameEngine {
 
         const bowserHitbox: Rect = { x: e.x + 2, y: e.y + 2, width: e.width - 4, height: e.height - 2 };
         if (this.rectsIntersect(marioBox, bowserHitbox)) {
-          // Bowser cannot be stomped from above!
-          this.marioHitEnemy(e, false);
+          // Bowser cannot be normal-stomped, but Spin Jump bounces safely off his spiky shell
+          const prevMarioBottom = marioBox.y + marioBox.height - this.marioVy;
+          const isSpinBounce =
+            this.isSpinJumping &&
+            this.marioVy >= -0.6 &&
+            prevMarioBottom <= e.y + 14;
+          this.marioHitEnemy(e, isSpinBounce);
         }
         return;
       }
@@ -3118,7 +3310,9 @@ export class GameEngine {
           const isShell =
             (e.type === 'koopa' || e.type === 'red_koopa') &&
             (e.state === 'shell_idle' || e.state === 'shell_moving');
-          const isStomp = this.marioVy > 0 && prevMarioBottom <= e.y + (isShell ? 12 : 9);
+          const isStomp =
+            this.marioVy > 0 &&
+            prevMarioBottom <= e.y + (isShell ? 12 : this.isSpinJumping ? 13 : 9);
           if (
             (e.type === 'koopa' || e.type === 'red_koopa') &&
             e.state === 'shell_moving' &&
@@ -3136,6 +3330,33 @@ export class GameEngine {
     this.enemies = this.enemies.filter(
       e => (e.state !== 'squashed' || e.stateTimer < 30) && (e.state !== 'flipped' || e.y <= GameEngine.NES_HEIGHT + 48)
     );
+  }
+
+  public isSpinBounceProtectedEnemy(type: EnemyType | string): boolean {
+    return (
+      type === 'boo' ||
+      type === 'piranha' ||
+      type === 'dry_bones' ||
+      type === 'bowser' ||
+      type === 'spiny' ||
+      type === 'spike_top' ||
+      type === 'thwomp'
+    );
+  }
+
+  private triggerSpinBounce(impactX: number, impactY: number, soundKind: 'bounce' | 'stomp' = 'bounce') {
+    const holdBoost = Boolean(this.controls.spinJump || this.controls.jump);
+    this.isSpinJumping = true;
+    this.marioGrounded = false;
+    this.marioState = 'jumping';
+    this.marioVy = holdBoost ? -6.8 : -5.4;
+    this.spawnPowerUpSparkles(impactX - 4, impactY - 4);
+    if (soundKind === 'stomp') {
+      this.sound.playStomp();
+    } else {
+      this.sound.playSpinBounce();
+    }
+    this.triggerScreenShake(1.6, 4);
   }
 
   private awardExtraLife(x: number, y: number) {
@@ -3189,6 +3410,48 @@ export class GameEngine {
     }
 
     if (isStomp) {
+      // R1.19.1CU.5: SMW Spin Jump bounces safely off Boos, Piranha Plants, Bowser, Dry Bones, and future spiky enemies
+      if (this.isSpinJumping) {
+        if (this.isSpinBounceProtectedEnemy(e.type) && e.type !== 'dry_bones') {
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
+          this.triggerSpinBounce(e.x + e.width / 2, e.y, 'bounce');
+          return;
+        }
+        if (e.type === 'dry_bones') {
+          if (e.state === 'walk') {
+            this.triggerLargeEnemyImpactShake(e);
+            e.state = 'shell_idle';
+            e.stateTimer = 210;
+            e.vx = 0;
+            e.y += 8;
+            e.height = 16;
+            this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+            this.awardStompCombo(e.x, e.y);
+          }
+          this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
+          this.triggerSpinBounce(e.x + e.width / 2, e.y, 'stomp');
+          return;
+        }
+        if (
+          e.type === 'goomba' ||
+          e.type === 'koopa' ||
+          e.type === 'red_koopa' ||
+          e.type === 'paratroopa' ||
+          e.type === 'hammer_bro' ||
+          e.type === 'bullet_bill'
+        ) {
+          e.alive = false;
+          e.state = e.type === 'goomba' ? 'squashed' : 'flipped';
+          e.vx = 0;
+          e.vy = e.type === 'goomba' ? 0 : -4.2;
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+          this.awardStompCombo(e.x, e.y, e.type === 'hammer_bro' ? 5 : e.type === 'bullet_bill' ? 1 : 0);
+          this.recordEnemyDefeat(e.type);
+          this.triggerSpinBounce(e.x + e.width / 2, e.y, 'stomp');
+          return;
+        }
+      }
+
       if (e.type === 'goomba') {
         e.alive = false;
         e.state = 'squashed';
@@ -3372,6 +3635,8 @@ export class GameEngine {
     }
 
     this.releaseHeldObject(true);
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
     if (this.marioPower === 'tanooki' || this.marioPower === 'femboy' || this.marioPower === 'cape') {
       // Tanooki, Femboy, and Cape power-ups downgrade to Super Mario on damage
       this.marioTransitionFrom = this.marioPower;
@@ -3409,6 +3674,8 @@ export class GameEngine {
   public killMario(isPitFall: boolean = false) {
     if (this.marioState === 'dead') return;
     this.releaseHeldObject(true);
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
     this.marioState = 'dead';
     this.marioPower = 'small'; // Abyss or damage always removes power-ups
     this.marioOnYoshi = false;
@@ -4822,6 +5089,18 @@ export class GameEngine {
   }
 
   private startLevelMusic(theme: LevelData['theme']) {
+    if (
+      this.isBonusStageActive ||
+      this.level?.musicTrack === 'bonus' ||
+      this.level?.smwNodeId?.startsWith('wiki-switch-')
+    ) {
+      this.sound.playMusic('bonus');
+      return;
+    }
+    if (this.level?.musicTrack) {
+      this.sound.playMusic(this.level.musicTrack);
+      return;
+    }
     if (theme === 'underground') {
       this.sound.playMusic('underground');
     } else if (theme === 'castle') {
@@ -4926,6 +5205,8 @@ export class GameEngine {
         this.releaseHeldObject(true);
         this.marioState = 'pipe_entering';
         this.isStatue = false;
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
         this.stompComboCount = 0;
         this.marioVx = 0;
         this.marioVy = 0;
@@ -5682,6 +5963,10 @@ export class GameEngine {
   }
 
   private triggerKeyholeUnlock(keyObj: CarryableObject, kh: KeyholeEntity) {
+    this.keyholeKeyStartX = keyObj.x;
+    this.keyholeKeyStartY = keyObj.y;
+    this.keyholeKeyX = keyObj.x;
+    this.keyholeKeyY = keyObj.y;
     keyObj.consumed = true;
     if (this.heldCarryableId === keyObj.id) {
       this.heldCarryableId = null;
@@ -5691,11 +5976,14 @@ export class GameEngine {
     kh.animTimer = 0;
     this.activeKeyholeId = kh.id;
     this.keyholeClearTimer = 1;
+    this.keyholeTransitionActive = true;
+    this.keyholeTotalTimer = 1;
     this.lastClearWasSecretExit = true;
+    this.marioFacing = kh.x + 8 >= this.marioX + 8 ? 'right' : 'left';
     this.marioVx = 0;
     this.marioVy = 0;
     this.sound.stopMusic();
-    this.sound.playStageClear();
+    this.sound.playKeyholeClear();
     this.addScore(1000, kh.x, kh.y, 'CHAVE!');
     this.spawnPowerUpSparkles(kh.x, kh.y);
     this.enforceStageEndDebugLock(false);
@@ -5856,6 +6144,7 @@ export class GameEngine {
       smwWorldName: this.level.smwWorldName,
       endlessStage: this.level.endlessStage,
       isCustom: this.level.isCustom,
+      onYoshi: this.marioOnYoshi,
     };
 
     const width = 16;
@@ -5905,6 +6194,8 @@ export class GameEngine {
       flagX: 999999,
       castleX: 999999,
       bgColor: '#0c1230',
+      musicTrack: 'bonus',
+      useBonusBackdrop: true,
       timeLimit: 60,
       biomeLabel: 'BONUS STAGE · VIDAS & POWER-UPS',
     };
@@ -5913,6 +6204,13 @@ export class GameEngine {
     this.ceilingTileColumns = new Array(width).fill(false);
     this.enemies = [];
     this.items = [];
+    this.yoshis = [];
+    this.carryables = [];
+    this.keyholes = [];
+    this.heldCarryableId = null;
+    this.heldShellEnemyId = null;
+    this.pSwitchBlueTimer = 0;
+    this.pSwitchTransformedBlocks = [];
     this.fireballs = [];
     this.bossFireballs = [];
     this.hammerProjectiles = [];
@@ -5926,12 +6224,36 @@ export class GameEngine {
     this.waitingPlayersNames = [];
     this.allPlayersClearedReady = false;
     this.allPlayersClearedCountdown = 0;
+    this.stageClearTallyDelay = 0;
+    this.stageClearDelayTimer = 0;
+    this.smwCastleEntryActive = false;
+    this.smwCastleEntryTimer = 0;
+    this.smwCastleBannerProgress = 0;
+    this.smwCastleIrisProgress = 0;
+    this.keyholeClearTimer = 0;
+    this.keyholeTransitionActive = false;
+    this.keyholeTotalTimer = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = true;
     this.bonusStageBlocks = bonusBlocks;
     this.bonusStageLivesWon = 0;
     this.bonusStageFinishDelay = 0;
+    this.bonusStageIrisProgress = 0;
     this.bonusStageTimeFrames = 60 * 60;
+
+    this.marioOnYoshi = false;
+    this.yoshiTongueTimer = 0;
+    this.yoshiTongueCooldown = 0;
+    this.stats.onYoshi = false;
+    this.marioGrowthTimer = 0;
+    this.marioShrinkTimer = 0;
+    this.marioInvulnerableTimer = 0;
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
+    this.screenShakeTimer = 0;
+    this.screenShakeIntensity = 0;
+    this.screenShakeOffsetX = 0;
+    this.screenShakeOffsetY = 0;
 
     this.marioX = 24;
     this.marioY = 13 * GameEngine.TILE_SIZE - this.getMarioHeight();
@@ -5952,7 +6274,7 @@ export class GameEngine {
     this.stats.goalPointsWallet = this.goalPointsWallet;
 
     this.sound.playPowerUpEat();
-    this.startLevelMusic('overworld');
+    this.startLevelMusic(bonusLevel.theme);
     this.particleSystem.emitScoreText('BONUS! BATA OS 9 BLOCOS!', 16, 48, {
       maxLife: 80,
       vy: -0.35,
@@ -5961,6 +6283,9 @@ export class GameEngine {
   }
 
   public resolveBonusStageBlock(tx: number, ty: number, block?: BlockTile): boolean {
+    if (!this.isBonusStageActive || this.bonusStageFinishDelay > 0) {
+      return false;
+    }
     const targetBlock = block ?? this.level.tiles[ty]?.[tx];
     const entry = this.bonusStageBlocks.find(b => b.tx === tx && b.ty === ty);
     if (!targetBlock || !entry || entry.resolved) {
@@ -6025,8 +6350,18 @@ export class GameEngine {
     this.isBonusStageActive = false;
     this.pendingBonusStage = false;
     this.bonusStageFinishDelay = 0;
+    this.bonusStageTimeFrames = 0;
+    this.bonusStageIrisProgress = 1;
     this.stats.isBonusStage = false;
     this.stats.bonusBlocksRemaining = 0;
+    this.marioGrowthTimer = 0;
+    this.marioShrinkTimer = 0;
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
+    this.marioVx = 0;
+    this.marioVy = 0;
+    this.isStageClear = true;
+    this.marioState = 'castle_entered';
 
     if (this.bonusReturnLevelMeta) {
       this.level.id = this.bonusReturnLevelMeta.id;
@@ -6038,6 +6373,10 @@ export class GameEngine {
       this.level.smwWorldName = this.bonusReturnLevelMeta.smwWorldName;
       this.level.endlessStage = this.bonusReturnLevelMeta.endlessStage;
       this.level.isCustom = this.bonusReturnLevelMeta.isCustom;
+      if (this.bonusReturnLevelMeta.onYoshi) {
+        this.marioOnYoshi = true;
+        this.stats.onYoshi = true;
+      }
       this.bonusReturnLevelMeta = null;
     }
 
@@ -6139,6 +6478,8 @@ export class GameEngine {
       // Cross the SMW Points Goal Gate!
       this.marioStarTimer = 0;
       this.starComboCount = 0;
+      this.isSpinJumping = false;
+      this.spinJumpTimer = 0;
       this.marioVx = 0;
       this.marioVy = 0;
       this.marioState = 'castle_walk';
@@ -6165,7 +6506,7 @@ export class GameEngine {
     this.releaseHeldObject(true);
     this.isStageClear = true;
     this.marioState = 'castle_entered';
-    this.stageClearTallyDelay = 40;
+    this.stageClearTallyDelay = this.keyholeTransitionActive ? 34 : 40;
     this.stageClearDelayTimer = 0;
     this.timeCountTickCounter = 0;
     this.transformStageEndEnemiesToPoints();
@@ -6353,6 +6694,7 @@ export class GameEngine {
       }
       this.isCampaignVictory = true;
       this.isStageClear = false;
+      this.bonusStageIrisProgress = 0;
       this.sound.stopMusic();
       this.sound.playStageClear();
       return;
@@ -6375,6 +6717,10 @@ export class GameEngine {
       this.stageClearTallyDelay = 0;
       this.smwCastleEntryActive = false;
       this.smwCastleEntryTimer = 0;
+      this.bonusStageIrisProgress = 0;
+      this.keyholeClearTimer = 0;
+      this.keyholeTransitionActive = false;
+      this.keyholeTotalTimer = 0;
       this.marioState = 'idle';
       this.marioVx = 0;
       this.marioVy = 0;
@@ -6389,6 +6735,7 @@ export class GameEngine {
     if (this.level.isFinalCastle) {
       this.isCampaignVictory = true;
       this.isStageClear = false;
+      this.bonusStageIrisProgress = 0;
       this.syncHighScore(true);
       this.persistRunScoreToRanking();
       this.sound.stopMusic();
@@ -6409,6 +6756,7 @@ export class GameEngine {
       } else {
         this.isCampaignVictory = true;
         this.isStageClear = false;
+        this.bonusStageIrisProgress = 0;
         this.syncHighScore(true);
         this.persistRunScoreToRanking();
       }
@@ -6514,6 +6862,9 @@ export class GameEngine {
     this.smwCastleEntryTimer = 0;
     this.smwCastleBannerProgress = 0;
     this.smwCastleIrisProgress = 0;
+    this.keyholeClearTimer = 0;
+    this.keyholeTransitionActive = false;
+    this.keyholeTotalTimer = 0;
     this.isIllegalInstructionBug = false;
     this.illegalInstructionTimer = 0;
     this.marioGrowthTimer = 0;
@@ -6597,6 +6948,9 @@ export class GameEngine {
     this.smwCastleEntryTimer = 0;
     this.smwCastleBannerProgress = 0;
     this.smwCastleIrisProgress = 0;
+    this.keyholeClearTimer = 0;
+    this.keyholeTransitionActive = false;
+    this.keyholeTotalTimer = 0;
     this.isIllegalInstructionBug = false;
     this.illegalInstructionTimer = 0;
     this.marioGrowthTimer = 0;
@@ -6808,6 +7162,7 @@ export class GameEngine {
       down: false,
       jump: false,
       run: false,
+      spinJump: false,
       pause: false,
     };
     this.prevControls = { ...this.controls };
@@ -6830,6 +7185,20 @@ export class GameEngine {
     this.smwCastleEntryTimer = 0;
     this.smwCastleBannerProgress = 0;
     this.smwCastleIrisProgress = 0;
+    this.keyholeClearTimer = 0;
+    this.keyholeTransitionActive = false;
+    this.keyholeTotalTimer = 0;
+    this.pendingBonusStage = false;
+    this.isBonusStageActive = false;
+    this.bonusStageBlocks = [];
+    this.bonusStageLivesWon = 0;
+    this.bonusStageFinishDelay = 0;
+    this.bonusStageIrisProgress = 0;
+    this.bonusStageTimeFrames = 0;
+    this.bonusReturnLevelMeta = null;
+    this.stats.isBonusStage = false;
+    this.stats.bonusBlocksRemaining = 0;
+    this.stats.bonusLivesWon = 0;
     this.marioState = 'idle';
     this.marioVx = 0;
     this.marioVy = 0;
@@ -6837,17 +7206,19 @@ export class GameEngine {
   }
 
   public restartGame() {
-    if (this.level?.isCustom && this.customCampaignLevels.length > 0) {
+    const isCustomRestart = Boolean(this.level?.isCustom || this.bonusReturnLevelMeta?.isCustom);
+    const activeSmwNodeId = this.level?.smwNodeId ?? this.bonusReturnLevelMeta?.smwNodeId;
+    if (isCustomRestart && this.customCampaignLevels.length > 0) {
       this.startCustomCampaign(this.customCampaignLevels, this.isEditorImmortality);
       return;
     }
-    if (this.level?.isCustom && this.customLevelTemplate) {
+    if (isCustomRestart && this.customLevelTemplate) {
       this.playCustomLevel(this.customLevelTemplate, this.isEditorImmortality);
       return;
     }
 
-    if (this.gameMode === 'smw_world_map' && this.level?.smwNodeId) {
-      this.startSmwStage(createSmwWikiWorldStage(this.level.smwNodeId), true);
+    if (this.gameMode === 'smw_world_map' && activeSmwNodeId) {
+      this.startSmwStage(createSmwWikiWorldStage(activeSmwNodeId), true);
       return;
     }
 
@@ -6885,6 +7256,12 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.bonusStageBlocks = [];
+    this.bonusStageLivesWon = 0;
+    this.bonusStageFinishDelay = 0;
+    this.bonusStageIrisProgress = 0;
+    this.bonusStageTimeFrames = 0;
+    this.bonusReturnLevelMeta = null;
     this.reservePowerUp = null;
     this.stats = {
       score: 0,
@@ -6920,6 +7297,15 @@ export class GameEngine {
     this.goalPointsWallet = 0;
     this.pendingBonusStage = false;
     this.isBonusStageActive = false;
+    this.bonusStageBlocks = [];
+    this.bonusStageLivesWon = 0;
+    this.bonusStageFinishDelay = 0;
+    this.bonusStageIrisProgress = 0;
+    this.bonusStageTimeFrames = 0;
+    this.bonusReturnLevelMeta = null;
+    this.stats.isBonusStage = false;
+    this.stats.bonusBlocksRemaining = 0;
+    this.stats.bonusLivesWon = 0;
     this.reservePowerUp = null;
     this.stats.reservePowerUp = null;
     this.isCampaignVictory = false;
@@ -7191,24 +7577,9 @@ export class GameEngine {
     this.renderCastlePrincessDialogue(ctx);
     this.renderInCanvasHUD(ctx);
 
-    // 13. SMW Keyhole Secret Exit Iris-Out Transition (R1.19.1GX.5)
-    if (this.keyholeClearTimer > 0) {
-      const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
-      const khScreenX = activeKh ? Math.round(activeKh.x + 8 - camX) : Math.round(this.marioX + 8 - camX);
-      const khScreenY = activeKh ? Math.round(activeKh.y + 8) : Math.round(this.marioY + 8);
-      const prog = Math.min(1, Math.max(0, (this.keyholeClearTimer - 8) / 30));
-      if (prog > 0) {
-        const radius = Math.max(0, 260 * (1 - prog));
-        ctx.save();
-        ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.rect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
-        if (radius > 0.5) {
-          ctx.arc(khScreenX, khScreenY, radius, 0, Math.PI * 2, true);
-        }
-        ctx.fill('evenodd');
-        ctx.restore();
-      }
+    // 13. SMW Keyhole Secret Exit Transition (Key lock-in + expanding keyhole + keyhole-shaped iris curtain)
+    if (this.keyholeTransitionActive) {
+      this.renderKeyholeClearTransition(ctx, camX);
     }
 
     // 13b. SMW Castle Circular Iris-Out Transition (R02.16.PG.4)
@@ -7229,6 +7600,12 @@ export class GameEngine {
       }
       ctx.fill('evenodd');
       ctx.restore();
+    }
+
+    // 13c. Keep closed blackout while waiting for multiplayer teammates immediately after Bonus Stage
+    if (this.bonusStageIrisProgress >= 1) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
     }
 
     // 14. Easter Egg: "ILLEGAL INSTRUCTION" Glitched Screen Effect
@@ -7679,8 +8056,30 @@ export class GameEngine {
     });
   }
 
+  private renderBonusBackdrop(ctx: CanvasRenderingContext2D, camX: number = 0) {
+    // SMW Indigo Bonus Room & Switch Palace Backdrop with diamond checker pattern
+    ctx.fillStyle = this.level?.bgColor || '#0c1230';
+    ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    const parallaxScroll = camX * 0.25;
+    this.renderParallaxPeriod(32, parallaxScroll, (sx) => {
+      for (let rowIdx = 0, y = 32; y < 208; rowIdx++, y += 24) {
+        const dx = sx + (rowIdx % 2 === 1 ? 16 : 0);
+        ctx.fillStyle = 'rgba(48, 84, 176, 0.24)';
+        ctx.fillRect(dx + 6, y + 2, 4, 4);
+        ctx.fillRect(dx + 2, y + 6, 12, 4);
+        ctx.fillRect(dx + 6, y + 10, 4, 4);
+        ctx.fillStyle = 'rgba(92, 136, 232, 0.12)';
+        ctx.fillRect(dx + 6, y + 6, 4, 4);
+      }
+    });
+  }
+
   private renderScenery(ctx: CanvasRenderingContext2D) {
     const camX = this.camera.renderX;
+    if (this.level.useBonusBackdrop || this.level.smwNodeId?.startsWith('wiki-switch-')) {
+      this.renderBonusBackdrop(ctx, camX);
+      return;
+    }
     if (this.level.theme === 'underwater') {
       const waterEndScreenX =
         this.level.dryFinishStartX !== undefined
@@ -8266,17 +8665,8 @@ export class GameEngine {
   }
 
   private renderBonusStage(ctx: CanvasRenderingContext2D) {
-    // 1. SMW Indigo Bonus Room Backdrop with subtle diamond checker pattern
-    ctx.fillStyle = '#0c1230';
-    ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
-    ctx.fillStyle = 'rgba(48, 84, 176, 0.2)';
-    for (let y = 32; y < 208; y += 24) {
-      for (let x = ((y / 24) % 2) * 16; x < GameEngine.NES_WIDTH; x += 32) {
-        ctx.fillRect(x + 6, y + 2, 4, 4);
-        ctx.fillRect(x + 2, y + 6, 12, 4);
-        ctx.fillRect(x + 6, y + 10, 4, 4);
-      }
-    }
+    // 1. SMW Indigo Bonus Room Backdrop with diamond checker pattern
+    this.renderBonusBackdrop(ctx, 0);
 
     // 2. Bonus Stage Banner
     ctx.save();
@@ -8289,7 +8679,15 @@ export class GameEngine {
     const rem = this.bonusStageBlocks.filter(b => !b.resolved).length;
     ctx.font = '5px "Press Start 2P", monospace';
     ctx.fillStyle = '#58f898';
-    ctx.fillText(`RESTAM: ${rem}/9   VIDAS GANHAS: +${this.bonusStageLivesWon}`, GameEngine.NES_WIDTH / 2, 55);
+    if (this.bonusStageFinishDelay > 0) {
+      const doneMsg =
+        this.bonusStageLivesWon > 0
+          ? `BONUS CONCLUIDO! +${this.bonusStageLivesWon} VIDAS`
+          : 'BONUS CONCLUIDO!';
+      ctx.fillText(doneMsg, GameEngine.NES_WIDTH / 2, 55);
+    } else {
+      ctx.fillText(`RESTAM: ${rem}/9   VIDAS GANHAS: +${this.bonusStageLivesWon}`, GameEngine.NES_WIDTH / 2, 55);
+    }
     ctx.restore();
 
     // 3. Floor & spent tiles
@@ -8353,6 +8751,23 @@ export class GameEngine {
     this.renderMario(ctx);
     this.particleSystem.render(ctx, 0, GameEngine.NES_WIDTH, this.atlas);
     this.renderInCanvasHUD(ctx);
+
+    // 6. SMW Circular Iris-Out Closing Curtain
+    if (this.bonusStageIrisProgress > 0) {
+      const centerX = Math.round(this.marioX + 8);
+      const centerY = Math.round(this.marioY + this.getMarioHeight() / 2);
+      const maxRadius = 280;
+      const radius = Math.max(0, maxRadius * (1 - this.bonusStageIrisProgress));
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.rect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      if (radius > 0.5) {
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true);
+      }
+      ctx.fill('evenodd');
+      ctx.restore();
+    }
   }
 
   private renderItems(ctx: CanvasRenderingContext2D) {
@@ -8466,19 +8881,120 @@ export class GameEngine {
     });
   }
 
+  private traceSmwKeyholePath(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number) {
+    const r = 6.2 * scale;
+    const headCy = cy - 3.5 * scale;
+    const neckAngle = Math.PI * 0.28;
+    const rightStartAngle = neckAngle;
+    const leftEndAngle = Math.PI - neckAngle;
+    const bottomY = cy + 10.5 * scale;
+    const bottomHalfW = 5.2 * scale;
+    ctx.arc(cx, headCy, r, rightStartAngle, leftEndAngle, true);
+    ctx.lineTo(cx - bottomHalfW, bottomY);
+    ctx.lineTo(cx + bottomHalfW, bottomY);
+    ctx.closePath();
+  }
+
+  private renderKeyholeClearTransition(ctx: CanvasRenderingContext2D, camX: number) {
+    const activeKh = this.keyholes.find(k => k.id === this.activeKeyholeId);
+    const khScreenX = activeKh ? Math.round(activeKh.x + 8 - camX) : Math.round(this.marioX + 8 - camX);
+    const khScreenY = activeKh ? Math.round(activeKh.y + 12) : Math.round(this.marioY + 12);
+    const t = Math.max(1, this.keyholeTotalTimer);
+    const irisProg = Math.min(1, Math.max(0, (t - 15) / 62));
+
+    // Pitch-black hold after the keyhole iris finishes closing (no bright flash before leaving the stage)
+    if (irisProg >= 0.99) {
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      ctx.restore();
+      return;
+    }
+
+    // 1. Growing SMW keyhole emblem + golden key sliding/locking inside it
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    let emblemScale = 1;
+    if (t <= 14) {
+      // Crisp lock-in bounce when key snaps into keyhole
+      emblemScale = t < 10 ? 1 : 1 + Math.sin(((t - 10) / 4) * Math.PI) * 0.28;
+    } else {
+      emblemScale = 1.08 + Math.min(3.1, (t - 15) * 0.08);
+    }
+
+    ctx.save();
+    ctx.translate(khScreenX, khScreenY);
+    ctx.scale(emblemScale, emblemScale);
+    ctx.drawImage(this.atlas.itemKeyhole, -8, -12);
+    ctx.restore();
+
+    // Draw golden Key sliding into the keyhole slot and turning/disappearing inside the lock
+    if (t <= 26) {
+      const keyScreenX = Math.round(this.keyholeKeyX - camX) + 8;
+      const keyScreenY = Math.round(this.keyholeKeyY) + 8;
+      let keyScale = 1;
+      let keyAngle = 0;
+      let keyAlpha = 1;
+      if (t > 10 && t <= 15) {
+        const turnT = (t - 10) / 5;
+        keyAngle = Math.sin(turnT * Math.PI) * 0.42;
+        keyScale = 1 - turnT * 0.14;
+      } else if (t > 15) {
+        const absorbT = Math.min(1, (t - 15) / 11);
+        keyScale = Math.max(0.15, 0.86 * (1 - absorbT));
+        keyAlpha = Math.max(0, 1 - absorbT);
+      }
+
+      ctx.save();
+      ctx.globalAlpha = keyAlpha;
+      ctx.translate(keyScreenX, keyScreenY);
+      if (keyAngle !== 0) ctx.rotate(keyAngle);
+      ctx.scale(keyScale, keyScale);
+      ctx.drawImage(this.atlas.itemKey, -8, -8);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // 2. Iconic SMW keyhole-shaped black iris curtain sweeping inward around (khScreenX, khScreenY)
+    if (irisProg > 0) {
+      const apertureScale = 34 * Math.pow(1 - irisProg, 1.55);
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.rect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+      if (apertureScale > 0.25) {
+        this.traceSmwKeyholePath(ctx, khScreenX, khScreenY, apertureScale);
+      }
+      ctx.fill('evenodd');
+
+      if (apertureScale > 0.45 && apertureScale < 26) {
+        ctx.beginPath();
+        this.traceSmwKeyholePath(ctx, khScreenX, khScreenY, apertureScale);
+        ctx.strokeStyle = '#f8d038';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   private renderKeyholes(ctx: CanvasRenderingContext2D) {
     if (this.keyholes.length === 0) return;
     const camX = this.camera.renderX;
     for (const kh of this.keyholes) {
+      if (this.keyholeTransitionActive && kh.id === this.activeKeyholeId) {
+        // Active keyhole is rendered cleanly in renderKeyholeClearTransition inside the keyhole curtain
+        continue;
+      }
       const kx = Math.round(kh.x - camX);
       const ky = Math.round(kh.y);
       if (kx < -24 || kx > GameEngine.NES_WIDTH + 24) continue;
       ctx.save();
       if (kh.activated && kh.animTimer > 0) {
         const scale = 1 + Math.min(2.2, kh.animTimer * 0.08);
-        ctx.translate(kx + 8, ky + 8);
+        ctx.translate(kx + 8, ky + 12);
         ctx.scale(scale, scale);
-        ctx.drawImage(this.atlas.itemKeyhole, -8, -8);
+        ctx.drawImage(this.atlas.itemKeyhole, -8, -12);
       } else {
         ctx.drawImage(this.atlas.itemKeyhole, kx, ky);
       }
@@ -9160,7 +9676,8 @@ export class GameEngine {
       this.marioState === 'castle_entered' &&
       !this.castleToodleActive &&
       !this.castlePrincessActive &&
-      !this.switchPalaceActivated
+      !this.switchPalaceActivated &&
+      !this.keyholeTransitionActive
     ) {
       return;
     }
@@ -9293,6 +9810,14 @@ export class GameEngine {
         : this.marioState;
     const effectiveFrame = this.marioFireThrowTimer > 0 && this.marioPower === 'fire' ? 1 : this.marioAnimFrame;
 
+    const activeSpin =
+      this.isSpinJumping &&
+      !this.marioOnYoshi &&
+      !this.isStatue &&
+      this.marioState !== 'dead' &&
+      this.marioState !== 'pipe_entering' &&
+      this.marioState !== 'pipe_exiting';
+
     let spriteCanvas = this.atlas.getCharacterSprite(
       this.playerCharacter,
       this.marioPower,
@@ -9303,6 +9828,8 @@ export class GameEngine {
         tailWhipTimer: this.tailWhipTimer,
         isFluttering: this.isFluttering,
         marioVx: this.marioVx,
+        isSpinning: activeSpin,
+        spinTimer: this.spinJumpTimer,
       }
     );
 
@@ -9338,7 +9865,21 @@ export class GameEngine {
         ctx.fillRect(mx + 17 + reach - 3, tongueY - 1, 4, 5);
       }
     } else if (spriteCanvas) {
-      ctx.drawImage(spriteCanvas, mx, my);
+      if (activeSpin) {
+        const spinStep = Math.floor(this.spinJumpTimer / 3) % 4;
+        const spinScales =
+          this.marioPower === 'cape' || this.marioPower === 'tanooki'
+            ? [1, 0.86, -1, -0.86]
+            : [1, 0.58, -1, -0.58];
+        ctx.save();
+        ctx.translate(mx + 8, my);
+        ctx.scale(spinScales[spinStep], 1);
+        ctx.translate(-(mx + 8), -my);
+        ctx.drawImage(spriteCanvas, mx, my);
+        ctx.restore();
+      } else {
+        ctx.drawImage(spriteCanvas, mx, my);
+      }
     }
 
     ctx.restore();

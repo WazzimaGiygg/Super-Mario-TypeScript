@@ -45,6 +45,7 @@ interface ActionHitResult {
   a: boolean;
   b: boolean;
   combo: boolean;
+  spin: boolean;
 }
 
 export const TouchControls: React.FC<TouchControlsProps> = ({
@@ -124,13 +125,19 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const btnBRef = useRef<HTMLButtonElement>(null);
   const btnARef = useRef<HTMLButtonElement>(null);
   const btnComboRef = useRef<HTMLButtonElement>(null);
+  const btnSpinRef = useRef<HTMLButtonElement>(null);
   const actionTouchIdsRef = useRef<Set<number>>(new Set());
   const actionMouseActiveRef = useRef<boolean>(false);
-  const activeActionsRef = useRef<{ jump: boolean; run: boolean }>({ jump: false, run: false });
+  const activeActionsRef = useRef<{ jump: boolean; run: boolean; spinJump: boolean }>({
+    jump: false,
+    run: false,
+    spinJump: false,
+  });
   const [pressedButtons, setPressedButtons] = useState<ActionHitResult>({
     a: false,
     b: false,
     combo: false,
+    spin: false,
   });
 
   // Haptic Feedback Helper
@@ -373,36 +380,41 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     const hitA = checkCircle(btnARef.current, 8);
     const hitB = checkCircle(btnBRef.current, 8);
     const hitCombo = checkCircle(btnComboRef.current, 4);
+    const hitSpin = checkCircle(btnSpinRef.current, 6);
 
     let a = hitA.hit;
     let b = hitB.hit;
     let combo = hitCombo.hit;
+    let spin = hitSpin.hit;
 
     // Fallback to nearest button within generous outer margin so fast edge taps never drop
-    if (!a && !b && !combo && allowNearestFallback) {
+    if (!a && !b && !combo && !spin && allowNearestFallback) {
       const candidates: { key: keyof ActionHitResult; dist: number; limit: number }[] = [
         { key: 'a', dist: hitA.dist, limit: hitA.radius + 18 },
         { key: 'b', dist: hitB.dist, limit: hitB.radius + 18 },
         { key: 'combo', dist: hitCombo.dist, limit: hitCombo.radius + 12 },
+        { key: 'spin', dist: hitSpin.dist, limit: hitSpin.radius + 14 },
       ];
       candidates.sort((x, y) => x.dist - y.dist);
       if (candidates[0].dist <= candidates[0].limit) {
         if (candidates[0].key === 'a') a = true;
         else if (candidates[0].key === 'b') b = true;
+        else if (candidates[0].key === 'spin') spin = true;
         else combo = true;
       }
     }
 
-    return { a, b, combo };
+    return { a, b, combo, spin };
   }, []);
 
   const applyActionAggregate = useCallback(
     (agg: ActionHitResult) => {
       const nextJump = agg.a || agg.combo;
       const nextRun = autoRunEnabled || agg.b || agg.combo;
+      const nextSpin = agg.spin;
 
       setPressedButtons(prev =>
-        prev.a === agg.a && prev.b === agg.b && prev.combo === agg.combo ? prev : agg
+        prev.a === agg.a && prev.b === agg.b && prev.combo === agg.combo && prev.spin === agg.spin ? prev : agg
       );
 
       if (activeActionsRef.current.jump !== nextJump) {
@@ -416,6 +428,12 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         onControlChange('run', nextRun);
         if (nextRun) triggerHaptic(10);
       }
+
+      if (activeActionsRef.current.spinJump !== nextSpin) {
+        activeActionsRef.current.spinJump = nextSpin;
+        onControlChange('spinJump', nextSpin);
+        if (nextSpin) triggerHaptic(16);
+      }
     },
     [autoRunEnabled, onControlChange, triggerHaptic]
   );
@@ -424,11 +442,15 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     (forceClearRun: boolean = false) => {
       actionTouchIdsRef.current.clear();
       actionMouseActiveRef.current = false;
-      setPressedButtons({ a: false, b: false, combo: false });
+      setPressedButtons({ a: false, b: false, combo: false, spin: false });
 
       if (activeActionsRef.current.jump) {
         activeActionsRef.current.jump = false;
         onControlChange('jump', false);
+      }
+      if (activeActionsRef.current.spinJump) {
+        activeActionsRef.current.spinJump = false;
+        onControlChange('spinJump', false);
       }
       const keepRun = !forceClearRun && autoRunEnabled;
       if (activeActionsRef.current.run !== keepRun) {
@@ -447,6 +469,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       let anyA = false;
       let anyB = false;
       let anyCombo = false;
+      let anySpin = false;
 
       for (let i = 0; i < touches.length; i++) {
         const t = touches[i];
@@ -467,10 +490,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         if (hit.a) anyA = true;
         if (hit.b) anyB = true;
         if (hit.combo) anyCombo = true;
+        if (hit.spin) anySpin = true;
       }
 
       actionTouchIdsRef.current = nextTrackedIds;
-      applyActionAggregate({ a: anyA, b: anyB, combo: anyCombo });
+      applyActionAggregate({ a: anyA, b: anyB, combo: anyCombo, spin: anySpin });
     },
     [applyActionAggregate, evaluateActionPoint]
   );
@@ -584,6 +608,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
   const isJumpActive = controls.jump || pressedButtons.a || pressedButtons.combo;
   const isRunActive = controls.run || autoRunEnabled || pressedButtons.b || pressedButtons.combo;
+  const isSpinActive = Boolean(controls.spinJump) || pressedButtons.spin;
 
   // --- TRANSPARENT ON-CANVAS OVERLAY LAYOUT ---
   if (isCanvasOverlay) {
@@ -844,8 +869,22 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               </span>
             </div>
 
-            {/* A Button (Jump) */}
-            <div className="flex flex-col items-center -translate-y-2.5">
+            {/* A Button (Jump) & Spin Jump Button */}
+            <div className="flex flex-col items-center -translate-y-2.5 gap-1">
+              <button
+                ref={btnSpinRef}
+                type="button"
+                aria-label="Botão C Pulo Carpado"
+                onClick={(e) => e.preventDefault()}
+                className={`${comboBtnSizeClass} rounded-full border-2 backdrop-blur-[1px] flex items-center justify-center font-['Press_Start_2P',monospace] font-bold shadow-md transition-all select-none touch-none ${
+                  isSpinActive
+                    ? 'bg-cyan-400/65 border-cyan-100 text-black scale-95 shadow-[0_0_14px_rgba(34,211,238,0.75)]'
+                    : 'bg-cyan-500/20 border-cyan-200/55 text-cyan-100'
+                }`}
+              >
+                <span className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">C</span>
+              </button>
+
               <button
                 ref={btnARef}
                 type="button"
@@ -859,7 +898,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               >
                 <span className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">A</span>
               </button>
-              <span className="pointer-events-none text-[7px] font-['Press_Start_2P',monospace] text-amber-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] mt-0.5">
+              <span className="pointer-events-none text-[7px] font-['Press_Start_2P',monospace] text-amber-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                 PULAR
               </span>
             </div>
@@ -1129,7 +1168,21 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               </span>
             </div>
 
-            <div className="flex flex-col items-center -translate-y-3">
+            <div className="flex flex-col items-center -translate-y-3 gap-1.5">
+              <button
+                ref={btnSpinRef}
+                type="button"
+                aria-label="Botão C Pulo Carpado"
+                onClick={(e) => e.preventDefault()}
+                className={`${comboBtnSizeClass} rounded-full border-2 shadow-[0_3px_8px_rgba(6,182,212,0.3)] flex flex-col items-center justify-center font-['Press_Start_2P',monospace] font-bold transition-all select-none touch-none ${
+                  isSpinActive
+                    ? 'bg-gradient-to-br from-cyan-400 to-teal-600 border-cyan-100 text-black scale-95'
+                    : 'bg-gradient-to-br from-cyan-600/85 to-teal-800/85 border-cyan-300/80 text-white'
+                }`}
+              >
+                <span className="pointer-events-none">C</span>
+              </button>
+
               <button
                 ref={btnARef}
                 type="button"
@@ -1142,7 +1195,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               >
                 <span className="pointer-events-none">A</span>
               </button>
-              <span className="pointer-events-none text-[9px] font-['Press_Start_2P',monospace] text-stone-300 font-bold mt-1">PULAR</span>
+              <span className="pointer-events-none text-[9px] font-['Press_Start_2P',monospace] text-stone-300 font-bold">PULAR</span>
             </div>
           </div>
         </div>

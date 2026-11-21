@@ -261,6 +261,8 @@ export class SpriteAtlas {
       tailWhipTimer?: number;
       isFluttering?: boolean;
       marioVx?: number;
+      isSpinning?: boolean;
+      spinTimer?: number;
     } = {}
   ): HTMLCanvasElement {
     const isW = character === 'wazzima';
@@ -268,6 +270,8 @@ export class SpriteAtlas {
     const tailWhipTimer = options.tailWhipTimer || 0;
     const isFluttering = !!options.isFluttering;
     const marioVx = options.marioVx || 0;
+    const isSpinning = !!options.isSpinning;
+    const spinTimer = options.spinTimer || 0;
 
     if (state === 'dead') {
       return isW ? this.wazzimaSmallDead : this.marioSmallDead;
@@ -277,6 +281,13 @@ export class SpriteAtlas {
       if (isStatue) return isW ? this.wazzimaTanookiStatue : this.marioTanookiStatue;
       if (tailWhipTimer > 0) {
         const spinStep = Math.min(3, Math.floor((18 - tailWhipTimer) / 4.5));
+        const spins = isW
+          ? [this.wazzimaTanookiTailSpin1, this.wazzimaTanookiTailSpin2, this.wazzimaTanookiTailSpin3, this.wazzimaTanookiTailSpin4]
+          : [this.marioTanookiTailSpin1, this.marioTanookiTailSpin2, this.marioTanookiTailSpin3, this.marioTanookiTailSpin4];
+        return spins[spinStep];
+      }
+      if (isSpinning) {
+        const spinStep = Math.floor(spinTimer / 3) % 4;
         const spins = isW
           ? [this.wazzimaTanookiTailSpin1, this.wazzimaTanookiTailSpin2, this.wazzimaTanookiTailSpin3, this.wazzimaTanookiTailSpin4]
           : [this.marioTanookiTailSpin1, this.marioTanookiTailSpin2, this.marioTanookiTailSpin3, this.marioTanookiTailSpin4];
@@ -344,6 +355,11 @@ export class SpriteAtlas {
     if (power === 'cape') {
       if (tailWhipTimer > 0) {
         const spinStep = Math.floor(tailWhipTimer / 4) % 2;
+        if (isW) return spinStep === 0 ? this.wazzimaCapeSpin1 : this.wazzimaCapeSpin2;
+        return spinStep === 0 ? this.marioCapeSpin1 : this.marioCapeSpin2;
+      }
+      if (isSpinning) {
+        const spinStep = Math.floor(spinTimer / 3) % 2;
         if (isW) return spinStep === 0 ? this.wazzimaCapeSpin1 : this.wazzimaCapeSpin2;
         return spinStep === 0 ? this.marioCapeSpin1 : this.marioCapeSpin2;
       }

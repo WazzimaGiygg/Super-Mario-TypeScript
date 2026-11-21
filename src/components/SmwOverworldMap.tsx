@@ -69,6 +69,7 @@ interface SmwOverworldMapProps {
   onDeleteSlot?: (slotIndex: number) => void;
   onDismissCastleSave?: () => void;
   onBackToMainMenu: () => void;
+  isReturnToMenuLocked?: boolean;
 }
 
 interface PixelSpriteViewProps {
@@ -195,6 +196,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
   onDeleteSlot,
   onDismissCastleSave,
   onBackToMainMenu,
+  isReturnToMenuLocked = false,
 }) => {
   const [showStory, setShowStory] = useState<boolean>(!progress.storySeen);
   const [showSlotsModal, setShowSlotsModal] = useState<boolean>(false);
@@ -526,7 +528,11 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
       if (tv.isBack) {
         e.preventDefault();
-        onBackToMainMenu();
+        if (!isReturnToMenuLocked) {
+          onBackToMainMenu();
+        } else {
+          setSwitchLockedNotice('Troca de modo bloqueada após iniciar o Modo World (permitido no Modo Desenvolvedor).');
+        }
         return;
       }
 
@@ -614,6 +620,7 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
     onDismissStory,
     onDismissCastleSave,
     onBackToMainMenu,
+    isReturnToMenuLocked,
   ]);
 
   if (!isOpen) return null;
@@ -764,10 +771,23 @@ export const SmwOverworldMap: React.FC<SmwOverworldMapProps> = ({
 
           <button
             type="button"
-            onClick={onBackToMainMenu}
-            className="min-h-[34px] px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-200 text-[10px] sm:text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
+            disabled={isReturnToMenuLocked}
+            onClick={() => {
+              if (isReturnToMenuLocked) return;
+              onBackToMainMenu();
+            }}
+            title={
+              isReturnToMenuLocked
+                ? 'Menu inicial bloqueado após iniciar o Modo World (permitido no Modo Desenvolvedor)'
+                : 'Voltar ao Menu Inicial'
+            }
+            className="min-h-[34px] px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-200 disabled:opacity-45 disabled:hover:bg-stone-900 disabled:cursor-not-allowed text-[10px] sm:text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            {isReturnToMenuLocked ? (
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <ArrowLeft className="w-3.5 h-3.5" />
+            )}
             <span className="hidden sm:inline">Menu</span>
           </button>
         </div>

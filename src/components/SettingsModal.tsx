@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug, Tv, FolderOpen } from 'lucide-react';
+import { Volume2, VolumeX, Music, RotateCcw, X, Gamepad2, Keyboard, Compass, ShieldAlert, Monitor, Maximize2, Minimize2, Hammer, Crown, Map as MapIcon, Bug, Tv, FolderOpen, Lock } from 'lucide-react';
 import { LevelData, GameDifficulty, ResolutionScale } from '../game/types.ts';
 import { createWorld1_1, createSecretVault, createWorld1_2, createWorld2_2, createWorldGhostHouse, createWorld1_4, createEndlessLevel } from '../game/levels.ts';
 
@@ -42,6 +42,7 @@ interface SettingsModalProps {
   onToggleSmartTvJumpWithUp?: () => void;
   smartTvAutoRun?: boolean;
   onToggleSmartTvAutoRun?: () => void;
+  isModeAndEditorLocked?: boolean;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -78,6 +79,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleSmartTvJumpWithUp,
   smartTvAutoRun = false,
   onToggleSmartTvAutoRun,
+  isModeAndEditorLocked = false,
 }) => {
   if (!isOpen) return null;
 
@@ -110,15 +112,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <h3 className="font-['Press_Start_2P',monospace] text-[11px] text-stone-200">
                 ESCOLHER FASE
               </h3>
+              {isModeAndEditorLocked && (
+                <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-mono font-bold text-amber-300">
+                  <Lock className="w-3 h-3 text-amber-400" />
+                  Bloqueado em partida
+                </span>
+              )}
             </div>
+            {isModeAndEditorLocked && (
+              <div className="mb-2.5 px-3 py-2 rounded-lg bg-amber-950/55 border border-amber-500/40 text-[11px] text-amber-200/95 flex items-start gap-2">
+                <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  Troca de modo, seleção de fase e Editor de Fases ficam bloqueados após iniciar o jogo
+                  (permitido apenas no Modo Desenvolvedor ou usando o Editor de Fases).
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createWorld1_1());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-amber-400">Mundo 1-1</span>
                 <span className="text-[10px] text-stone-400">Superfície clássica do NES</span>
@@ -126,11 +145,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createSecretVault());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-sky-400">Cofre Secreto</span>
                 <span className="text-[10px] text-stone-400">Moedas do cano subterrâneo</span>
@@ -138,11 +159,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createWorld1_2());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-amber-500 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-blue-400">Mundo 1-2</span>
                 <span className="text-[10px] text-stone-400">Cavernas Subterrâneas</span>
@@ -150,11 +173,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createWorld2_2());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-cyan-400 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-cyan-400 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-cyan-400">Mundo 2-2 (Água)</span>
                 <span className="text-[10px] text-stone-400">Fase Aquática Submarina</span>
@@ -162,11 +187,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createWorldGhostHouse());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-purple-400 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-purple-400 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-purple-300">Mansão de Fantasmas</span>
                 <span className="text-[10px] text-stone-400">Boo, Dry Bones e salões assombrados</span>
@@ -174,11 +201,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createWorld1_4());
                   onClose();
                 }}
-                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-red-500 font-medium text-left transition flex flex-col"
+                className="px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-red-500 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-red-400">Mundo 1-4 (Castelo)</span>
                 <span className="text-[10px] text-stone-400">Lava, Ponte e Rei Koopa</span>
@@ -186,11 +215,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onSelectLevel(createEndlessLevel(Date.now(), 1));
                   onClose();
                 }}
-                className="col-span-2 px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 font-medium text-left transition flex flex-col"
+                className="col-span-2 px-3 py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 hover:border-emerald-400 disabled:opacity-45 disabled:hover:bg-stone-800 disabled:hover:border-stone-700 disabled:cursor-not-allowed font-medium text-left transition flex flex-col cursor-pointer"
               >
                 <span className="font-bold text-emerald-400">Modo Sem Fim (Cíclico)</span>
                 <span className="text-[10px] text-stone-400">1 Overworld → 2 Caverna → 3 Água → 4 Castelo</span>
@@ -199,11 +230,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {onStartSingleplayer && (
                 <button
                   type="button"
+                  disabled={isModeAndEditorLocked}
                   onClick={() => {
+                    if (isModeAndEditorLocked) return;
                     onClose();
                     onStartSingleplayer();
                   }}
-                  className="col-span-2 px-3 py-2.5 rounded-lg bg-pink-950/70 hover:bg-pink-900/80 border border-pink-500/60 hover:border-pink-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-pink-950/70 hover:bg-pink-900/80 border border-pink-500/60 hover:border-pink-400 disabled:opacity-45 disabled:hover:bg-pink-950/70 disabled:hover:border-pink-500/60 disabled:cursor-not-allowed font-medium text-left transition flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <Crown className="w-4 h-4 text-pink-300 shrink-0" />
@@ -212,18 +245,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="text-[10px] text-pink-100/75">7 Mundos × 5 Fases · Resgate a Princesa Femboy no Castelo 7-5</span>
                     </div>
                   </div>
-                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-pink-200 shrink-0">JOGAR</span>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-pink-200 shrink-0 inline-flex items-center gap-1">
+                    {isModeAndEditorLocked && <Lock className="w-3 h-3" />}
+                    {isModeAndEditorLocked ? 'BLOQUEADO' : 'JOGAR'}
+                  </span>
                 </button>
               )}
 
               {onStartSmwWorldMap && (
                 <button
                   type="button"
+                  disabled={isModeAndEditorLocked}
                   onClick={() => {
+                    if (isModeAndEditorLocked) return;
                     onClose();
                     onStartSmwWorldMap();
                   }}
-                  className="col-span-2 px-3 py-2.5 rounded-lg bg-emerald-950/75 hover:bg-emerald-900/85 border border-emerald-500/65 hover:border-amber-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-emerald-950/75 hover:bg-emerald-900/85 border border-emerald-500/65 hover:border-amber-400 disabled:opacity-45 disabled:hover:bg-emerald-950/75 disabled:hover:border-emerald-500/65 disabled:cursor-not-allowed font-medium text-left transition flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <MapIcon className="w-4 h-4 text-amber-300 shrink-0" />
@@ -232,18 +270,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="text-[10px] text-emerald-100/80">Overworld da Ilha WikiWorldWeb até o Castelo de Johannnnes89</span>
                     </div>
                   </div>
-                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-300 shrink-0">MAPA</span>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-300 shrink-0 inline-flex items-center gap-1">
+                    {isModeAndEditorLocked && <Lock className="w-3 h-3" />}
+                    {isModeAndEditorLocked ? 'BLOQUEADO' : 'MAPA'}
+                  </span>
                 </button>
               )}
 
               {onLoadSmwWorldProgress && (
                 <button
                   type="button"
+                  disabled={isModeAndEditorLocked}
                   onClick={() => {
+                    if (isModeAndEditorLocked) return;
                     onClose();
                     onLoadSmwWorldProgress();
                   }}
-                  className="col-span-2 px-3 py-2.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/65 hover:border-amber-300 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                  className="col-span-2 px-3 py-2.5 rounded-lg bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/65 hover:border-amber-300 disabled:opacity-45 disabled:hover:bg-amber-950/70 disabled:hover:border-amber-500/65 disabled:cursor-not-allowed font-medium text-left transition flex items-center justify-between cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <FolderOpen className="w-4 h-4 text-amber-300 shrink-0" />
@@ -254,18 +297,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </span>
                     </div>
                   </div>
-                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-200 shrink-0">CARREGAR</span>
+                  <span className="text-[9px] font-['Press_Start_2P',monospace] text-amber-200 shrink-0 inline-flex items-center gap-1">
+                    {isModeAndEditorLocked && <Lock className="w-3 h-3" />}
+                    {isModeAndEditorLocked ? 'BLOQUEADO' : 'CARREGAR'}
+                  </span>
                 </button>
               )}
             </div>
             {onOpenLevelEditor && (
               <button
                 type="button"
+                disabled={isModeAndEditorLocked}
                 onClick={() => {
+                  if (isModeAndEditorLocked) return;
                   onClose();
                   onOpenLevelEditor();
                 }}
-                className="mt-2.5 w-full px-3 py-2.5 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-500/60 hover:border-sky-400 font-medium text-left transition flex items-center justify-between cursor-pointer"
+                className="mt-2.5 w-full px-3 py-2.5 rounded-lg bg-sky-950/80 hover:bg-sky-900 border border-sky-500/60 hover:border-sky-400 disabled:opacity-45 disabled:hover:bg-sky-950/80 disabled:hover:border-sky-500/60 disabled:cursor-not-allowed font-medium text-left transition flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <Hammer className="w-4 h-4 text-sky-400 shrink-0" />
@@ -274,7 +322,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="text-[10px] text-sky-200/75">Crie e edite suas próprias fases na memória temporária</span>
                   </div>
                 </div>
-                <span className="text-[9px] font-['Press_Start_2P',monospace] text-sky-300">ABRIR</span>
+                <span className="text-[9px] font-['Press_Start_2P',monospace] text-sky-300 inline-flex items-center gap-1">
+                  {isModeAndEditorLocked && <Lock className="w-3 h-3" />}
+                  {isModeAndEditorLocked ? 'BLOQUEADO' : 'ABRIR'}
+                </span>
               </button>
             )}
           </div>

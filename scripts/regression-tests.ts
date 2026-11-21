@@ -24,6 +24,8 @@ function installHeadlessDomStubs() {
     fillRect: noop,
     clearRect: noop,
     strokeRect: noop,
+    rect: noop,
+    clip: noop,
     beginPath: noop,
     closePath: noop,
     moveTo: noop,
@@ -60,6 +62,12 @@ function installHeadlessDomStubs() {
 installHeadlessDomStubs();
 
 import { GameEngine } from '../src/game/engine.ts';
+import {
+  isModeAndEditorLocked,
+  canOpenLevelEditor,
+  canSwitchGameMode,
+  canExitToMainMenu,
+} from '../src/game/modePolicy.ts';
 import {
   createWorld1_1,
   createWorld1_2,
@@ -107,6 +115,7 @@ import {
   resolveTvRemoteAction,
   findBestSpatialCandidateIndex,
 } from '../src/game/smartTv.ts';
+import { SoundEngine } from '../src/game/audio.ts';
 import type { Enemy, Item } from '../src/game/types.ts';
 
 function stepEngine(engine: GameEngine, frames: number, deltaMs = 16.67) {
@@ -2678,6 +2687,554 @@ async function runR116FixesTests() {
     assert.deepEqual(restored.secretClearedNodeIds, ['wiki-1-overworld']);
     assert.equal(isSmwNodeUnlocked('wiki-switch-yellow', restored), true);
     assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.29D.5'));
+  });
+
+  await test('R1.19.1CU.5: Pulo Carpado (Spin Jump) em tecla dedicada quica em Boos/espinhos e desmonta do Yoshi', () => {
+    // 1. Mapeamento dedicado em smartTv.ts (KeyC e KeyQ -> spinJump, sem disparar jump/run)
+    const keyC = resolveTvRemoteAction({ code: 'KeyC', key: 'c', keyCode: 67 }, { smartTvMode: false });
+    const keyQ = resolveTvRemoteAction({ code: 'KeyQ', key: 'q', keyCode: 81 }, { smartTvMode: false });
+    assert.ok(keyC.actions.includes('spinJump'));
+    assert.equal(keyC.actions.includes('jump'), false);
+    assert.equal(keyC.actions.includes('run'), false);
+    assert.ok(keyQ.actions.includes('spinJump'));
+
+    // 2. Pulo Carpado no chão ativa isSpinJumping, gira no ar, renderiza em múltiplos power-ups e reseta ao pousar
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.items = [];
+    stepEngine(engine, 10);
+    assert.equal(engine.marioGrounded, true);
+    assert.equal(engine.isSpinJumping, false);
+
+    engine.controls.spinJump = true;
+    stepEngine(engine, 2);
+    assert.equal(engine.isSpinJumping, true);
+    assert.equal(engine.marioGrounded, false);
+    assert.ok(engine.marioVy < 0);
+    stepEngine(engine, 5);
+    assert.ok(engine.spinJumpTimer > 0);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+    for (const power of ['small', 'super', 'fire', 'tanooki', 'femboy', 'cape'] as const) {
+      engine.marioPower = power;
+      engine.render(ctx);
+    }
+
+    engine.controls.spinJump = false;
+    for (let i = 0; i < 120 && !engine.marioGrounded; i++) {
+      engine.update(16.67);
+    }
+    assert.equal(engine.marioGrounded, true);
+    assert.equal(engine.isSpinJumping, false);
+
+    // 3. Sair do Yoshi com a tecla de Pulo Carpado (tanto no chão quanto no ar)
+    for (const startGrounded of [true, false]) {
+      const yoshiEngine = createFreshEngine();
+      yoshiEngine.enemies = [];
+      yoshiEngine.items = [];
+      stepEngine(yoshiEngine, 10);
+      yoshiEngine.marioOnYoshi = true;
+      yoshiEngine.yoshis = [];
+      if (!startGrounded) {
+        yoshiEngine.marioGrounded = false;
+        yoshiEngine.marioY -= 24;
+        yoshiEngine.marioVy = 0.5;
+      }
+
+      yoshiEngine.controls.spinJump = true;
+      stepEngine(yoshiEngine, 2);
+      assert.equal(yoshiEngine.marioOnYoshi, false, `Deve desmontar do Yoshi (grounded=${startGrounded})`);
+      assert.ok(yoshiEngine.yoshis.length >= 1, 'Yoshi desmontado deve aparecer no cenário');
+      assert.equal(yoshiEngine.isSpinJumping, true, 'Desmontar com Pulo Carpado deve entrar em isSpinJumping');
+      assert.ok(yoshiEngine.marioVy < 0);
+      yoshiEngine.controls.spinJump = false;
+    }
+
+    // 4. Lista de inimigos protegidos para quique no Pulo Carpado (fantasmas, espinhosos e futuros espinhos)
+    assert.equal(engine.isSpinBounceProtectedEnemy('boo'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('piranha'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('dry_bones'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('bowser'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('spiny'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('spike_top'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('thwomp'), true);
+    assert.equal(engine.isSpinBounceProtectedEnemy('goomba'), false);
+
+    // 5. Quicar com Pulo Carpado em Boo, Piranha, Dry Bones e Bowser sem tomar dano
+    for (const enemyType of ['boo', 'piranha', 'dry_bones', 'bowser'] as const) {
+      const bounceEngine = createFreshEngine();
+      bounceEngine.enemies = [];
+      bounceEngine.items = [];
+      stepEngine(bounceEngine, 10);
+      bounceEngine.marioPower = 'super';
+      bounceEngine.marioInvulnerableTimer = 0;
+
+      const enemyX = 160;
+      const enemyY = 144;
+      const enemy = makeEnemy(9800, enemyType, enemyX, enemyY);
+      enemy.vx = 0;
+      enemy.vy = 0;
+      if (enemyType === 'bowser') {
+        enemy.width = 28;
+        enemy.height = 32;
+      } else if (enemyType === 'piranha') {
+        enemy.x = enemyX + 8;
+        enemy.pipeOriginY = enemyY + 24;
+      }
+      bounceEngine.enemies.push(enemy);
+
+      bounceEngine.marioX = enemyX + 2;
+      bounceEngine.marioY = enemyY - 26;
+      bounceEngine.marioVx = 0;
+      bounceEngine.marioVy = 2.5;
+      bounceEngine.marioGrounded = false;
+      bounceEngine.isSpinJumping = true;
+      bounceEngine.controls.spinJump = true;
+
+      stepEngine(bounceEngine, 4);
+      assert.equal(bounceEngine.marioPower, 'super', `Não deve sofrer dano ao quicar com Pulo Carpado em ${enemyType}`);
+      assert.equal(bounceEngine.isSpinJumping, true, `Deve manter Pulo Carpado após quicar em ${enemyType}`);
+      assert.ok(bounceEngine.marioVy < 0, `Deve quicar para cima sobre ${enemyType}`);
+    }
+
+    // 6. Pulo normal (sem carpado) sobre Boo continua causando dano
+    const dmgEngine = createFreshEngine();
+    dmgEngine.enemies = [];
+    dmgEngine.items = [];
+    stepEngine(dmgEngine, 10);
+    dmgEngine.marioPower = 'super';
+    dmgEngine.marioInvulnerableTimer = 0;
+    const booDmg = makeEnemy(9810, 'boo', 160, 144);
+    booDmg.vx = 0;
+    booDmg.vy = 0;
+    dmgEngine.enemies.push(booDmg);
+    dmgEngine.marioX = 162;
+    dmgEngine.marioY = 118;
+    dmgEngine.marioVx = 0;
+    dmgEngine.marioVy = 2.5;
+    dmgEngine.marioGrounded = false;
+    dmgEngine.isSpinJumping = false;
+    stepEngine(dmgEngine, 4);
+    assert.equal(dmgEngine.marioPower, 'small', 'Pular normalmente sobre Boo sem Pulo Carpado deve causar dano');
+
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.1CU.5'));
+  });
+
+  await test('R1.19.KH.6: Animação de fim de fase na fechadura segue estilo SMW sem flash claro', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.items = [];
+    stepEngine(engine, 5);
+
+    const yGround = 12 * GameEngine.TILE_SIZE;
+    const keyObj = engine.spawnCarryableObject('key', engine.marioX + 12, yGround);
+    const keyhole = engine.spawnKeyhole(engine.marioX + 64, yGround);
+    engine.controls.run = true;
+    engine.marioX = keyObj.x;
+    engine.marioY = keyObj.y;
+    stepEngine(engine, 2);
+    assert.equal(engine.heldCarryableId, keyObj.id);
+
+    engine.marioX = keyhole.x - 4;
+    engine.marioY = keyhole.y;
+    stepEngine(engine, 2);
+    assert.equal(keyhole.activated, true);
+    assert.equal(engine.keyholeTransitionActive, true);
+    assert.ok(engine.keyholeClearTimer > 0);
+    assert.ok(engine.keyholeTotalTimer > 0);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = GameEngine.NES_WIDTH;
+    canvas.height = GameEngine.NES_HEIGHT;
+    const ctx = canvas.getContext('2d')!;
+
+    // Espiona chamadas Canvas2D para validar a abertura em fechadura ('evenodd') e o blackout sólido final
+    let evenOddCount = 0;
+    let blackFullScreenFill = false;
+    const origFill = ctx.fill;
+    const origFillRect = ctx.fillRect;
+    ctx.fill = ((...args: unknown[]) => {
+      if (args[0] === 'evenodd') evenOddCount++;
+      return (origFill as (...a: unknown[]) => void).apply(ctx, args);
+    }) as typeof ctx.fill;
+    ctx.fillRect = ((x: number, y: number, w: number, h: number) => {
+      if (ctx.fillStyle === '#000000' && x === 0 && y === 0 && w === GameEngine.NES_WIDTH && h === GameEngine.NES_HEIGHT) {
+        blackFullScreenFill = true;
+      }
+      return origFillRect.call(ctx, x, y, w, h);
+    }) as typeof ctx.fillRect;
+
+    try {
+      // Fase 1 (encaixe da chave) e Fase 2 (abertura em formato de fechadura fechando): usa 'evenodd'
+      stepEngine(engine, 16);
+      engine.render(ctx);
+      assert.equal(engine.keyholeTransitionActive, true);
+      assert.ok(evenOddCount >= 1, 'Deve desenhar a máscara de fechadura com fill("evenodd")');
+
+      // Após finishStage (~frame 45), keyholeTransitionActive permanece ativo e smwCastleIrisProgress nunca é usado
+      stepEngine(engine, 30);
+      assert.equal(engine.isStageClear, true);
+      assert.equal(engine.keyholeTransitionActive, true);
+      assert.equal(engine.smwCastleIrisProgress, 0);
+
+      // Após fechar completamente (>= frame 78), a tela inteira recebe blackout sólido preto sem flash claro
+      stepEngine(engine, 32);
+      assert.ok(engine.keyholeTotalTimer >= 78);
+      engine.render(ctx);
+      assert.equal(blackFullScreenFill, true, 'Deve manter preenchimento sólido preto ao concluir o fechamento');
+    } finally {
+      ctx.fill = origFill;
+      ctx.fillRect = origFillRect;
+    }
+
+    // Concluir / avançar limpa os flags de transição da fechadura
+    engine.advanceToNextLevel();
+    assert.equal(engine.keyholeTransitionActive, false);
+    assert.equal(engine.keyholeTotalTimer, 0);
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.KH.6'));
+  });
+
+  await test('Screen shake ao atingir bloco de tijolo (pequeno, moeda e quebra) e quando boss pisa no chão', () => {
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.items = [];
+    stepEngine(engine, 5);
+
+    const tx = 6;
+    const ty = 10;
+    engine.level.tiles[ty][tx] = {
+      type: 'brick',
+      content: 'none',
+      bumpOffset: 0,
+      bumpVel: 0,
+    };
+
+    // 1. Small Mario bate no tijolo por baixo -> dispara screen shake
+    engine.marioPower = 'small';
+    engine.marioX = tx * GameEngine.TILE_SIZE + 2;
+    engine.marioY = (ty + 1) * GameEngine.TILE_SIZE + 1;
+    engine.marioVx = 0;
+    engine.marioVy = -5;
+    engine.marioGrounded = false;
+    engine.screenShakeTimer = 0;
+    engine.screenShakeIntensity = 0;
+    engine.update(16.67);
+    assert.ok(engine.screenShakeTimer > 0, 'Bater no tijolo pequeno deve ativar screen shake');
+    assert.ok(engine.screenShakeIntensity >= 2.0);
+    assert.ok(engine.level.tiles[ty][tx], 'Small Mario não deve quebrar o tijolo');
+
+    // Aguarda bump do bloco zerar e shake decair
+    stepEngine(engine, 16);
+    assert.equal(engine.screenShakeTimer, 0);
+
+    // 2. Tijolo com moeda -> dispara screen shake ao ser atingido
+    engine.level.tiles[ty][tx] = {
+      type: 'brick',
+      content: 'none',
+      coinsLeft: 2,
+      bumpOffset: 0,
+      bumpVel: 0,
+    };
+    engine.marioX = tx * GameEngine.TILE_SIZE + 2;
+    engine.marioY = (ty + 1) * GameEngine.TILE_SIZE + 1;
+    engine.marioVy = -5;
+    engine.marioGrounded = false;
+    engine.screenShakeTimer = 0;
+    engine.screenShakeIntensity = 0;
+    engine.update(16.67);
+    assert.ok(engine.screenShakeTimer > 0, 'Tijolo com moeda deve ativar screen shake');
+    stepEngine(engine, 16);
+
+    // 3. Super Mario quebra tijolo -> dispara screen shake mais forte
+    engine.level.tiles[ty][tx] = {
+      type: 'brick',
+      content: 'none',
+      bumpOffset: 0,
+      bumpVel: 0,
+    };
+    engine.marioPower = 'super';
+    engine.marioX = tx * GameEngine.TILE_SIZE + 2;
+    engine.marioY = (ty + 1) * GameEngine.TILE_SIZE + 1;
+    engine.marioVy = -5;
+    engine.marioGrounded = false;
+    engine.screenShakeTimer = 0;
+    engine.screenShakeIntensity = 0;
+    engine.update(16.67);
+    assert.equal(engine.level.tiles[ty][tx], null, 'Super Mario deve quebrar o tijolo');
+    assert.ok(engine.screenShakeTimer > 0);
+    assert.ok(engine.screenShakeIntensity >= 3.0);
+
+    // 4. Boss (Bowser / Johannnnes89): parado no chão não treme a tela, mas ao cair de um salto (stomp) treme
+    const bossEngine = createFreshEngine();
+    bossEngine.items = [];
+    stepEngine(bossEngine, 5);
+    const bossX = 160;
+    const floorY = 13 * GameEngine.TILE_SIZE;
+    const boss = makeEnemy(9950, 'bowser', bossX, floorY - 32);
+    boss.originX = bossX;
+    boss.width = 28;
+    boss.height = 32;
+    boss.vx = 0;
+    boss.vy = 0;
+    boss.fireTimer = 9999;
+    boss.stateTimer = 1;
+    bossEngine.enemies = [boss];
+    bossEngine.screenShakeTimer = 0;
+    bossEngine.screenShakeIntensity = 0;
+
+    // Parado no chão -> sem screen shake espúrio
+    bossEngine.update(16.67);
+    assert.equal(bossEngine.screenShakeTimer, 0, 'Boss parado no chão não deve gerar screen shake');
+
+    // Boss caindo de um salto sobre o chão -> impacto gera screen shake forte
+    boss.y = floorY - 32 - 3;
+    boss.vy = 4.5;
+    bossEngine.update(16.67);
+    assert.equal(boss.vy, 0);
+    assert.ok(bossEngine.screenShakeTimer > 0, 'Pouso/pisão do boss no chão deve ativar screen shake');
+    assert.ok(bossEngine.screenShakeIntensity >= 3.5);
+  });
+
+  await test('R1.19.BS.6: Finalização suave no Bonus Stage (pouso no chão, timeout, íris, mapa SMW e espera multiplayer)', () => {
+    // 1. Bater o 9º bloco no ar faz Mario pousar suavemente, anima íris-out e bloqueia cliques extras
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.startSmwBonusStage();
+    assert.equal(engine.isBonusStageActive, true);
+
+    for (let i = 0; i < 8; i++) {
+      const b = engine.bonusStageBlocks[i];
+      b.faceIndex = 0;
+      assert.equal(engine.resolveBonusStageBlock(b.tx, b.ty), true);
+    }
+
+    // Posiciona Mario no ar longe do chão antes do 9º bloco (sobre área aberta sem bloco abaixo)
+    const lastBlock = engine.bonusStageBlocks[8];
+    lastBlock.faceIndex = 0;
+    engine.marioX = 24;
+    engine.marioY = 110;
+    engine.marioVy = -2.0;
+    engine.marioGrounded = false;
+    assert.equal(engine.resolveBonusStageBlock(lastBlock.tx, lastBlock.ty), true);
+    assert.ok(engine.bonusStageFinishDelay > 0);
+
+    // Tentativa tardia de resolver bloco durante bonusStageFinishDelay deve ser ignorada
+    assert.equal(engine.resolveBonusStageBlock(lastBlock.tx, lastBlock.ty), false);
+
+    // Durante o delay, Mario deve cair suavemente até o chão e a íris deve fechar nos frames finais
+    stepEngine(engine, 40);
+    assert.equal(engine.isBonusStageActive, true);
+    assert.equal(engine.marioGrounded, true, 'Mario deve pousar durante a finalização do Bonus Stage');
+    assert.equal(engine.marioState, 'idle');
+
+    // Render durante finalização com íris não gera erros
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+    stepEngine(engine, 30);
+    assert.ok(engine.bonusStageIrisProgress > 0, 'Íris circular deve fechar ao fim do Bonus Stage');
+    engine.render(ctx);
+
+    // Concluir restante do delay avança para 1-2 e zera estado do Bonus Stage
+    stepEngine(engine, engine.bonusStageFinishDelay + 2);
+    assert.equal(engine.isBonusStageActive, false);
+    assert.equal(engine.bonusStageIrisProgress, 0);
+    assert.equal(engine.level.id, 'world-1-2');
+
+    // 2. Timeout do Bonus Stage inicia sequência de finalização em vez de cortar abruptamente
+    const timeoutEngine = createFreshEngine();
+    timeoutEngine.enemies = [];
+    timeoutEngine.startSmwBonusStage();
+    timeoutEngine.bonusStageTimeFrames = 2;
+    stepEngine(timeoutEngine, 3);
+    assert.equal(timeoutEngine.isBonusStageActive, true, 'Timeout deve entrar no delay de finalização antes de sair');
+    assert.ok(timeoutEngine.bonusStageFinishDelay > 0);
+    stepEngine(timeoutEngine, timeoutEngine.bonusStageFinishDelay + 2);
+    assert.equal(timeoutEngine.isBonusStageActive, false);
+    assert.equal(timeoutEngine.level.id, 'world-1-2');
+
+    // 3. No modo Mapa SMW, concluir Bonus Stage dispara onSmwStageCompleted e restartGame dentro do Bonus reinicia a fase SMW
+    const smwEngine = createFreshEngine();
+    smwEngine.startSmwStage(createSmwWikiWorldStage('wiki-1-overworld'), true);
+    smwEngine.intermissionTimer = 0;
+    smwEngine.startSmwBonusStage();
+    smwEngine.restartGame();
+    assert.equal(smwEngine.isBonusStageActive, false);
+    assert.equal(smwEngine.gameMode, 'smw_world_map');
+    assert.equal(smwEngine.level.smwNodeId, 'wiki-1-overworld');
+
+    let completedNode: string | null = null;
+    smwEngine.intermissionTimer = 0;
+    smwEngine.onSmwStageCompleted = (nodeId) => {
+      completedNode = nodeId;
+    };
+    smwEngine.startSmwBonusStage();
+    smwEngine.bonusStageTimeFrames = 1;
+    stepEngine(smwEngine, 2);
+    stepEngine(smwEngine, smwEngine.bonusStageFinishDelay + 2);
+    assert.equal(completedNode, 'wiki-1-overworld');
+    assert.equal(smwEngine.isBonusStageActive, false);
+    assert.equal(smwEngine.bonusStageIrisProgress, 0);
+
+    // 4. Multiplayer: se colega ainda está jogando a fase, entra em espera segura com blackout e isStageClear=true
+    const mpEngine = createFreshEngine();
+    mpEngine.isMultiplayerConnected = true;
+    mpEngine.isMultiplayerFirebase = true;
+    mpEngine.isMultiplayerHost = true;
+    mpEngine.remotePlayers.set('p2', {
+      id: 'p2',
+      name: 'Luigi',
+      character: 'mario',
+      x: 120,
+      y: 176,
+      vx: 0,
+      vy: 0,
+      power: 'small',
+      state: 'running',
+      facing: 'right',
+      animFrame: 0,
+      score: 0,
+      coins: 0,
+      lives: 3,
+      levelId: 'world-1-1',
+      stageCleared: false,
+      lastUpdated: Date.now(),
+    });
+    mpEngine.startSmwBonusStage();
+    mpEngine.finishSmwBonusStage();
+    assert.equal(mpEngine.isBonusStageActive, false);
+    assert.equal(mpEngine.isStageClear, true);
+    assert.equal(mpEngine.marioState, 'castle_entered');
+    assert.equal(mpEngine.waitingForPlayersFinish, true);
+    assert.equal(mpEngine.bonusStageIrisProgress, 1);
+
+    // Colega conclui a fase -> countdown avança e muda para world-1-2 limpando o blackout
+    mpEngine.remotePlayers.get('p2')!.stageCleared = true;
+    stepEngine(mpEngine, 120);
+    assert.equal(mpEngine.level.id, 'world-1-2');
+    assert.equal(mpEngine.waitingForPlayersFinish, false);
+    assert.equal(mpEngine.bonusStageIrisProgress, 0);
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.BS.6'));
+  });
+
+  await test('R1.19.BM.6: Música de Bonus Stage aplicada no Bonus Stage e nos Palácios de Botão com fundo de fase bônus', () => {
+    const engine = createFreshEngine();
+
+    // 1. Bonus Stage ativa trilha 'bonus' e fundo '#0c1230' com useBonusBackdrop
+    engine.startSmwBonusStage();
+    assert.equal(SoundEngine.get().getStatus().currentTrack, 'bonus');
+    assert.equal(engine.level.bgColor, '#0c1230');
+    assert.equal(engine.level.useBonusBackdrop, true);
+
+    // 2. Todos os Palácios de Botão (Amarelo, Verde, Vermelho, Rosa, Azul) usam música 'bonus' e fundo da sala bônus
+    const palaceIds = [
+      'wiki-switch-yellow',
+      'wiki-switch-green',
+      'wiki-switch-red',
+      'wiki-switch-pink',
+      'wiki-switch-blue',
+    ];
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+
+    for (const palaceId of palaceIds) {
+      const palaceEngine = createFreshEngine();
+      const palaceStage = createSmwWikiWorldStage(palaceId);
+      palaceEngine.startSmwStage(palaceStage, true);
+      palaceEngine.intermissionTimer = 0;
+
+      assert.equal(palaceEngine.level.musicTrack, 'bonus', `${palaceId} deve definir musicTrack='bonus'`);
+      assert.equal(palaceEngine.level.useBonusBackdrop, true, `${palaceId} deve usar useBonusBackdrop=true`);
+      assert.equal(palaceEngine.level.bgColor, '#0c1230', `${palaceId} deve usar cor de fundo #0c1230 da fase bônus`);
+      assert.equal(SoundEngine.get().getStatus().currentTrack, 'bonus', `${palaceId} deve tocar trilha 'bonus'`);
+
+      // Renderizar o Palácio garante uso do renderBonusBackdrop sem erros
+      palaceEngine.render(ctx);
+
+      // Após Starman expirar no Palácio, a música deve voltar para 'bonus' (e não underground)
+      palaceEngine.marioStarTimer = 1;
+      palaceEngine.update(16.67);
+      assert.equal(SoundEngine.get().getStatus().currentTrack, 'bonus', `${palaceId} deve restaurar trilha 'bonus' após Starman`);
+    }
+
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.BM.6'));
+  });
+
+  await test('R1.19.ML.6: Bloqueio de troca de modo e Editor de Fases após iniciar partida (com exceções para Dev e Editor)', () => {
+    // 1. Antes de iniciar (!hasStarted), é permitido escolher modo e abrir Editor de Fases
+    const beforeStart = {
+      hasStarted: false,
+      isDeveloperMode: false,
+      isUsingEditor: false,
+    };
+    assert.equal(isModeAndEditorLocked(beforeStart), false);
+    assert.equal(canSwitchGameMode(beforeStart), true);
+    assert.equal(canOpenLevelEditor(beforeStart), true);
+    assert.equal(canExitToMainMenu(beforeStart), true);
+
+    // 2. Após iniciar partida (Normal, World ou 7 Fases) sem Modo Dev e sem Editor, troca de modo e Editor ficam bloqueados
+    const activeMatch = {
+      hasStarted: true,
+      isDeveloperMode: false,
+      isUsingEditor: false,
+    };
+    assert.equal(isModeAndEditorLocked(activeMatch), true);
+    assert.equal(canSwitchGameMode(activeMatch), false);
+    assert.equal(canOpenLevelEditor(activeMatch), false);
+    assert.equal(canExitToMainMenu(activeMatch), false);
+
+    // 3. Exceção: Modo Desenvolvedor ativo libera troca de modo, retorno ao menu e Editor de Fases
+    const devMatch = {
+      hasStarted: true,
+      isDeveloperMode: true,
+      isUsingEditor: false,
+    };
+    assert.equal(isModeAndEditorLocked(devMatch), false);
+    assert.equal(canSwitchGameMode(devMatch), true);
+    assert.equal(canOpenLevelEditor(devMatch), true);
+    assert.equal(canExitToMainMenu(devMatch), true);
+
+    // 4. Exceção: Usuário utilizando/testando o Editor de Fases mantém acesso ao Editor e troca de modo
+    const editorMatch = {
+      hasStarted: true,
+      isDeveloperMode: false,
+      isUsingEditor: true,
+    };
+    assert.equal(isModeAndEditorLocked(editorMatch), false);
+    assert.equal(canSwitchGameMode(editorMatch), true);
+    assert.equal(canOpenLevelEditor(editorMatch), true);
+    assert.equal(canExitToMainMenu(editorMatch), true);
+
+    // 5. Após vitória na campanha 7 Mundos, botão Menu Inicial é liberado na tela de vitória sem liberar troca no Pause/Editor
+    assert.equal(
+      canExitToMainMenu({
+        hasStarted: true,
+        isDeveloperMode: false,
+        isUsingEditor: false,
+        isCampaignVictory: true,
+      }),
+      true
+    );
+
+    // 6. Garantir integração nos componentes UI (GameCanvas, SettingsModal, SmwOverworldMap) e UpdatesModal
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    const settingsSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SettingsModal.tsx'), 'utf8');
+    const mapSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/SmwOverworldMap.tsx'), 'utf8');
+
+    assert.ok(canvasSrc.includes('canOpenLevelEditor(getModePolicyInput())'));
+    assert.ok(canvasSrc.includes('canSwitchGameMode(getModePolicyInput())'));
+    assert.ok(canvasSrc.includes('canExitToMainMenu(getModePolicyInput())'));
+    assert.ok(canvasSrc.includes('isModeAndEditorLocked={isModeAndEditorLocked}'));
+    assert.ok(canvasSrc.includes('isReturnToMenuLocked={isModeAndEditorLocked}'));
+    assert.ok(settingsSrc.includes('disabled={isModeAndEditorLocked}'));
+    assert.ok(mapSrc.includes('disabled={isReturnToMenuLocked}'));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.ML.6'));
   });
 }
 

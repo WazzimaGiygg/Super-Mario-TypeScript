@@ -25,6 +25,64 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.19.ML.6',
+    version: 'R1.19.ML.6',
+    label: 'Correção · Bloqueio de Modo & Editor',
+    title: 'Bloqueio de Troca de Modo e Editor de Fases Após Iniciar a Partida',
+    isFix: true,
+    items: [
+      'Após iniciar uma partida em modo Normal (Clássico), Modo World ou 7 Fases (Singleplayer), a troca de modo de jogo, seleção de fase em Configurações e abertura do Editor de Fases ficam bloqueadas.',
+      'Exceções mantidas: o acesso à troca de modo e ao Editor de Fases continua liberado quando o Modo Desenvolvedor estiver ativo ou quando o jogador estiver utilizando/testando o próprio Editor de Fases.',
+    ],
+  },
+  {
+    uid: 'R1.19.BM.6',
+    version: 'R1.19.BM.6',
+    label: 'Recurso · Música & Fundo Bonus/Palácio',
+    title: 'Música Exclusiva de Bonus Stage Aplicada Também aos Palácios de Botão com Fundo Bônus',
+    isFix: false,
+    items: [
+      'Adicionada uma nova trilha sonora chiptune exclusiva e alegre para o Bonus Stage.',
+      'Todos os Palácios Interruptores (Amarelo, Verde, Vermelho, Rosa e Azul) agora reproduzem a mesma música do Bonus Stage e utilizam o fundo clássico em índigo com losangos da sala bônus.',
+    ],
+  },
+  {
+    uid: 'R1.19.BS.6',
+    version: 'R1.19.BS.6',
+    label: 'Correção · Bonus Stage',
+    title: 'Finalização Suave e Correta no Bonus Stage (Solo, Mapa SMW e Multiplayer)',
+    isFix: true,
+    items: [
+      'Ao bater o 9º bloco no ar, o personagem agora pousa suavemente até o chão/blocos antes de encerrar a sala bônus, em vez de ficar congelado suspenso no ar.',
+      'Quando o tempo da sala bônus termina, a fase agora executa a sequência normal de conclusão com mensagem, fechamento em íris circular e transição limpa, em vez de cortar bruscamente.',
+      'Corrigida a finalização do Bonus Stage no modo Multiplayer e no Mapa do Super Mario World, mantendo espera segura por colegas na sala e reinício consistente.',
+    ],
+  },
+  {
+    uid: 'R1.19.KH.6',
+    version: 'R1.19.KH.6',
+    label: 'Correção · Animação de Chave SMW',
+    title: 'Animação de Fim de Fase na Fechadura Aproximada ao Super Mario World Original',
+    isFix: true,
+    items: [
+      'Ao encostar a Chave no Buraco de Chave, a chave desliza e gira suavemente para dentro da fechadura antes de travar com faíscas douradas.',
+      'Substituída a íris circular simples pelo fechamento clássico em formato de fechadura (cabeça circular + haste trapezoidal com borda dourada) centralizado no emblema que amplia na tela, acompanhado por uma fanfarra exclusiva de Saída Secreta.',
+      'Eliminado o flash para a tela clara após concluir a fechadura: a transição mantém o blackout contínuo e o personagem visível dentro da janela até sair da fase.',
+    ],
+  },
+  {
+    uid: 'R1.19.1CU.5',
+    version: 'R1.19.1CU.5',
+    label: 'Recurso · Pulo Carpado SMW',
+    title: 'Pulo Carpado (Spin Jump) em Tecla Dedicada para Quicar em Fantasmas/Espinhos e Sair do Yoshi',
+    isFix: true,
+    items: [
+      'Adicionado o Pulo Carpado clássico do Super Mario World nas teclas dedicadas C ou Q (e botão C nos controles táteis / Y no controle): o personagem gira 360° no ar com o efeito sonoro original.',
+      'Durante o Pulo Carpado é possível quicar em segurança sobre fantasmas (Boo), Piranha Plants, Dry Bones, Bowser e futuros inimigos/blocos com espinhos sem sofrer dano.',
+      'Pressionar a tecla de Pulo Carpado montado no Yoshi (no chão ou no ar) faz o personagem saltar girando para fora da sela, exatamente como no Super Mario World original.',
+    ],
+  },
+  {
     uid: 'R1.19.29D.5',
     version: 'R1.19.29D.5',
     label: 'Recurso · Saída Secreta SMW',

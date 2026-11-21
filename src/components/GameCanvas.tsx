@@ -49,7 +49,13 @@ import {
   createWorld1_4,
 } from '../game/levels.ts';
 import { isSmartTvUserAgent, moveFocusWithDpad, resolveTvRemoteAction } from '../game/smartTv.ts';
-import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen } from 'lucide-react';
+import {
+  isModeAndEditorLocked as isModeAndEditorLockedPolicy,
+  canOpenLevelEditor,
+  canSwitchGameMode,
+  canExitToMainMenu,
+} from '../game/modePolicy.ts';
+import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen, Lock } from 'lucide-react';
 
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -75,6 +81,7 @@ export const GameCanvas: React.FC = () => {
   const [lastSavedRank, setLastSavedRank] = useState<number | null>(null);
   const [marioPower, setMarioPower] = useState<MarioPower>('small');
   const [isStageClear, setIsStageClear] = useState(false);
+  const [isKeyholeTransition, setIsKeyholeTransition] = useState(false);
   const [waitingForPlayersFinish, setWaitingForPlayersFinish] = useState(false);
   const [waitingPlayersNames, setWaitingPlayersNames] = useState<string[]>([]);
   const [stageArrivalNotice, setStageArrivalNotice] = useState('');
@@ -174,6 +181,34 @@ export const GameCanvas: React.FC = () => {
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
   const [multiplayerNotice, setMultiplayerNotice] = useState<MultiplayerLogoffEvent | null>(null);
 
+  const isDeveloperModeActive = isCheatActive || isDebugMode;
+  const isUsingLevelEditor = isLevelEditorOpen || isCustomLevelActive;
+  const isModeAndEditorLocked = isModeAndEditorLockedPolicy({
+    hasStarted,
+    isDeveloperMode: isDeveloperModeActive,
+    isUsingEditor: isUsingLevelEditor,
+    isCampaignVictory,
+  });
+
+  const getModePolicyInput = useCallback(
+    () => ({
+      hasStarted,
+      isDeveloperMode: Boolean(
+        isCheatActive ||
+          isDebugMode ||
+          engineRef.current?.isCheatActive ||
+          engineRef.current?.isDebugMode
+      ),
+      isUsingEditor: Boolean(
+        isLevelEditorOpen ||
+          isCustomLevelActive ||
+          engineRef.current?.level?.isCustom
+      ),
+      isCampaignVictory,
+    }),
+    [hasStarted, isCheatActive, isDebugMode, isLevelEditorOpen, isCustomLevelActive, isCampaignVictory]
+  );
+
   // Audio state
   const [soundStatus, setSoundStatus] = useState(() => SoundEngine.get().getStatus());
 
@@ -184,6 +219,7 @@ export const GameCanvas: React.FC = () => {
     up: false,
     down: false,
     jump: false,
+    spinJump: false,
     run: false,
     pause: false,
   });
@@ -421,6 +457,7 @@ export const GameCanvas: React.FC = () => {
         up: false,
         down: false,
         jump: false,
+        spinJump: false,
         run: false,
         pause: false,
       });
@@ -484,6 +521,7 @@ export const GameCanvas: React.FC = () => {
         engine.controls.up = false;
         engine.controls.down = false;
         engine.controls.jump = false;
+        engine.controls.spinJump = false;
         engine.controls.run = false;
         setControls({
           left: false,
@@ -491,6 +529,7 @@ export const GameCanvas: React.FC = () => {
           up: false,
           down: false,
           jump: false,
+          spinJump: false,
           run: false,
           pause: false,
         });
@@ -653,6 +692,7 @@ export const GameCanvas: React.FC = () => {
         up: false,
         down: false,
         jump: false,
+        spinJump: false,
         run: false,
         pause: false,
       });
@@ -714,6 +754,7 @@ export const GameCanvas: React.FC = () => {
         engine.controls.up = false;
         engine.controls.down = false;
         engine.controls.jump = false;
+        engine.controls.spinJump = false;
         engine.controls.run = false;
       }
       setControls({
@@ -722,6 +763,7 @@ export const GameCanvas: React.FC = () => {
         up: false,
         down: false,
         jump: false,
+        spinJump: false,
         run: false,
         pause: false,
       });
@@ -957,6 +999,10 @@ export const GameCanvas: React.FC = () => {
             engine.controls.jump = true;
             setControls(c => ({ ...c, jump: true }));
             break;
+          case 'spinJump':
+            engine.controls.spinJump = true;
+            setControls(c => ({ ...c, spinJump: true }));
+            break;
           case 'run':
             manualRunHeldRef.current = true;
             if (smartTvMode && smartTvAutoRun && engine.controls.run && !e.repeat) {
@@ -1047,6 +1093,10 @@ export const GameCanvas: React.FC = () => {
             engine.controls.jump = false;
             setControls(c => ({ ...c, jump: false }));
             break;
+          case 'spinJump':
+            engine.controls.spinJump = false;
+            setControls(c => ({ ...c, spinJump: false }));
+            break;
           case 'run':
             manualRunHeldRef.current = false;
             if (!(smartTvMode && smartTvAutoRun && (engine.controls.left || engine.controls.right))) {
@@ -1128,6 +1178,7 @@ export const GameCanvas: React.FC = () => {
       engine.controls.up = false;
       engine.controls.down = false;
       engine.controls.jump = false;
+      engine.controls.spinJump = false;
       engine.controls.run = false;
       engine.controls.pause = false;
       return;
@@ -1145,6 +1196,7 @@ export const GameCanvas: React.FC = () => {
       engine.controls.up = false;
       engine.controls.down = false;
       engine.controls.jump = false;
+      engine.controls.spinJump = false;
       engine.controls.run = false;
       engine.controls.pause = btnStart;
       return;
@@ -1158,15 +1210,17 @@ export const GameCanvas: React.FC = () => {
     const dpadUp = gp.buttons[12]?.pressed || axisY < -0.4;
     const dpadDown = gp.buttons[13]?.pressed || axisY > 0.4;
 
-    // A button (button 0), B button (button 1 or 2), Start (button 9)
+    // A button (button 0), B button (button 1 or 2), Spin Jump (button 3), Start (button 9)
     const btnA = gp.buttons[0]?.pressed || false;
     const btnB = gp.buttons[1]?.pressed || gp.buttons[2]?.pressed || false;
+    const btnSpin = gp.buttons[3]?.pressed || false;
 
     engine.controls.left = dpadLeft;
     engine.controls.right = dpadRight;
     engine.controls.up = dpadUp;
     engine.controls.down = dpadDown;
     engine.controls.jump = btnA;
+    engine.controls.spinJump = btnSpin;
     engine.controls.run = btnB;
     engine.controls.pause = btnStart;
   }, [
@@ -1237,6 +1291,7 @@ export const GameCanvas: React.FC = () => {
             setIsPaused(engine.isPaused);
             setIsGameOver(engine.isGameOver);
             setIsStageClear(engine.isStageClear);
+            setIsKeyholeTransition(engine.keyholeTransitionActive);
             setWaitingForPlayersFinish(engine.waitingForPlayersFinish);
             setWaitingPlayersNames([...engine.waitingPlayersNames]);
             setStageArrivalNotice(engine.stageArrivalNotice);
@@ -1284,6 +1339,11 @@ export const GameCanvas: React.FC = () => {
   };
 
   const handleSelectLevel = (level: LevelData) => {
+    if (!canSwitchGameMode(getModePolicyInput())) {
+      setCheatToast('Troca de modo/fase bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     if (multiplayerStatus.connected && multiplayerStatus.transport === 'firebase' && !multiplayerStatus.isHost) {
       setCheatToast('Apenas o anfitrião pode escolher a fase da sala!');
       setTimeout(() => setCheatToast(''), 3000);
@@ -1298,6 +1358,7 @@ export const GameCanvas: React.FC = () => {
         : 'classic';
       engineRef.current.loadLevel(level, true, false);
       setHasStarted(true);
+      setIsCustomLevelActive(false);
       setIsPaused(false);
       setIsGameOver(false);
       setIsStageClear(false);
@@ -1398,6 +1459,11 @@ export const GameCanvas: React.FC = () => {
   );
 
   const openLevelEditor = useCallback(() => {
+    if (!canOpenLevelEditor(getModePolicyInput())) {
+      setCheatToast('Editor de Fases bloqueado após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     const engine = engineRef.current;
     if (engine) {
       engine.controls = {
@@ -1426,7 +1492,7 @@ export const GameCanvas: React.FC = () => {
     setIsSettingsOpen(false);
     setIsUpdatesOpen(false);
     setIsLevelEditorOpen(true);
-  }, [hasStarted]);
+  }, [hasStarted, getModePolicyInput]);
 
   const handlePlayCustomLevel = useCallback(
     (level: LevelData, options?: { immortality?: boolean }) => {
@@ -1494,6 +1560,11 @@ export const GameCanvas: React.FC = () => {
   );
 
   const handleReturnToMainMenu = useCallback(() => {
+    if (!canExitToMainMenu(getModePolicyInput())) {
+      setCheatToast('Troca de modo bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     setIsLevelEditorOpen(false);
     setIsSettingsOpen(false);
     setIsUpdatesOpen(false);
@@ -1526,7 +1597,7 @@ export const GameCanvas: React.FC = () => {
     } else {
       SoundEngine.get().stopMusic();
     }
-  }, []);
+  }, [getModePolicyInput]);
 
   const handleRestart = () => {
     if (multiplayerStatus.connected) {
@@ -1618,10 +1689,16 @@ export const GameCanvas: React.FC = () => {
   }, [isFullscreen]);
 
   const handleStartGame = () => {
+    if (!canSwitchGameMode(getModePolicyInput())) {
+      setCheatToast('Troca de modo bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     SoundEngine.get().resume();
     setIsCampaignVictory(false);
     setIsSmwMapOpen(false);
     setIsSmwModeActive(false);
+    setIsCustomLevelActive(false);
     setHasStarted(true);
     if (engineRef.current) {
       if (multiplayerStatus.connected) {
@@ -1634,6 +1711,11 @@ export const GameCanvas: React.FC = () => {
   };
 
   const handleStartSingleplayer = () => {
+    if (!canSwitchGameMode(getModePolicyInput())) {
+      setCheatToast('Troca de modo bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     if (multiplayerStatus.connected) {
       setCheatToast('Desconecte do multiplayer para jogar o modo Singleplayer (7 Mundos)!');
       setTimeout(() => setCheatToast(''), 3500);
@@ -1657,7 +1739,32 @@ export const GameCanvas: React.FC = () => {
     }
   };
 
+  const handleReplaySingleplayerVictory = useCallback(() => {
+    if (multiplayerStatus.connected) return;
+    SoundEngine.get().resume();
+    setIsCampaignVictory(false);
+    setIsSmwMapOpen(false);
+    setIsSmwModeActive(false);
+    setIsSettingsOpen(false);
+    setIsLevelEditorOpen(false);
+    setHasStarted(true);
+    setIsCustomLevelActive(false);
+    if (engineRef.current) {
+      engineRef.current.startSingleplayerCampaign(1, 1);
+      setIsPaused(false);
+      setIsGameOver(false);
+      setIsStageClear(false);
+      setStats({ ...engineRef.current.stats, isNewHighScore: false });
+      setMarioPower(engineRef.current.marioPower);
+    }
+  }, [multiplayerStatus.connected]);
+
   const handleOpenSmwWorldMap = useCallback(() => {
+    if (!canSwitchGameMode(getModePolicyInput())) {
+      setCheatToast('Troca de modo bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     if (multiplayerStatus.connected) {
       setCheatToast('Desconecte do multiplayer para explorar o Overworld (Beta V0.9)!');
       setTimeout(() => setCheatToast(''), 3500);
@@ -1691,9 +1798,14 @@ export const GameCanvas: React.FC = () => {
     if (engineRef.current) {
       engineRef.current.returnToSmwOverworldState();
     }
-  }, [multiplayerStatus.connected]);
+  }, [multiplayerStatus.connected, getModePolicyInput]);
 
   const handleOpenSmwLoadProgress = useCallback(() => {
+    if (!canSwitchGameMode(getModePolicyInput())) {
+      setCheatToast('Troca de modo bloqueada após iniciar a partida! Disponível apenas no Modo Desenvolvedor ou usando o Editor.');
+      setTimeout(() => setCheatToast(''), 3500);
+      return;
+    }
     if (multiplayerStatus.connected) {
       setCheatToast('Desconecte do multiplayer para carregar o Modo World!');
       setTimeout(() => setCheatToast(''), 3500);
@@ -1701,7 +1813,7 @@ export const GameCanvas: React.FC = () => {
     }
     handleOpenSmwWorldMap();
     setSmwOpenLoadSignal(prev => prev + 1);
-  }, [multiplayerStatus.connected, handleOpenSmwWorldMap]);
+  }, [multiplayerStatus.connected, handleOpenSmwWorldMap, getModePolicyInput]);
 
   const handleEnterSmwStage = useCallback(
     (nodeId: string) => {
@@ -2211,7 +2323,7 @@ export const GameCanvas: React.FC = () => {
                 <div className="mt-3 text-[10px] sm:text-[11px] text-amber-300/90 font-mono">
                   {smartTvMode
                     ? '[◀▶▼] Mover • [OK / ▲ / Vermelho] Pular • [Azul / 0] Correr/Fogo • [Voltar] Pausar'
-                    : '[Setas / WASD] Mover • [Espaço / Z] Pular • [Shift / X] Correr / Fogo'}
+                    : '[Setas / WASD] Mover • [Espaço / Z] Pular • [C / Q] Pulo Carpado • [Shift / X] Correr / Fogo'}
                 </div>
               </div>
 
@@ -2293,10 +2405,20 @@ export const GameCanvas: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  disabled={isModeAndEditorLocked}
                   onClick={openLevelEditor}
-                  className="px-5 py-2.5 rounded-lg bg-sky-900 hover:bg-sky-800 border border-sky-400/60 text-sky-200 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer"
+                  title={
+                    isModeAndEditorLocked
+                      ? 'Editor de Fases bloqueado após iniciar a partida (permitido no Modo Desenvolvedor ou usando o Editor)'
+                      : 'Abrir Editor de Fases'
+                  }
+                  className="px-5 py-2.5 rounded-lg bg-sky-900 hover:bg-sky-800 border border-sky-400/60 text-sky-200 disabled:opacity-45 disabled:hover:bg-sky-900 disabled:cursor-not-allowed font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Hammer className="w-3.5 h-3.5 text-sky-400" />
+                  {isModeAndEditorLocked ? (
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Hammer className="w-3.5 h-3.5 text-sky-400" />
+                  )}
                   EDITOR DE FASES
                 </button>
                 <button
@@ -2418,6 +2540,7 @@ export const GameCanvas: React.FC = () => {
             onDeleteSlot={handleDeleteSmwSlot}
             onDismissCastleSave={() => setSmwCastleSaveTitle(null)}
             onBackToMainMenu={handleReturnToMainMenu}
+            isReturnToMenuLocked={isModeAndEditorLocked}
           />
 
           {/* Multiplayer Winner Overlay (when any player loses all lives) */}
@@ -2647,7 +2770,7 @@ export const GameCanvas: React.FC = () => {
               <div className="flex flex-wrap gap-3 justify-center mt-2">
                 <button
                   type="button"
-                  onClick={isCustomLevelActive ? handleRestart : handleStartSingleplayer}
+                  onClick={isCustomLevelActive ? handleRestart : handleReplaySingleplayerVictory}
                   className="px-5 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white font-['Press_Start_2P',monospace] text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -2682,8 +2805,14 @@ export const GameCanvas: React.FC = () => {
             </div>
           )}
 
-          {/* Stage Clear & Multiplayer Waiting Banner */}
-          {isStageClear && !isCampaignVictory && !isMultiplayerMatchOver && (
+          {/* Stage Clear & Multiplayer Waiting Banner (kept clean during solo SMW Keyhole transition) */}
+          {isStageClear &&
+            !isCampaignVictory &&
+            !isMultiplayerMatchOver &&
+            (!isKeyholeTransition ||
+              waitingForPlayersFinish ||
+              allPlayersClearedReady ||
+              Boolean(stageArrivalNotice)) && (
             <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 px-5 py-3 bg-black/92 border-2 border-amber-400 rounded-xl text-center shadow-2xl max-w-[92%]">
               <span className="block font-['Press_Start_2P',monospace] text-amber-400 text-xs sm:text-base">
                 FASE CONCLUÍDA!
@@ -2827,11 +2956,20 @@ export const GameCanvas: React.FC = () => {
           {/* Editor de Fases (Memória Temporária) */}
           <button
             type="button"
+            disabled={isModeAndEditorLocked}
             onClick={openLevelEditor}
-            title="Editor de Fases (Memória Temporária)"
-            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-sky-600/50 text-sky-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+            title={
+              isModeAndEditorLocked
+                ? 'Editor de Fases bloqueado após iniciar a partida (permitido no Modo Desenvolvedor ou usando o Editor)'
+                : 'Editor de Fases (Memória Temporária)'
+            }
+            className="p-2 rounded-lg bg-stone-900 hover:bg-stone-800 border border-sky-600/50 text-sky-300 hover:text-white disabled:opacity-45 disabled:hover:bg-stone-900 disabled:hover:text-sky-300 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Hammer className="w-4 h-4 text-sky-400" />
+            {isModeAndEditorLocked ? (
+              <Lock className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Hammer className="w-4 h-4 text-sky-400" />
+            )}
             <span className="hidden sm:inline text-[11px] font-bold">Editor</span>
           </button>
 
@@ -2983,6 +3121,7 @@ export const GameCanvas: React.FC = () => {
         onToggleSmartTvJumpWithUp={toggleSmartTvJumpWithUp}
         smartTvAutoRun={smartTvAutoRun}
         onToggleSmartTvAutoRun={toggleSmartTvAutoRun}
+        isModeAndEditorLocked={isModeAndEditorLocked}
       />
 
       {/* Leaderboard / Placar Modal */}

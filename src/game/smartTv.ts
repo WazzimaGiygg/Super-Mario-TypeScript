@@ -9,6 +9,7 @@ export type TvRemoteAction =
   | 'up'
   | 'down'
   | 'jump'
+  | 'spinJump'
   | 'run'
   | 'pause'
   | 'back'
@@ -164,6 +165,19 @@ export function resolveTvRemoteAction(
     keyCode === 428 // ChannelDown
   ) {
     actions.add('jump');
+    shouldPreventDefault = true;
+  }
+
+  // --- 3b. Spin Jump / Pulo Carpado (Dedicated Key C / Q) ---
+  if (
+    code === 'KeyC' ||
+    code === 'KeyQ' ||
+    key === 'c' ||
+    key === 'C' ||
+    key === 'q' ||
+    key === 'Q'
+  ) {
+    actions.add('spinJump');
     shouldPreventDefault = true;
   }
 

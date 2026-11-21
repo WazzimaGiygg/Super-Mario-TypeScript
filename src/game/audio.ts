@@ -27,7 +27,7 @@ export class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.6;
   private musicEnabled: boolean = true;
-  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'starman' | 'none' = 'none';
+  private currentTrack: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'bonus' | 'starman' | 'none' = 'none';
 
   // Music sequence playback state
   private musicTimer: number | null = null;
@@ -101,6 +101,7 @@ export class SoundEngine {
       else if (this.currentTrack === 'underwater') this.playMusic('underwater');
       else if (this.currentTrack === 'castle') this.playMusic('castle');
       else if (this.currentTrack === 'ghost_house') this.playMusic('ghost_house');
+      else if (this.currentTrack === 'bonus') this.playMusic('bonus');
       else if (this.currentTrack === 'starman') this.playMusic('starman');
     }
     return this.musicEnabled;
@@ -111,6 +112,7 @@ export class SoundEngine {
       muted: this.isMuted,
       volume: this.volume,
       musicEnabled: this.musicEnabled,
+      currentTrack: this.currentTrack,
     };
   }
 
@@ -156,6 +158,51 @@ export class SoundEngine {
 
     osc.start(now);
     osc.stop(now + 0.22);
+  }
+
+  public playSpinJump() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.055);
+    osc.frequency.exponentialRampToValueAtTime(340, now + 0.11);
+    osc.frequency.exponentialRampToValueAtTime(840, now + 0.18);
+
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+
+  public playSpinBounce() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(480, now);
+    osc.frequency.exponentialRampToValueAtTime(980, now + 0.07);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.13);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.13);
   }
 
   public playSwim() {
@@ -580,6 +627,82 @@ export class SoundEngine {
     });
   }
 
+  public playKeyholeClear() {
+    this.stopMusic();
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Key lock-in click & golden chime (first ~0.2s)
+    const lockClick: Note[] = [
+      [N.E5, 0.045],
+      [N.G5, 0.045],
+      [N.C6, 0.09],
+    ];
+    let lockTime = now;
+    lockClick.forEach(([freq, dur]) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, lockTime);
+      gain.gain.setValueAtTime(0.24, lockTime);
+      gain.gain.linearRampToValueAtTime(0.01, lockTime + dur);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(lockTime);
+      osc.stop(lockTime + dur);
+      lockTime += dur + 0.01;
+    });
+
+    // 2. Authentic SMW Keyhole / Secret Exit fanfare lead + warm bass harmony
+    const lead: Note[] = [
+      [N.B4, 0.11], [N.C5, 0.11], [N.D5, 0.11], [N.E5, 0.24],
+      [N.REST, 0.06],
+      [N.D5, 0.11], [N.E5, 0.11], [N.F5, 0.11], [N.G5, 0.26],
+      [N.E5, 0.11], [N.D5, 0.11], [N.C5, 0.11], [N.D5, 0.14], [N.E5, 0.45],
+    ];
+    const bass: Note[] = [
+      [N.G3, 0.22], [N.B3, 0.35],
+      [N.REST, 0.06],
+      [N.G3, 0.22], [N.C4, 0.37],
+      [N.A3, 0.22], [N.G3, 0.25], [N.C4, 0.45],
+    ];
+
+    let leadTime = now + 0.18;
+    lead.forEach(([freq, dur]) => {
+      if (freq > 0) {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, leadTime);
+        gain.gain.setValueAtTime(0.28, leadTime);
+        gain.gain.linearRampToValueAtTime(0.012, leadTime + dur);
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(leadTime);
+        osc.stop(leadTime + dur);
+      }
+      leadTime += dur + 0.015;
+    });
+
+    let bassTime = now + 0.18;
+    bass.forEach(([freq, dur]) => {
+      if (freq > 0) {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, bassTime);
+        gain.gain.setValueAtTime(0.32, bassTime);
+        gain.gain.linearRampToValueAtTime(0.015, bassTime + dur);
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(bassTime);
+        osc.stop(bassTime + dur);
+      }
+      bassTime += dur + 0.015;
+    });
+  }
+
   public playCountTick() {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;
@@ -696,7 +819,7 @@ export class SoundEngine {
 
   // --- BACKGROUND MUSIC ENGINE ---
 
-  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'starman') {
+  public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'bonus' | 'starman') {
     this.currentTrack = track;
     this.musicPaused = false;
     if (!this.musicEnabled) return;
@@ -713,6 +836,8 @@ export class SoundEngine {
       this.initCastleMusic();
     } else if (track === 'ghost_house') {
       this.initGhostHouseMusic();
+    } else if (track === 'bonus') {
+      this.initBonusMusic();
     } else if (track === 'starman') {
       this.initStarmanMusic();
     }
@@ -924,6 +1049,52 @@ export class SoundEngine {
       [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S],
       [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S], [N.G3, S], [N.D4, S],
     ];
+    this.musicStep = 0;
+    this.playNextMusicSlice();
+  }
+
+  private initBonusMusic() {
+    // Cheerful, bouncy SMW Bonus Room & Switch Palace chiptune loop
+    const E = 0.16;
+    const Q = 0.32;
+
+    this.currentScore = [
+      // Phrase A: playful syncopated bounce in C Major
+      [N.G4, E], [N.E5, E], [N.D5, E], [N.C5, E],
+      [N.A4, E], [N.C5, E], [N.G4, Q],
+      [N.F4, E], [N.A4, E], [N.G4, E], [N.E4, E],
+      [N.D4, E], [N.G4, E], [N.G4, Q],
+
+      // Phrase B: ascending lift & turnaround
+      [N.G4, E], [N.E5, E], [N.D5, E], [N.C5, E],
+      [N.A4, E], [N.D5, E], [N.B4, Q],
+      [N.C5, E], [N.G4, E], [N.E4, E], [N.G4, E],
+      [N.C5, Q], [N.REST, Q],
+
+      // Bridge: bright carnival bounce before loop
+      [N.F5, E], [N.D5, E], [N.B4, E], [N.G4, E],
+      [N.E5, E], [N.C5, E], [N.G4, Q],
+      [N.D5, E], [N.B4, E], [N.G4, E], [N.B4, E],
+      [N.C5, E], [N.E5, E], [N.G5, Q],
+    ];
+
+    this.currentBass = [
+      [N.C3, E], [N.G3, E], [N.E3, E], [N.G3, E],
+      [N.F3, E], [N.C4, E], [N.C3, Q],
+      [N.F3, E], [N.C4, E], [N.C3, E], [N.G3, E],
+      [N.G2, E], [N.D3, E], [N.G3, Q],
+
+      [N.C3, E], [N.G3, E], [N.E3, E], [N.G3, E],
+      [N.D3, E], [N.A3, E], [N.G3, Q],
+      [N.C3, E], [N.G3, E], [N.G2, E], [N.G3, E],
+      [N.C3, Q], [N.G2, Q],
+
+      [N.G3, E], [N.D3, E], [N.G2, E], [N.D3, E],
+      [N.C3, E], [N.G3, E], [N.E3, Q],
+      [N.G2, E], [N.D3, E], [N.G3, E], [N.D3, E],
+      [N.C3, E], [N.G3, E], [N.C4, Q],
+    ];
+
     this.musicStep = 0;
     this.playNextMusicSlice();
   }
