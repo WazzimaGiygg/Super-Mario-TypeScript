@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GamepadControls } from '../game/types.ts';
+import { GamepadControls, ReservePowerItem } from '../game/types.ts';
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,6 +29,9 @@ interface TouchControlsProps {
   onControlChange: (key: keyof GamepadControls, active: boolean) => void;
   isPaused?: boolean;
   onTogglePause?: () => void;
+  onSelectAction?: () => void;
+  reservePowerUp?: ReservePowerItem | null;
+  canExitClearedWorldStage?: boolean;
   isMuted?: boolean;
   onToggleMute?: () => void;
   onRestart?: () => void;
@@ -53,6 +56,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onControlChange,
   isPaused = false,
   onTogglePause,
+  onSelectAction,
+  reservePowerUp = null,
+  canExitClearedWorldStage = false,
   isMuted = false,
   onToggleMute,
   onRestart,
@@ -695,6 +701,36 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               </button>
             )}
 
+            {onSelectAction && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(15);
+                  onSelectAction();
+                }}
+                aria-label="Botão Select"
+                title={
+                  reservePowerUp
+                    ? 'Select: Usar Power-Up da Carteira'
+                    : canExitClearedWorldStage
+                    ? 'Select: Sair da fase já passada (ou use Pausa + Select)'
+                    : 'Select: Usar Power-Up da Carteira (em jogo) / Sair de fase já passada no Modo World'
+                }
+                className={`px-1.5 py-0.5 rounded border font-['Press_Start_2P',monospace] text-[8px] flex items-center gap-1 cursor-pointer transition ${
+                  controls.select
+                    ? 'bg-amber-400 text-black border-amber-200 font-bold'
+                    : reservePowerUp
+                    ? 'bg-amber-500/45 border-amber-300/90 text-amber-100'
+                    : canExitClearedWorldStage
+                    ? 'bg-emerald-600/45 border-emerald-300/80 text-emerald-100'
+                    : 'bg-black/30 border-white/20 text-white/90'
+                }`}
+              >
+                {reservePowerUp && <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />}
+                <span>SELECT</span>
+              </button>
+            )}
+
             {onTogglePause && (
               <button
                 type="button"
@@ -1003,6 +1039,36 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
               className="p-1.5 rounded-md bg-stone-900 border border-stone-800 text-stone-300 hover:text-white"
             >
               {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 text-amber-400" />}
+            </button>
+          )}
+
+          {onSelectAction && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(15);
+                onSelectAction();
+              }}
+              aria-label="Botão Select"
+              title={
+                reservePowerUp
+                  ? 'Select (V / Tab): Soltar Power-Up da Carteira'
+                  : canExitClearedWorldStage
+                  ? 'Select (V / Tab): Sair da fase já passada no Modo World'
+                  : 'Select (V / Tab): Usar Power-Up da Carteira / Sair de fase já passada no Modo World'
+              }
+              className={`px-2.5 py-1 rounded-full border font-['Press_Start_2P',monospace] text-[9px] flex items-center gap-1.5 cursor-pointer transition ${
+                controls.select
+                  ? 'bg-amber-500 text-black border-amber-300 font-bold scale-95'
+                  : reservePowerUp
+                  ? 'bg-amber-950/90 border-amber-400 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
+                  : canExitClearedWorldStage
+                  ? 'bg-emerald-950/90 border-emerald-400/80 text-emerald-200 hover:bg-emerald-900'
+                  : 'bg-stone-900 border-stone-700 text-stone-300 hover:text-white hover:border-stone-500'
+              }`}
+            >
+              {reservePowerUp && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
+              <span>SELECT</span>
             </button>
           )}
 

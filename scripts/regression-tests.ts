@@ -62,6 +62,7 @@ function installHeadlessDomStubs() {
 installHeadlessDomStubs();
 
 import { GameEngine } from '../src/game/engine.ts';
+import { Goomba, KoopaTroopa, PiranhaPlant, Player, QuestionBlock, TileMap } from '../src/components/GameCanvas.tsx';
 import {
   isModeAndEditorLocked,
   canOpenLevelEditor,
@@ -107,6 +108,8 @@ import {
   deleteSmwSlot,
   applySmwSlotToProgress,
   resolveSmwDirectionalStep,
+  isSmwNodeCleared,
+  canExitSmwStageWithSelect,
   type SmwBetaProgress,
 } from '../src/game/smwWorldMap.ts';
 import { GAME_UPDATES } from '../src/components/UpdatesModal.tsx';
@@ -257,6 +260,580 @@ async function runPhysicsTests() {
     engine.controls.jump = true;
     engine.update(16.67);
     assert.ok(engine.marioVy < -2.0 && engine.marioVy > -3.2, `swim vy=${engine.marioVy}`);
+  });
+
+  await test('Classe Player em GameCanvas replica velocidade, gravidade e pulo originais do NES', () => {
+    const player = new Player(40, 192, 'small');
+    assert.equal(Player.WIDTH, 16);
+    assert.equal(Player.SMALL_HEIGHT, 16);
+    assert.equal(Player.BIG_HEIGHT, 30);
+    assert.equal(Player.WALK_MAX_SPEED, 2.0);
+    assert.equal(Player.RUN_MAX_SPEED, 3.4);
+    assert.equal(Player.GRAVITY_ASCENDING, 0.38);
+    assert.equal(Player.GRAVITY_DESCENDING, 0.62);
+    assert.equal(Player.WALK_JUMP_IMPULSE, -7.4);
+    assert.equal(Player.RUN_JUMP_IMPULSE, -8.4);
+
+    // 1. Settle on ground (y + height = 208)
+    for (let i = 0; i < 10; i++) {
+      player.update({}, { groundY: 208 });
+    }
+    assert.equal(player.grounded, true);
+    assert.equal(player.y, 192);
+    assert.equal(player.vy, 0);
+
+    // 2. Walk vs Run velocity & skidding/friction
+    for (let i = 0; i < 40; i++) {
+      player.update({ right: true, run: false }, { groundY: 208 });
+    }
+    assert.ok(player.vx > 1.8 && player.vx <= 2.01, `player walk vx=${player.vx}`);
+    assert.equal(player.state, 'running');
+
+    for (let i = 0; i < 40; i++) {
+      player.update({ right: true, run: true }, { groundY: 208 });
+    }
+    assert.ok(player.vx > 3.2 && player.vx <= 3.41, `player run vx=${player.vx}`);
+
+    // Skid on turnaround
+    player.update({ left: true, run: true }, { groundY: 208 });
+    assert.equal(player.state, 'skidding');
+
+    // Crisp stop on release
+    for (let i = 0; i < 30; i++) {
+      player.update({}, { groundY: 208 });
+    }
+    assert.equal(player.vx, 0);
+    assert.equal(player.state, 'idle');
+
+    // 3. Standing jump (-7.4 + 0.38), variable jump cut (-2.5 + 0.38), descending gravity (0.62), terminal velocity (7.0)
+    player.update({ jump: true }, { groundY: 208 });
+    assert.ok(Math.abs(player.vy - (-7.4 + 0.38)) < 1e-4, `player walk jump vy=${player.vy}`);
+    assert.equal(player.grounded, false);
+    assert.equal(player.state, 'jumping');
+
+    player.update({ jump: false }, { groundY: 208 });
+    assert.ok(Math.abs(player.vy - (-2.5 + 0.38)) < 1e-4, `player variable cut vy=${player.vy}`);
+
+    // Step until descending and verify 0.62 gravity
+    for (let i = 0; i < 10; i++) {
+      player.update({}, {});
+    }
+    assert.ok(player.vy > 0, `player should be descending vy=${player.vy}`);
+    const vyBefore = player.vy;
+    player.update({}, {});
+    assert.ok(Math.abs((player.vy - vyBefore) - 0.62) < 1e-4, `descending gravity step=${player.vy - vyBefore}`);
+
+    // Terminal velocity clamp
+    for (let i = 0; i < 30; i++) {
+      player.update({}, {});
+    }
+    assert.equal(player.vy, Player.MAX_FALL_SPEED);
+
+    // Land back on ground & verify running jump impulse (-8.4 + 0.38)
+    for (let i = 0; i < 50; i++) {
+      player.update({}, { groundY: 208 });
+    }
+    assert.equal(player.grounded, true);
+    player.update({ jump: true, run: true }, { groundY: 208 });
+    assert.ok(Math.abs(player.vy - (-8.4 + 0.38)) < 1e-4, `player run jump vy=${player.vy}`);
+
+    // 4. Sync with live GameEngine state
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    engine.controls.right = true;
+    stepEngine(engine, 12);
+    player.syncFromEngine(engine);
+    assert.equal(player.x, engine.marioX);
+    assert.equal(player.y, engine.marioY);
+    assert.equal(player.vx, engine.marioVx);
+    assert.equal(player.vy, engine.marioVy);
+    assert.equal(player.power, engine.marioPower);
+  });
+
+  await test('Sistema TileMap em GameCanvas carrega fases, renderiza blocos estáticos e resolve colisões com Player', () => {
+    const world = createWorld1_1();
+    const tileMap = new TileMap();
+    tileMap.loadLevel(world);
+    assert.equal(tileMap.width, world.width);
+    assert.equal(tileMap.height, world.height);
+    assert.equal(tileMap.tileSize, 16);
+
+    // 1. Verificação de solidez (chão, tijolo e [!] controlado por Switch)
+    assert.equal(tileMap.isSolidTile('ground'), true);
+    assert.equal(tileMap.isSolidTile('brick'), true);
+    assert.equal(tileMap.isSolidTile('exclam_yellow'), false);
+    tileMap.setSwitchStates({ yellow: true });
+    assert.equal(tileMap.isSolidTile('exclam_yellow'), true);
+
+    // 2. Renderização de blocos estáticos visíveis dentro da câmera sem erros
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d')!;
+    tileMap.render(ctx, 0, 256);
+
+    // 3. Colisão vertical (pouso no chão, batida no teto e revelação de bloco invisível)
+    const testLevel = createBlankCustomLevel('TILEMAP TEST', 'overworld', 30);
+    // Floor at row 13 (y = 208)
+    for (let tx = 0; tx < 30; tx++) {
+      testLevel.tiles[13][tx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    // Brick wall at tx=6, ty=12 (x=96..112, y=192..208)
+    testLevel.tiles[12][6] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    // Ceiling question block at tx=3, ty=9 (y=144..160)
+    testLevel.tiles[9][3] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+    // Hidden block at tx=4, ty=9 (y=144..160)
+    testLevel.tiles[9][4] = { type: 'question', content: '1up', bumpOffset: 0, bumpVel: 0, invisible: true };
+
+    const map = new TileMap(testLevel);
+    const p = new Player(48, 190, 'small');
+    p.vy = 4;
+    const landRes = map.resolvePlayerCollision(p);
+    assert.equal(landRes.landed, true);
+    assert.equal(p.grounded, true);
+    assert.equal(p.y, 13 * 16 - 16);
+
+    // Horizontal wall collision against tx=6
+    p.x = 78;
+    p.vx = 6;
+    p.vy = 0;
+    const wallRes = map.resolvePlayerCollision(p);
+    assert.equal(wallRes.hitWall, true);
+    assert.equal(p.vx, 0);
+    assert.equal(p.x, 6 * 16 - 15);
+
+    // Ceiling question block hit from below
+    p.x = 3 * 16;
+    p.y = 162;
+    p.vx = 0;
+    p.vy = -5;
+    let hitCount = 0;
+    const ceilRes = map.resolvePlayerCollision(p, {
+      onBlockHit: (hit) => {
+        hitCount++;
+        assert.equal(hit.tileX, 3);
+        assert.equal(hit.tileY, 9);
+      },
+    });
+    assert.equal(ceilRes.hitCeiling, true);
+    assert.equal(hitCount, 1);
+    assert.equal(p.y, 10 * 16);
+
+    // Hidden block reveal from below
+    p.x = 4 * 16;
+    p.y = 160;
+    p.vy = -4;
+    const hiddenRes = map.resolvePlayerCollision(p);
+    assert.equal(hiddenRes.revealedHiddenBlocks.length, 1);
+    assert.equal(map.getTileAt(4, 9)?.invisible, false);
+
+    // 4. Sincronização com GameEngine
+    const engine = createFreshEngine();
+    map.syncFromEngine(engine);
+    assert.equal(map.level, engine.level);
+    assert.equal(map.width, engine.level.width);
+  });
+
+  await test('Classe Goomba (GameCanvas.tsx): patrulha horizontal, colisão com canos e interação com Mario', () => {
+    const level = createBlankCustomLevel('GOOMBA TEST', 'overworld', 30);
+    // Floor at row 13 (y = 208)
+    for (let tx = 0; tx < 30; tx++) {
+      level.tiles[13][tx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    // Pipe at tx=10..11, ty=11..12 (x=160..192, y=176..208)
+    level.tiles[11][10] = { type: 'pipe_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[11][11] = { type: 'pipe_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][10] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][11] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    const map = new TileMap(level);
+
+    // 1. Patrulha para direita, pouso no chão e reversão ao bater no cano
+    const g = new Goomba(140, 192, Goomba.DEFAULT_SPEED, 1);
+    let sawPipeHit = false;
+    for (let i = 0; i < 20; i++) {
+      const res = g.update(map);
+      if (res.hitPipe) {
+        sawPipeHit = true;
+        assert.equal(res.turnedAround, true);
+        assert.equal(g.x, 10 * 16 - Goomba.WIDTH);
+        assert.ok(g.vx < 0);
+        assert.equal(g.facing, 'left');
+        break;
+      }
+    }
+    assert.equal(sawPipeHit, true);
+    assert.equal(g.grounded, true);
+    assert.equal(g.y, 13 * 16 - Goomba.HEIGHT);
+
+    // 2. Reversão no limite esquerdo do mundo
+    const leftGoomba = new Goomba(1, 192, -Goomba.DEFAULT_SPEED, 2);
+    let sawWorldBounce = false;
+    for (let i = 0; i < 10; i++) {
+      const res = leftGoomba.update(map);
+      if (res.hitWorldBound) {
+        sawWorldBounce = true;
+        assert.equal(leftGoomba.x, 0);
+        assert.ok(leftGoomba.vx > 0);
+        assert.equal(leftGoomba.facing, 'right');
+        break;
+      }
+    }
+    assert.equal(sawWorldBounce, true);
+
+    // 3. Colisão lateral fere Mario
+    const patrolGoomba = new Goomba(100, 192, -Goomba.DEFAULT_SPEED, 3);
+    const sideMario = new Player(90, 192, 'small');
+    sideMario.vy = 0;
+    assert.equal(patrolGoomba.checkPlayerCollision(sideMario), 'hurt_player');
+    assert.equal(patrolGoomba.alive, true);
+
+    // 4. Stomp de cima esmaga Goomba e aplica quique no Mario
+    const stompGoomba = new Goomba(100, 192, -Goomba.DEFAULT_SPEED, 4);
+    const stompMario = new Player(100, 181, 'small');
+    stompMario.vy = 4.5;
+    assert.equal(stompGoomba.checkPlayerCollision(stompMario), 'stomped');
+    assert.equal(stompGoomba.alive, false);
+    assert.equal(stompGoomba.state, 'squashed');
+    assert.equal(stompMario.vy, Goomba.STOMP_BOUNCE_VY);
+
+    // Timer de squashed até expirar
+    for (let i = 0; i < Goomba.SQUASH_DURATION; i++) {
+      stompGoomba.update(map);
+    }
+    assert.equal(stompGoomba.isExpired(), true);
+
+    // 5. Starman vira Goomba de ponta-cabeça e renderização headless sem erro
+    const starGoomba = new Goomba(100, 192, -Goomba.DEFAULT_SPEED, 5);
+    const starMario = new Player(96, 192, 'small');
+    starMario.starTimer = 120;
+    assert.equal(starGoomba.checkPlayerCollision(starMario), 'star_defeat');
+    assert.equal(starGoomba.state, 'flipped');
+    assert.equal(starGoomba.vy, Goomba.STAR_FLIP_VY);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    patrolGoomba.render(ctx, 0);
+    stompGoomba.render(ctx, 0);
+    starGoomba.render(ctx, 0);
+  });
+
+  await test('Classe QuestionBlock (GameCanvas.tsx): moedas, power-ups progressivos, bloco invisível e colisão por baixo', () => {
+    // 1. Bloco de moeda único: colisão por cima não ativa; colisão por baixo dispensa moeda e esgota
+    const coinBlock = new QuestionBlock(5, 9, 'coin'); // x=80, y=144, bottom=160
+    const fallingMario = new Player(80, 128, 'small');
+    fallingMario.vy = 3.0;
+    const topHit = coinBlock.checkPlayerBumpFromBelow(fallingMario);
+    assert.equal(topHit.bumped, false);
+    assert.equal(coinBlock.isEmpty(), false);
+
+    const bumpingMario = new Player(80, 158, 'small');
+    bumpingMario.vy = -4.5;
+    const coinHit = coinBlock.checkPlayerBumpFromBelow(bumpingMario);
+    assert.equal(coinHit.bumped, true);
+    assert.equal(coinHit.spawnedItem, 'coin');
+    assert.equal(coinHit.coinAwarded, true);
+    assert.equal(coinHit.depletedToEmpty, true);
+    assert.equal(coinBlock.type, 'question_empty');
+    assert.equal(coinBlock.isEmpty(), true);
+    assert.equal(bumpingMario.y, 160);
+    assert.equal(bumpingMario.vy, 0);
+
+    // Animação de quique sobe e retorna a 0 após alguns frames
+    coinBlock.update();
+    assert.ok(coinBlock.bumpOffset < 0);
+    for (let i = 0; i < 15; i++) {
+      coinBlock.update();
+    }
+    assert.equal(coinBlock.bumpOffset, 0);
+    assert.equal(coinBlock.bumpVel, 0);
+
+    // Segunda batida no bloco já vazio não dispensa novamente
+    bumpingMario.y = 158;
+    bumpingMario.vy = -4.5;
+    const emptyHit = coinBlock.checkPlayerBumpFromBelow(bumpingMario);
+    assert.equal(emptyHit.bumped, false);
+    assert.equal(emptyHit.spent, true);
+    assert.equal(emptyHit.spawnedItem, 'none');
+
+    // 2. Bloco multi-moedas mantém '?' até a última moeda
+    const multiCoinBlock = new QuestionBlock(6, 9, 'coin', { coinsLeft: 3 });
+    const r1 = multiCoinBlock.bumpFromBelow(new Player(96, 160, 'small'));
+    assert.equal(r1.bumped, true);
+    assert.equal(r1.spawnedItem, 'coin');
+    assert.equal(r1.depletedToEmpty, false);
+    assert.equal(multiCoinBlock.coinsLeft, 2);
+    assert.equal(multiCoinBlock.type, 'question');
+    for (let i = 0; i < 15; i++) multiCoinBlock.update();
+
+    const r2 = multiCoinBlock.bumpFromBelow();
+    assert.equal(r2.depletedToEmpty, false);
+    assert.equal(multiCoinBlock.coinsLeft, 1);
+    for (let i = 0; i < 15; i++) multiCoinBlock.update();
+
+    const r3 = multiCoinBlock.bumpFromBelow();
+    assert.equal(r3.depletedToEmpty, true);
+    assert.equal(multiCoinBlock.type, 'question_empty');
+    assert.equal(multiCoinBlock.isEmpty(), true);
+
+    // 3. Bloco de power-up progressivo ('mushroom'): Small -> 'mushroom', Super+ -> 'fireflower'
+    const smallPowerBlock = new QuestionBlock(7, 9, 'mushroom');
+    const smallMario = new Player(112, 158, 'small');
+    smallMario.vy = -4;
+    const smallRes = smallPowerBlock.checkPlayerBumpFromBelow(smallMario);
+    assert.equal(smallRes.bumped, true);
+    assert.equal(smallRes.spawnedItem, 'mushroom');
+    assert.equal(smallRes.coinAwarded, false);
+    assert.equal(smallPowerBlock.type, 'question_empty');
+
+    const superPowerBlock = new QuestionBlock(8, 9, 'mushroom');
+    const superMario = new Player(128, 158, 'super');
+    superMario.vy = -4;
+    const superRes = superPowerBlock.checkPlayerBumpFromBelow(superMario);
+    assert.equal(superRes.bumped, true);
+    assert.equal(superRes.spawnedItem, 'fireflower');
+    assert.equal(superPowerBlock.type, 'question_empty');
+
+    // Itens explícitos (Leaf, Feather, Star, 1UP)
+    assert.equal(new QuestionBlock(9, 9, 'leaf').bumpFromBelow(superMario).spawnedItem, 'leaf');
+    assert.equal(new QuestionBlock(10, 9, 'feather').bumpFromBelow(superMario).spawnedItem, 'feather');
+    assert.equal(new QuestionBlock(11, 9, 'star').bumpFromBelow(smallMario).spawnedItem, 'star');
+    assert.equal(new QuestionBlock(12, 9, '1up').bumpFromBelow(smallMario).spawnedItem, '1up');
+
+    // 4. Bloco oculto (invisible) é revelado ao ser batido por baixo
+    const hiddenBlock = new QuestionBlock(13, 9, '1up', { invisible: true });
+    assert.equal(hiddenBlock.isSolid(), false);
+    const hiddenMario = new Player(13 * 16, 158, 'small');
+    hiddenMario.vy = -4.2;
+    const hiddenRes = hiddenBlock.checkPlayerBumpFromBelow(hiddenMario);
+    assert.equal(hiddenRes.bumped, true);
+    assert.equal(hiddenRes.revealedInvisible, true);
+    assert.equal(hiddenRes.spawnedItem, '1up');
+    assert.equal(hiddenBlock.invisible, false);
+    assert.equal(hiddenBlock.isSolid(), true);
+
+    // 5. Integração com TileMap e renderização headless sem erro
+    const level = createBlankCustomLevel('QBLOCK TEST', 'overworld', 20);
+    level.tiles[9][4] = { type: 'question', content: 'mushroom', bumpOffset: 0, bumpVel: 0 };
+    const map = new TileMap(level);
+    const qBlocks = map.getQuestionBlocks();
+    assert.equal(qBlocks.length, 1);
+    assert.equal(qBlocks[0].tileX, 4);
+    assert.equal(qBlocks[0].content, 'mushroom');
+    const resMap = qBlocks[0].bumpFromBelow(smallMario);
+    assert.equal(resMap.spawnedItem, 'mushroom');
+    qBlocks[0].syncToTile(level.tiles[9][4]!);
+    assert.equal(level.tiles[9][4]!.type, 'question_empty');
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    coinBlock.render(ctx, 0);
+    multiCoinBlock.render(ctx, 0);
+    qBlocks[0].render(ctx, 0);
+  });
+
+  await test('Classe KoopaTroopa (GameCanvas.tsx): patrulha, quina do Red Koopa, casco deslizante, ricochete e despertar', () => {
+    const level = createBlankCustomLevel('KOOPA TEST', 'overworld', 30);
+    // Chão em row 13 (y = 208) com buraco em tx=16..17
+    for (let tx = 0; tx < 30; tx++) {
+      if (tx === 16 || tx === 17) {
+        level.tiles[13][tx] = null;
+        if (level.tiles[14]) level.tiles[14][tx] = null;
+        continue;
+      }
+      level.tiles[13][tx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    // Cano em tx=10..11, ty=11..12 (x=160..192, y=176..208)
+    level.tiles[11][10] = { type: 'pipe_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[11][11] = { type: 'pipe_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][10] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][11] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    // Parede à esquerda em tx=2, ty=11..12
+    level.tiles[11][2] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][2] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    const map = new TileMap(level);
+
+    // 1. Koopa Verde patrulha horizontal e reverte ao bater no cano
+    const green = new KoopaTroopa(138, 184, 'koopa', KoopaTroopa.GREEN_SPEED, 1);
+    let sawPipeTurn = false;
+    for (let i = 0; i < 20; i++) {
+      const res = green.update(map);
+      if (res.hitPipe) {
+        sawPipeTurn = true;
+        assert.equal(res.turnedAround, true);
+        assert.ok(green.vx < 0);
+        assert.equal(green.facing, 'left');
+        break;
+      }
+    }
+    assert.equal(sawPipeTurn, true);
+    assert.equal(green.grounded, true);
+    assert.equal(green.y, 13 * 16 - KoopaTroopa.WALK_HEIGHT);
+
+    // 2. Koopa Vermelho detecta quina de plataforma e retorna sem cair no buraco
+    const red = new KoopaTroopa(14 * 16, 184, 'red_koopa', KoopaTroopa.RED_SPEED, 2);
+    let sawLedgeTurn = false;
+    for (let i = 0; i < 30; i++) {
+      const res = red.update(map);
+      if (res.turnedAtLedge) {
+        sawLedgeTurn = true;
+        assert.ok(red.vx < 0);
+        assert.equal(red.facing, 'left');
+        break;
+      }
+    }
+    assert.equal(sawLedgeTurn, true);
+
+    // 3. Stomp de cima recolhe Koopa no casco ('shell_idle', altura 16) e aplica quique no Mario
+    const stompedKoopa = new KoopaTroopa(90, 184, 'koopa', -KoopaTroopa.GREEN_SPEED, 3);
+    const stompMario = new Player(90, 174, 'small');
+    stompMario.vy = 4.0;
+    assert.equal(stompedKoopa.checkPlayerCollision(stompMario), 'entered_shell');
+    assert.equal(stompedKoopa.state, 'shell_idle');
+    assert.equal(stompedKoopa.height, KoopaTroopa.SHELL_HEIGHT);
+    assert.equal(stompedKoopa.y, 192);
+    assert.equal(stompedKoopa.vx, 0);
+    assert.equal(stompMario.vy, KoopaTroopa.STOMP_BOUNCE_VY);
+
+    // 4. Chute lateral dispara casco deslizante ('shell_moving'), derrota Goomba, ricocheteia no cano e para ao ser pisado
+    const kickMario = new Player(78, 192, 'small');
+    kickMario.vy = 0;
+    assert.equal(stompedKoopa.checkPlayerCollision(kickMario), 'kicked_shell');
+    assert.equal(stompedKoopa.state, 'shell_moving');
+    assert.equal(stompedKoopa.vx, KoopaTroopa.SHELL_SLIDE_SPEED);
+
+    // Durante a janela de graça logo após o chute, não fere quem chutou
+    assert.equal(stompedKoopa.checkPlayerCollision(kickMario), 'none');
+
+    // Casco deslizando derrota Goomba no caminho e ricocheteia no cano
+    const victimGoomba = new Goomba(128, 192, -Goomba.DEFAULT_SPEED, 99);
+    let defeatedGoomba = false;
+    let shellRebounded = false;
+    for (let i = 0; i < 25; i++) {
+      const res = stompedKoopa.update(map);
+      const col = stompedKoopa.checkEnemyCollision(victimGoomba);
+      if (col.defeatedOther) defeatedGoomba = true;
+      if (res.hitPipe) {
+        shellRebounded = true;
+        assert.ok(stompedKoopa.vx < 0);
+        break;
+      }
+    }
+    assert.equal(defeatedGoomba, true);
+    assert.equal(victimGoomba.alive, false);
+    assert.equal(victimGoomba.state, 'flipped');
+    assert.equal(shellRebounded, true);
+
+    // Pisar no casco em movimento interrompe o deslize ('stopped_shell')
+    const stopMario = new Player(stompedKoopa.x, stompedKoopa.y - 11, 'small');
+    stopMario.vy = 4.0;
+    assert.equal(stompedKoopa.checkPlayerCollision(stopMario), 'stopped_shell');
+    assert.equal(stompedKoopa.state, 'shell_idle');
+    assert.equal(stompedKoopa.vx, 0);
+
+    // 5. Casco parado desperta ao expirar timer e volta a patrulhar
+    stompedKoopa.x = 64;
+    stompedKoopa.stateTimer = 2;
+    stompedKoopa.update(map);
+    const wakeRes = stompedKoopa.update(map, stompedKoopa.x + 32);
+    assert.equal(wakeRes.wokeUp, true);
+    assert.equal(stompedKoopa.state, 'walk');
+    assert.equal(stompedKoopa.height, KoopaTroopa.WALK_HEIGHT);
+    assert.ok(stompedKoopa.vx > 0);
+
+    // 6. Sincronização Enemy <-> KoopaTroopa e renderização headless
+    const synced = KoopaTroopa.fromEnemy(stompedKoopa.toEnemy());
+    assert.equal(synced.type, 'koopa');
+    assert.equal(synced.state, 'walk');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    green.render(ctx, 0);
+    red.render(ctx, 0);
+    synced.enterShell();
+    synced.render(ctx, 0);
+  });
+
+  await test('Classe PiranhaPlant (GameCanvas.tsx): emergência temporizada em canos verdes, proximidade e colisão', () => {
+    const level = createBlankCustomLevel('PIRANHA TEST', 'overworld', 25);
+    // Cano verde em tx=10..11, ty=11..12 (topo em y=176)
+    level.tiles[11][10] = { type: 'pipe_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[11][11] = { type: 'pipe_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][10] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[12][11] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    const map = new TileMap(level);
+    const maybePlant = PiranhaPlant.fromPipeTile(map, 10, 1);
+    assert.ok(maybePlant !== null, 'PiranhaPlant deve ancorar no topo do cano verde');
+    if (!maybePlant) {
+      throw new Error('PiranhaPlant deve ancorar no topo do cano verde');
+    }
+    const plant: PiranhaPlant = maybePlant;
+    assert.equal(plant.x, 10 * 16 + 8);
+    assert.equal(plant.pipeOriginY, 11 * 16);
+    assert.equal(plant.y, 176);
+    assert.equal(plant.isExposed(), false);
+    assert.equal(plant.getHitbox(), null);
+
+    // 1. Proximidade do Mario impede que a planta escondida saia do cano
+    const nearMario = new Player(plant.x - 10, plant.pipeOriginY - 16, 'small');
+    for (let i = 0; i < 20; i++) {
+      const updateRes = plant.update(nearMario);
+      assert.equal(updateRes.blockedByProximity, true);
+      assert.equal(plant.y, plant.pipeOriginY);
+      assert.equal(plant.isExposed(), false);
+    }
+
+    // 2. Com Mario afastado, planta emerge no intervalo temporizado e depois retrai
+    const freshPlant = new PiranhaPlant(168, 176, 2);
+    const farMario = new Player(40, 192, 'small');
+    for (let i = 0; i < 48; i++) {
+      freshPlant.update(farMario);
+    }
+    assert.equal(freshPlant.phase, 'emerging');
+    assert.equal(freshPlant.y, 176 - PiranhaPlant.MAX_RISE_HEIGHT);
+    assert.equal(freshPlant.isExposed(), true);
+    assert.ok(freshPlant.getHitbox() !== null);
+
+    // Continua ciclo até retrair completamente para dentro do cano
+    for (let i = 48; i < 120; i++) {
+      freshPlant.update(farMario);
+    }
+    assert.equal(freshPlant.y, freshPlant.pipeOriginY);
+    assert.equal(freshPlant.phase, 'hidden');
+    assert.equal(freshPlant.isExposed(), false);
+
+    // 3. Enquanto exposta, fere Mario normalmente, rebate Spin Jump e é derrotada por Starman
+    const exposedPlant = new PiranhaPlant(168, 176, 3);
+    exposedPlant.y = 152; // totalmente exposta
+
+    const stompAttemptMario = new Player(164, 144, 'small');
+    stompAttemptMario.vy = 2.0;
+    assert.equal(exposedPlant.checkPlayerCollision(stompAttemptMario), 'hurt_player');
+    assert.equal(exposedPlant.alive, true);
+
+    const spinMario = new Player(164, 144, 'small');
+    spinMario.vy = 2.0;
+    spinMario.isSpinJumping = true;
+    assert.equal(exposedPlant.checkPlayerCollision(spinMario), 'spin_bounce');
+    assert.equal(spinMario.vy, Goomba.SPIN_STOMP_BOUNCE_VY);
+    assert.equal(exposedPlant.alive, true);
+
+    const starMario = new Player(164, 144, 'small');
+    starMario.starTimer = 120;
+    assert.equal(exposedPlant.checkPlayerCollision(starMario), 'star_defeat');
+    assert.equal(exposedPlant.alive, false);
+    assert.equal(exposedPlant.state, 'flipped');
+
+    // 4. Sincronização Enemy <-> PiranhaPlant e renderização headless sem erro
+    const synced = PiranhaPlant.fromEnemy(freshPlant.toEnemy());
+    assert.equal(synced.type, 'piranha');
+    assert.equal(synced.pipeOriginY, 176);
+    synced.y = 156;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    synced.render(ctx, 0);
+    exposedPlant.render(ctx, 0);
   });
 }
 
@@ -3236,6 +3813,107 @@ async function runR116FixesTests() {
     assert.ok(mapSrc.includes('disabled={isReturnToMenuLocked}'));
     assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.ML.6'));
   });
+
+  await test('R1.19.SB.6: Botão Select usa Power-Up da carteira e sai apenas de fases já passadas no Modo World', () => {
+    // 1. Teclas V e Tab mapeiam para a ação 'select'
+    const keyV = resolveTvRemoteAction({ code: 'KeyV', key: 'v' }, { smartTvMode: false });
+    assert.equal(keyV.isSelect, true);
+    assert.ok(keyV.actions.includes('select'));
+
+    const keyTab = resolveTvRemoteAction({ code: 'Tab', key: 'Tab' }, { smartTvMode: false });
+    assert.equal(keyTab.isSelect, true);
+    assert.ok(keyTab.actions.includes('select'));
+
+    // 2. Pressionar Select durante o jogo solta o Power-Up armazenado na Carteira (Reserve Box)
+    const engine = createFreshEngine();
+    engine.enemies = [];
+    stepEngine(engine, 10);
+    engine.marioPower = 'fire';
+    engine.reservePowerUp = 'feather';
+    engine.stats.reservePowerUp = 'feather';
+
+    engine.controls.select = true;
+    engine.update(16.67);
+    assert.equal(engine.reservePowerUp, null);
+    assert.equal(engine.stats.reservePowerUp, null);
+    const released = engine.items.find(it => it.fromReserveBox && it.type === 'feather');
+    assert.ok(released, 'Select deve soltar o Power-Up armazenado na carteira');
+
+    // Segurar Select não solta repetidamente se outro item entrar até soltar e apertar de novo
+    engine.reservePowerUp = 'mushroom';
+    engine.stats.reservePowerUp = 'mushroom';
+    engine.update(16.67);
+    assert.equal(engine.reservePowerUp, 'mushroom');
+    engine.controls.select = false;
+    engine.update(16.67);
+    engine.controls.select = true;
+    engine.update(16.67);
+    assert.equal(engine.reservePowerUp, null);
+
+    // 3. No Modo World, Select permite sair apenas de fases já passadas (normal ou saída secreta)
+    const freshProgress = loadSmwBetaProgress();
+    assert.equal(isSmwNodeCleared('wiki-1-overworld', freshProgress), false);
+    assert.equal(
+      canExitSmwStageWithSelect({
+        isSmwModeActive: true,
+        activeNodeId: 'wiki-1-overworld',
+        progress: freshProgress,
+      }),
+      false
+    );
+
+    const normalCleared: SmwBetaProgress = {
+      ...freshProgress,
+      clearedNodeIds: ['wiki-1-overworld'],
+    };
+    assert.equal(isSmwNodeCleared('wiki-1-overworld', normalCleared), true);
+    assert.equal(
+      canExitSmwStageWithSelect({
+        isSmwModeActive: true,
+        activeNodeId: 'wiki-1-overworld',
+        progress: normalCleared,
+      }),
+      true
+    );
+    assert.equal(
+      canExitSmwStageWithSelect({
+        isSmwModeActive: true,
+        activeNodeId: 'wiki-2-caverna',
+        progress: normalCleared,
+      }),
+      false
+    );
+    assert.equal(
+      canExitSmwStageWithSelect({
+        isSmwModeActive: false,
+        activeNodeId: 'wiki-1-overworld',
+        progress: normalCleared,
+      }),
+      false
+    );
+
+    const secretCleared: SmwBetaProgress = {
+      ...freshProgress,
+      secretClearedNodeIds: ['wiki-1-overworld'],
+    };
+    assert.equal(
+      canExitSmwStageWithSelect({
+        isSmwModeActive: true,
+        activeNodeId: 'wiki-1-overworld',
+        progress: secretCleared,
+      }),
+      true
+    );
+
+    // 4. Verificação de UI nos componentes (TouchControls, GameCanvas e UpdatesModal)
+    const touchSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/TouchControls.tsx'), 'utf8');
+    const canvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    assert.ok(touchSrc.includes('aria-label="Botão Select"'));
+    assert.ok(touchSrc.includes('onSelectAction'));
+    assert.ok(canvasSrc.includes('handleSelectAction'));
+    assert.ok(canvasSrc.includes('canExitSmwStageWithSelect'));
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.SB.6'));
+  });
 }
 
 async function main() {
@@ -3252,7 +3930,11 @@ async function main() {
   console.log(`\nResultado final: ${passed} testes aprovados, 0 falhas.`);
 }
 
-main().catch((err) => {
-  console.error('\n[FAIL] Erro na suíte de regressão:', err);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error('\n[FAIL] Erro na suíte de regressão:', err);
+    process.exit(1);
+  });

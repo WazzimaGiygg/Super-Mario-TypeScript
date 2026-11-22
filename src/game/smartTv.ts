@@ -11,6 +11,7 @@ export type TvRemoteAction =
   | 'jump'
   | 'spinJump'
   | 'run'
+  | 'select'
   | 'pause'
   | 'back'
   | 'confirm'
@@ -36,6 +37,7 @@ export interface TvRemoteResolution {
   isConfirm: boolean;
   isBack: boolean;
   isPause: boolean;
+  isSelect: boolean;
   isInfo: boolean;
 }
 
@@ -218,6 +220,18 @@ export function resolveTvRemoteAction(
     shouldPreventDefault = true;
   }
 
+  // --- 4b. Select (Reserve Box power-up drop / Exit cleared World stage when paused) ---
+  if (
+    code === 'KeyV' ||
+    code === 'Tab' ||
+    key === 'v' ||
+    key === 'V' ||
+    key === 'Tab'
+  ) {
+    actions.add('select');
+    shouldPreventDefault = true;
+  }
+
   // --- 5. Pause / Media Play-Pause ---
   if (
     code === 'Escape' ||
@@ -294,6 +308,7 @@ export function resolveTvRemoteAction(
     isConfirm: actions.has('confirm'),
     isBack: actions.has('back'),
     isPause: actions.has('pause'),
+    isSelect: actions.has('select'),
     isInfo: actions.has('info'),
   };
 }

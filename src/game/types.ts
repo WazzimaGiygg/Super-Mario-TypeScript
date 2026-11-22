@@ -395,6 +395,7 @@ export interface GamepadControls {
   jump: boolean;
   run: boolean;
   spinJump?: boolean;
+  select?: boolean;
   pause: boolean;
 }
 

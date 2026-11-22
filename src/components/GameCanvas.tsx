@@ -16,8 +16,9 @@ import { UpdatesModal, UpdatesModalFilter } from './UpdatesModal.tsx';
 import { AchievementsModal } from './AchievementsModal.tsx';
 import { SmwOverworldMap } from './SmwOverworldMap.tsx';
 import { multiplayerClient } from '../game/multiplayer.ts';
+import { SpriteAtlas } from '../game/sprites.ts';
 import { SoundEngine } from '../game/audio.ts';
-import { GamepadControls, GameStats, LevelData, MarioPower, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent, SmwSwitchColor } from '../game/types.ts';
+import { BlockTile, Enemy, GamepadControls, GameStats, ItemContent, LevelData, MarioPower, MarioState, Rect, TileType, GameDifficulty, ResolutionScale, MultiplayerMatchResult, MultiplayerLogoffEvent, SmwSwitchColor } from '../game/types.ts';
 import {
   AchievementManager,
   AchievementProgressView,
@@ -37,6 +38,7 @@ import {
   saveSmwToSlot,
   deleteSmwSlot,
   applySmwSlotToProgress,
+  canExitSmwStageWithSelect,
 } from '../game/smwWorldMap.ts';
 import { getTopScore } from '../game/scoreboard.ts';
 import {
@@ -57,10 +59,2343 @@ import {
 } from '../game/modePolicy.ts';
 import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen, Lock } from 'lucide-react';
 
+export interface PlayerPhysicsStepOptions {
+  isUnderwater?: boolean;
+  groundY?: number;
+}
+
+/**
+ * Core Player physics model matching the original NES Super Mario Bros.
+ * movement velocity, skidding, friction, split ascending/descending gravity,
+ * and variable-height jumping impulses.
+ */
+export class Player {
+  // NES Sprite Hitbox Dimensions (16px tile scale)
+  public static readonly WIDTH = 16;
+  public static readonly SMALL_HEIGHT = 16;
+  public static readonly BIG_HEIGHT = 30;
+  public static readonly CROUCH_HEIGHT = 20;
+
+  // Horizontal Movement Constants (NES-calibrated px/frame at 60 FPS)
+  public static readonly WALK_MAX_SPEED = 2.0;
+  public static readonly RUN_MAX_SPEED = 3.4;
+  public static readonly WALK_ACCEL = 0.16;
+  public static readonly RUN_ACCEL = 0.22;
+  public static readonly SKID_DECEL = 0.45;
+  public static readonly GROUND_FRICTION = 0.72;
+  public static readonly AIR_FRICTION = 0.90;
+  public static readonly STOP_THRESHOLD = 0.25;
+  public static readonly CROUCH_BRAKE_FACTOR = 0.5;
+  public static readonly STAR_SPEED_BOOST = 1.15;
+
+  // Jumping & Gravity Constants (NES variable jump + split arc gravity)
+  public static readonly WALK_JUMP_IMPULSE = -7.4;
+  public static readonly RUN_JUMP_IMPULSE = -8.4;
+  public static readonly SPIN_WALK_IMPULSE = -6.8;
+  public static readonly SPIN_RUN_IMPULSE = -7.6;
+  public static readonly VARIABLE_JUMP_CUT_VY = -2.5;
+  public static readonly GRAVITY_ASCENDING = 0.38;
+  public static readonly GRAVITY_DESCENDING = 0.62;
+  public static readonly MAX_FALL_SPEED = 7.0;
+
+  // Power-Up Glide & Underwater Physics Constants
+  public static readonly TANOOKI_GLIDE_MAX_VY = 1.15;
+  public static readonly TANOOKI_GLIDE_GRAVITY = 0.08;
+  public static readonly CAPE_GLIDE_MAX_VY = 0.85;
+  public static readonly CAPE_GLIDE_GRAVITY = 0.05;
+  public static readonly CAPE_DIVE_ACCEL = 0.22;
+  public static readonly UNDERWATER_WALK_MAX_SPEED = 1.55;
+  public static readonly UNDERWATER_RUN_MAX_SPEED = 2.2;
+  public static readonly UNDERWATER_ACCEL = 0.13;
+  public static readonly UNDERWATER_SKID_DECEL = 0.25;
+  public static readonly UNDERWATER_GROUND_FRICTION = 0.78;
+  public static readonly UNDERWATER_AIR_FRICTION = 0.92;
+  public static readonly UNDERWATER_SWIM_IMPULSE = -2.55;
+  public static readonly UNDERWATER_RUN_SWIM_IMPULSE = -2.9;
+  public static readonly UNDERWATER_GRAVITY = 0.085;
+  public static readonly UNDERWATER_MAX_FALL = 1.65;
+  public static readonly UNDERWATER_SWIM_HELD_MAX_FALL = 1.1;
+
+  public x: number;
+  public y: number;
+  public vx: number = 0;
+  public vy: number = 0;
+  public power: MarioPower;
+  public state: MarioState = 'idle';
+  public facing: 'left' | 'right' = 'right';
+  public grounded: boolean = false;
+  public isSpinJumping: boolean = false;
+  public spinJumpTimer: number = 0;
+  public isFluttering: boolean = false;
+  public isStatue: boolean = false;
+  public starTimer: number = 0;
+  public tailWhipTimer: number = 0;
+  public animFrame: number = 0;
+  public animTimer: number = 0;
+  public prevJumpHeld: boolean = false;
+  public prevSpinHeld: boolean = false;
+
+  constructor(x: number = 40, y: number = 192, power: MarioPower = 'small') {
+    this.x = x;
+    this.y = y;
+    this.power = power;
+  }
+
+  public getHeight(): number {
+    if (this.power === 'small') return Player.SMALL_HEIGHT;
+    if (this.state === 'crouching') return Player.CROUCH_HEIGHT;
+    return Player.BIG_HEIGHT;
+  }
+
+  public getHitbox(): Rect {
+    return {
+      x: this.x + 2,
+      y: this.y,
+      width: Player.WIDTH - 4,
+      height: this.getHeight(),
+    };
+  }
+
+  public reset(x: number = 40, y: number = 192, power: MarioPower = 'small'): void {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.power = power;
+    this.state = 'idle';
+    this.facing = 'right';
+    this.grounded = false;
+    this.isSpinJumping = false;
+    this.spinJumpTimer = 0;
+    this.isFluttering = false;
+    this.isStatue = false;
+    this.starTimer = 0;
+    this.tailWhipTimer = 0;
+    this.animFrame = 0;
+    this.animTimer = 0;
+    this.prevJumpHeld = false;
+    this.prevSpinHeld = false;
+  }
+
+  public applyHorizontalVelocity(
+    controls: Partial<GamepadControls>,
+    options: PlayerPhysicsStepOptions = {}
+  ): void {
+    const isUnderwater = Boolean(options.isUnderwater);
+    const isRunning = Boolean(controls.run);
+    const starBoost = this.starTimer > 0 ? Player.STAR_SPEED_BOOST : 1;
+    const maxSpeed =
+      (isUnderwater
+        ? isRunning
+          ? Player.UNDERWATER_RUN_MAX_SPEED
+          : Player.UNDERWATER_WALK_MAX_SPEED
+        : isRunning
+        ? Player.RUN_MAX_SPEED
+        : Player.WALK_MAX_SPEED) * starBoost;
+    const accel = isUnderwater
+      ? Player.UNDERWATER_ACCEL
+      : isRunning
+      ? Player.RUN_ACCEL
+      : Player.WALK_ACCEL;
+    const skidDecel = isUnderwater ? Player.UNDERWATER_SKID_DECEL : Player.SKID_DECEL;
+    const friction = isUnderwater
+      ? this.grounded
+        ? Player.UNDERWATER_GROUND_FRICTION
+        : Player.UNDERWATER_AIR_FRICTION
+      : this.grounded
+      ? Player.GROUND_FRICTION
+      : Player.AIR_FRICTION;
+
+    this.isStatue = this.power === 'tanooki' && Boolean(controls.down) && this.grounded;
+
+    if (!this.isStatue && controls.left && !controls.right) {
+      this.facing = 'left';
+      if (this.vx > 0.3) {
+        this.vx -= skidDecel;
+        this.state = 'skidding';
+      } else {
+        this.vx -= accel;
+        if (this.vx < -maxSpeed) this.vx = -maxSpeed;
+        if (this.tailWhipTimer <= 0) this.state = 'running';
+      }
+    } else if (!this.isStatue && controls.right && !controls.left) {
+      this.facing = 'right';
+      if (this.vx < -0.3) {
+        this.vx += skidDecel;
+        this.state = 'skidding';
+      } else {
+        this.vx += accel;
+        if (this.vx > maxSpeed) this.vx = maxSpeed;
+        if (this.tailWhipTimer <= 0) this.state = 'running';
+      }
+    } else {
+      this.vx *= friction;
+      if (Math.abs(this.vx) < Player.STOP_THRESHOLD) {
+        this.vx = 0;
+        if (this.grounded && this.tailWhipTimer <= 0) {
+          this.state = 'idle';
+        }
+      }
+    }
+
+    const isCrouching = Boolean(controls.down) && this.grounded && this.power !== 'small';
+    if (isCrouching) {
+      this.state = 'crouching';
+      this.vx *= Player.CROUCH_BRAKE_FACTOR;
+      if (Math.abs(this.vx) < 0.2) this.vx = 0;
+    }
+  }
+
+  public applyJumpAndGravity(
+    controls: Partial<GamepadControls>,
+    options: PlayerPhysicsStepOptions = {}
+  ): void {
+    const isUnderwater = Boolean(options.isUnderwater);
+    const isRunning = Boolean(controls.run);
+    const jumpHeld = Boolean(controls.jump);
+    const spinHeld = Boolean(controls.spinJump);
+    const jumpPressed = jumpHeld && !this.prevJumpHeld;
+    const spinPressed = spinHeld && !this.prevSpinHeld;
+    const jumpMult = this.power === 'femboy' ? Math.SQRT2 : 1;
+
+    if (isUnderwater) {
+      this.isSpinJumping = false;
+      this.spinJumpTimer = 0;
+      this.isFluttering = false;
+
+      if ((jumpPressed || spinPressed) && !this.isStatue) {
+        this.vy =
+          (isRunning ? Player.UNDERWATER_RUN_SWIM_IMPULSE : Player.UNDERWATER_SWIM_IMPULSE) *
+          jumpMult;
+        this.grounded = false;
+        this.state = 'jumping';
+      }
+
+      this.vy += Player.UNDERWATER_GRAVITY;
+      const maxUnderwaterFall =
+        jumpHeld || spinHeld
+          ? Player.UNDERWATER_SWIM_HELD_MAX_FALL
+          : Player.UNDERWATER_MAX_FALL;
+      if (this.vy > maxUnderwaterFall) {
+        this.vy = maxUnderwaterFall;
+      }
+    } else {
+      if (spinPressed && this.grounded && !this.isStatue) {
+        const capeLaunchMult =
+          this.power === 'cape' && Math.abs(this.vx) >= 2.5 ? 1.08 : 1;
+        this.vy =
+          (isRunning ? Player.SPIN_RUN_IMPULSE : Player.SPIN_WALK_IMPULSE) *
+          jumpMult *
+          capeLaunchMult;
+        this.grounded = false;
+        this.state = 'jumping';
+        this.isSpinJumping = true;
+        this.spinJumpTimer = 0;
+      } else if (jumpPressed && this.grounded && !this.isStatue) {
+        const capeLaunchMult =
+          this.power === 'cape' && Math.abs(this.vx) >= 2.5 ? 1.12 : 1;
+        this.vy =
+          (isRunning ? Player.RUN_JUMP_IMPULSE : Player.WALK_JUMP_IMPULSE) *
+          jumpMult *
+          capeLaunchMult;
+        this.grounded = false;
+        this.state = 'jumping';
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
+      }
+
+      if (!this.grounded && this.isSpinJumping) {
+        this.spinJumpTimer++;
+      }
+
+      this.isFluttering = false;
+      if (!this.isSpinJumping && this.power === 'cape' && !this.grounded && jumpHeld && this.vy > 0.25) {
+        this.isFluttering = true;
+        this.vy = Math.min(this.vy, Player.CAPE_GLIDE_MAX_VY);
+      } else if (
+        !this.isSpinJumping &&
+        this.power === 'tanooki' &&
+        !this.grounded &&
+        jumpHeld &&
+        this.vy > 0.5
+      ) {
+        this.isFluttering = true;
+        this.vy = Math.min(this.vy, Player.TANOOKI_GLIDE_MAX_VY);
+      } else if (this.power === 'cape' && !this.grounded && controls.down) {
+        this.vy = Math.min(Player.MAX_FALL_SPEED, this.vy + Player.CAPE_DIVE_ACCEL);
+      }
+
+      // Variable jump height cut when jump/spin button is released early
+      if (!jumpHeld && !spinHeld && this.vy < Player.VARIABLE_JUMP_CUT_VY) {
+        this.vy = Player.VARIABLE_JUMP_CUT_VY;
+      }
+
+      const glideGravity =
+        this.power === 'cape' ? Player.CAPE_GLIDE_GRAVITY : Player.TANOOKI_GLIDE_GRAVITY;
+      const gravity = this.isFluttering
+        ? glideGravity
+        : this.vy < 0
+        ? Player.GRAVITY_ASCENDING
+        : Player.GRAVITY_DESCENDING;
+
+      this.vy += gravity;
+      if (this.vy > Player.MAX_FALL_SPEED) {
+        this.vy = Player.MAX_FALL_SPEED;
+      }
+    }
+
+    this.prevJumpHeld = jumpHeld;
+    this.prevSpinHeld = spinHeld;
+  }
+
+  public update(
+    controls: Partial<GamepadControls>,
+    options: PlayerPhysicsStepOptions = {}
+  ): void {
+    this.applyHorizontalVelocity(controls, options);
+    this.applyJumpAndGravity(controls, options);
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (options.groundY !== undefined) {
+      const floorTop = options.groundY - this.getHeight();
+      if (this.y >= floorTop && this.vy >= 0) {
+        this.y = floorTop;
+        this.vy = 0;
+        this.grounded = true;
+        this.isSpinJumping = false;
+        this.spinJumpTimer = 0;
+        this.isFluttering = false;
+      } else if (this.y < floorTop) {
+        this.grounded = false;
+      }
+    }
+
+    if (this.grounded) {
+      if (Math.abs(this.vx) > 0.1) {
+        const frameInterval = controls.run ? 4 : 7;
+        this.animTimer++;
+        if (this.animTimer >= frameInterval) {
+          this.animTimer = 0;
+          this.animFrame = (this.animFrame + 1) % 3;
+        }
+      } else {
+        this.animFrame = 0;
+        this.animTimer = 0;
+      }
+      if (
+        this.state !== 'crouching' &&
+        this.state !== 'skidding' &&
+        this.tailWhipTimer <= 0
+      ) {
+        this.state = Math.abs(this.vx) > 0.1 ? 'running' : 'idle';
+      }
+    } else if (this.tailWhipTimer <= 0) {
+      this.state = this.vy < 0 ? 'jumping' : 'falling';
+    }
+  }
+
+  public syncFromEngine(engine: GameEngine): void {
+    this.x = engine.marioX;
+    this.y = engine.marioY;
+    this.vx = engine.marioVx;
+    this.vy = engine.marioVy;
+    this.power = engine.marioPower;
+    this.state = engine.marioState;
+    this.facing = engine.marioFacing;
+    this.grounded = engine.marioGrounded;
+    this.isSpinJumping = engine.isSpinJumping;
+    this.spinJumpTimer = engine.spinJumpTimer;
+    this.isFluttering = engine.isFluttering;
+    this.isStatue = engine.isStatue;
+    this.starTimer = engine.marioStarTimer;
+    this.tailWhipTimer = engine.tailWhipTimer;
+    this.animFrame = engine.marioAnimFrame;
+    this.animTimer = engine.marioAnimTimer;
+    this.prevJumpHeld = Boolean(engine.controls.jump);
+    this.prevSpinHeld = Boolean(engine.controls.spinJump);
+  }
+}
+
+export interface TileHitInfo {
+  tileX: number;
+  tileY: number;
+  tile: BlockTile;
+}
+
+export interface TileMapCollisionResult {
+  hitWall: boolean;
+  landed: boolean;
+  hitCeiling: boolean;
+  collidedTiles: TileHitInfo[];
+  revealedHiddenBlocks: TileHitInfo[];
+}
+
+export interface TileMapSwitchState {
+  yellow?: boolean;
+  green?: boolean;
+  red?: boolean;
+  pink?: boolean;
+  blue?: boolean;
+}
+
+/**
+ * TileMap system managing level tile loading, visibility-culled static block
+ * rendering via SpriteAtlas, and horizontal/vertical AABB collision detection
+ * between Mario (Player) and the environment.
+ */
+export class TileMap {
+  public static readonly DEFAULT_TILE_SIZE = 16;
+
+  public level: LevelData | null = null;
+  public width: number = 0;
+  public height: number = 0;
+  public tileSize: number;
+  public tiles: (BlockTile | null)[][] = [];
+  public switchStates: Record<SmwSwitchColor, boolean> = {
+    yellow: false,
+    green: false,
+    red: false,
+    pink: false,
+    blue: false,
+  };
+  private atlas: SpriteAtlas | null = null;
+
+  constructor(level?: LevelData, tileSize: number = TileMap.DEFAULT_TILE_SIZE) {
+    this.tileSize = tileSize;
+    if (level) {
+      this.loadLevel(level);
+    }
+  }
+
+  public loadLevel(level: LevelData, cloneTiles: boolean = true): void {
+    this.level = level;
+    this.width = level.width;
+    this.height = level.height;
+    this.tiles = cloneTiles
+      ? level.tiles.map(row =>
+          row.map(cell => (cell ? { ...cell } : null))
+        )
+      : level.tiles;
+  }
+
+  public setSwitchStates(states: TileMapSwitchState): void {
+    if (states.yellow !== undefined) this.switchStates.yellow = states.yellow;
+    if (states.green !== undefined) this.switchStates.green = states.green;
+    if (states.red !== undefined) this.switchStates.red = states.red;
+    if (states.pink !== undefined) this.switchStates.pink = states.pink;
+    if (states.blue !== undefined) this.switchStates.blue = states.blue;
+  }
+
+  public getTileAt(tx: number, ty: number): BlockTile | null {
+    if (ty < 0 || ty >= this.height || tx < 0 || tx >= this.width) {
+      return null;
+    }
+    return this.tiles[ty]?.[tx] ?? null;
+  }
+
+  public setTileAt(tx: number, ty: number, tile: BlockTile | null): boolean {
+    if (ty < 0 || ty >= this.height || tx < 0 || tx >= this.width) {
+      return false;
+    }
+    if (!this.tiles[ty]) return false;
+    this.tiles[ty][tx] = tile;
+    return true;
+  }
+
+  public isSolidTile(type: TileType): boolean {
+    if (
+      type === 'ground' ||
+      type === 'brick' ||
+      type === 'question' ||
+      type === 'question_empty' ||
+      type === 'hard_block' ||
+      type === 'pipe_top_left' ||
+      type === 'pipe_top_right' ||
+      type === 'pipe_body_left' ||
+      type === 'pipe_body_right' ||
+      type === 'pipe_warp_top_left' ||
+      type === 'pipe_warp_top_right' ||
+      type === 'pipe_horiz_top' ||
+      type === 'pipe_horiz_bottom' ||
+      type === 'underground_ground' ||
+      type === 'underground_brick' ||
+      type === 'coral' ||
+      type === 'sea_ground' ||
+      type === 'bridge' ||
+      type === 'castle_stone' ||
+      type === 'ghost_floor' ||
+      type === 'ghost_brick' ||
+      type === 'bonus_block' ||
+      type === 'yellow_switch' ||
+      type === 'yellow_switch_pressed' ||
+      type === 'green_switch' ||
+      type === 'green_switch_pressed' ||
+      type === 'red_switch' ||
+      type === 'red_switch_pressed' ||
+      type === 'pink_switch' ||
+      type === 'pink_switch_pressed' ||
+      type === 'blue_switch' ||
+      type === 'blue_switch_pressed'
+    ) {
+      return true;
+    }
+    if (type === 'exclam_yellow') return this.switchStates.yellow;
+    if (type === 'exclam_green') return this.switchStates.green;
+    if (type === 'exclam_red') return this.switchStates.red;
+    if (type === 'exclam_pink') return this.switchStates.pink;
+    if (type === 'exclam_blue') return this.switchStates.blue;
+    return false;
+  }
+
+  public getTilesIntersecting(rect: Rect): TileHitInfo[] {
+    const hits: TileHitInfo[] = [];
+    const minTX = Math.floor(rect.x / this.tileSize);
+    const maxTX = Math.floor((rect.x + rect.width - 0.01) / this.tileSize);
+    const minTY = Math.floor(rect.y / this.tileSize);
+    const maxTY = Math.floor((rect.y + rect.height - 0.01) / this.tileSize);
+
+    for (let ty = minTY; ty <= maxTY; ty++) {
+      if (ty < 0 || ty >= this.height) continue;
+      for (let tx = minTX; tx <= maxTX; tx++) {
+        if (tx < 0 || tx >= this.width) continue;
+        const tile = this.tiles[ty]?.[tx];
+        if (tile && (!tile.invisible || tile.bumpOffset !== 0)) {
+          hits.push({ tileX: tx, tileY: ty, tile });
+        }
+      }
+    }
+    return hits;
+  }
+
+  public resolvePlayerCollision(
+    player: Player,
+    callbacks?: {
+      onBlockHit?: (hit: TileHitInfo) => void;
+    }
+  ): TileMapCollisionResult {
+    const result: TileMapCollisionResult = {
+      hitWall: false,
+      landed: false,
+      hitCeiling: false,
+      collidedTiles: [],
+      revealedHiddenBlocks: [],
+    };
+    if (this.width <= 0 || this.height <= 0) return result;
+
+    const collisionWidth = 14;
+    const height = player.getHeight();
+
+    // 1. Horizontal movement + level bounds clamp + wall collision
+    player.x += player.vx;
+    if (player.x < 0) {
+      player.x = 0;
+      player.vx = 0;
+      result.hitWall = true;
+    }
+    const maxPlayerX = this.width * this.tileSize - Player.WIDTH;
+    if (player.x > maxPlayerX) {
+      player.x = maxPlayerX;
+      player.vx = 0;
+      result.hitWall = true;
+    }
+
+    const horizBox: Rect = {
+      x: player.x + 1,
+      y: player.y,
+      width: collisionWidth,
+      height: height - 2,
+    };
+    for (const hit of this.getTilesIntersecting(horizBox)) {
+      if (this.isSolidTile(hit.tile.type)) {
+        if (player.vx > 0) {
+          player.x = hit.tileX * this.tileSize - (collisionWidth + 1);
+        } else if (player.vx < 0) {
+          player.x = (hit.tileX + 1) * this.tileSize - 1;
+        }
+        player.vx = 0;
+        result.hitWall = true;
+        result.collidedTiles.push(hit);
+        break;
+      }
+    }
+
+    // 2. Vertical movement + hidden block reveal + floor/ceiling collision
+    const prevY = player.y;
+    player.y += player.vy;
+    player.grounded = false;
+
+    if (player.vy < 0) {
+      const currHeadTY = Math.floor(player.y / this.tileSize);
+      const prevHeadTY = Math.floor(prevY / this.tileSize);
+      const minTX = Math.floor((player.x + 2) / this.tileSize);
+      const maxTX = Math.floor((player.x + collisionWidth - 2) / this.tileSize);
+
+      let foundHidden = false;
+      for (let ty = prevHeadTY; ty >= currHeadTY && !foundHidden; ty--) {
+        if (ty < 0 || ty >= this.height) continue;
+        for (let tx = minTX; tx <= maxTX; tx++) {
+          if (tx < 0 || tx >= this.width) continue;
+          const block = this.tiles[ty]?.[tx];
+          if (block && block.invisible) {
+            const blockBottomY = (ty + 1) * this.tileSize;
+            if (prevY >= blockBottomY - 4) {
+              block.invisible = false;
+              player.y = blockBottomY;
+              player.vy = 0;
+              const hitInfo: TileHitInfo = { tileX: tx, tileY: ty, tile: block };
+              result.hitCeiling = true;
+              result.revealedHiddenBlocks.push(hitInfo);
+              result.collidedTiles.push(hitInfo);
+              callbacks?.onBlockHit?.(hitInfo);
+              foundHidden = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const vertBox: Rect = {
+      x: player.x + 1,
+      y: player.y,
+      width: collisionWidth,
+      height,
+    };
+    for (const hit of this.getTilesIntersecting(vertBox)) {
+      if (this.isSolidTile(hit.tile.type)) {
+        if (player.vy > 0) {
+          player.y = hit.tileY * this.tileSize - height;
+          player.vy = 0;
+          player.grounded = true;
+          player.isSpinJumping = false;
+          player.spinJumpTimer = 0;
+          player.isFluttering = false;
+          if (player.state === 'jumping' || player.state === 'falling') {
+            player.state = Math.abs(player.vx) > 0.1 ? 'running' : 'idle';
+          }
+          result.landed = true;
+          result.collidedTiles.push(hit);
+        } else if (player.vy < 0) {
+          player.y = (hit.tileY + 1) * this.tileSize;
+          player.vy = 0;
+          result.hitCeiling = true;
+          result.collidedTiles.push(hit);
+          callbacks?.onBlockHit?.(hit);
+        }
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  public render(
+    ctx: CanvasRenderingContext2D,
+    cameraX: number,
+    viewportWidth: number = GameEngine.NES_WIDTH
+  ): void {
+    if (this.width <= 0 || this.height <= 0) return;
+    if (!this.atlas) {
+      this.atlas = SpriteAtlas.get();
+    }
+    const atlas = this.atlas;
+    const startTX = Math.max(0, Math.floor(cameraX / this.tileSize));
+    const endTX = Math.min(this.width - 1, Math.ceil((cameraX + viewportWidth) / this.tileSize));
+    const qFrame = Math.floor((Date.now() / 150) % 4);
+    const lavaFrame = Math.floor((Date.now() / 220) % 2);
+    const axeFrame = Math.floor((Date.now() / 160) % 2);
+
+    for (let ty = 0; ty < this.height; ty++) {
+      for (let tx = startTX; tx <= endTX; tx++) {
+        const block = this.tiles[ty]?.[tx];
+        if (!block || (block.invisible && block.bumpOffset === 0)) continue;
+
+        const screenX = tx * this.tileSize - cameraX;
+        const screenY = Math.round(ty * this.tileSize + block.bumpOffset);
+
+        switch (block.type) {
+          case 'ground':
+            ctx.drawImage(atlas.tileGround, screenX, screenY);
+            break;
+          case 'underground_ground':
+            ctx.drawImage(atlas.tileGroundUnderground, screenX, screenY);
+            break;
+          case 'brick':
+            ctx.drawImage(atlas.tileBrick, screenX, screenY);
+            break;
+          case 'underground_brick':
+            ctx.drawImage(atlas.tileBrickUnderground, screenX, screenY);
+            break;
+          case 'coral':
+            ctx.drawImage(atlas.tileCoral, screenX, screenY);
+            break;
+          case 'sea_ground':
+            ctx.drawImage(atlas.tileSeaGround, screenX, screenY);
+            break;
+          case 'ghost_floor':
+            ctx.drawImage(atlas.tileGhostFloor, screenX, screenY);
+            break;
+          case 'ghost_brick':
+            ctx.drawImage(atlas.tileGhostBrick, screenX, screenY);
+            break;
+          case 'question':
+            ctx.drawImage(atlas.tileQuestionFrames[qFrame], screenX, screenY);
+            break;
+          case 'question_empty':
+            ctx.drawImage(atlas.tileQuestionEmpty, screenX, screenY);
+            break;
+          case 'exclam_yellow':
+            ctx.drawImage(
+              this.switchStates.yellow ? atlas.tileExclamYellowActive : atlas.tileExclamYellowLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_green':
+            ctx.drawImage(
+              this.switchStates.green ? atlas.tileExclamGreenActive : atlas.tileExclamGreenLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_red':
+            ctx.drawImage(
+              this.switchStates.red ? atlas.tileExclamRedActive : atlas.tileExclamRedLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_pink':
+            ctx.drawImage(
+              this.switchStates.pink ? atlas.tileExclamPinkActive : atlas.tileExclamPinkLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'exclam_blue':
+            ctx.drawImage(
+              this.switchStates.blue ? atlas.tileExclamBlueActive : atlas.tileExclamBlueLocked,
+              screenX,
+              screenY
+            );
+            break;
+          case 'yellow_switch':
+            ctx.drawImage(atlas.tileYellowSwitch, screenX, screenY);
+            break;
+          case 'yellow_switch_pressed':
+            ctx.drawImage(atlas.tileYellowSwitchPressed, screenX, screenY);
+            break;
+          case 'green_switch':
+            ctx.drawImage(atlas.tileGreenSwitch, screenX, screenY);
+            break;
+          case 'green_switch_pressed':
+            ctx.drawImage(atlas.tileGreenSwitchPressed, screenX, screenY);
+            break;
+          case 'red_switch':
+            ctx.drawImage(atlas.tileRedSwitch, screenX, screenY);
+            break;
+          case 'red_switch_pressed':
+            ctx.drawImage(atlas.tileRedSwitchPressed, screenX, screenY);
+            break;
+          case 'pink_switch':
+            ctx.drawImage(atlas.tilePinkSwitch, screenX, screenY);
+            break;
+          case 'pink_switch_pressed':
+            ctx.drawImage(atlas.tilePinkSwitchPressed, screenX, screenY);
+            break;
+          case 'blue_switch':
+            ctx.drawImage(atlas.tileBlueSwitch, screenX, screenY);
+            break;
+          case 'blue_switch_pressed':
+            ctx.drawImage(atlas.tileBlueSwitchPressed, screenX, screenY);
+            break;
+          case 'hard_block':
+            ctx.drawImage(atlas.tileHardBlock, screenX, screenY);
+            break;
+          case 'pipe_top_left':
+          case 'pipe_warp_top_left':
+            ctx.drawImage(atlas.pipeTopLeft, screenX, screenY);
+            break;
+          case 'pipe_top_right':
+          case 'pipe_warp_top_right':
+            ctx.drawImage(atlas.pipeTopRight, screenX, screenY);
+            break;
+          case 'pipe_body_left':
+            ctx.drawImage(atlas.pipeBodyLeft, screenX, screenY);
+            break;
+          case 'pipe_body_right':
+            ctx.drawImage(atlas.pipeBodyRight, screenX, screenY);
+            break;
+          case 'castle_brick':
+          case 'castle_stone':
+          case 'castle_crenel':
+            ctx.drawImage(atlas.castleBrick, screenX, screenY);
+            break;
+          case 'castle_door':
+            ctx.drawImage(atlas.castleDoor, screenX, screenY);
+            break;
+          case 'pole':
+            ctx.drawImage(atlas.flagPoleBody, screenX, screenY);
+            break;
+          case 'pole_top':
+            ctx.drawImage(atlas.flagPoleTop, screenX, screenY);
+            break;
+          case 'lava':
+            ctx.drawImage(atlas.tileLavaFrames[lavaFrame], screenX, screenY);
+            break;
+          case 'bridge':
+            ctx.drawImage(atlas.tileBridge, screenX, screenY);
+            break;
+          case 'axe':
+            ctx.drawImage(atlas.tileAxeFrames[axeFrame], screenX, screenY);
+            break;
+        }
+      }
+    }
+  }
+
+  public syncFromEngine(engine: GameEngine): void {
+    if (engine.level) {
+      if (this.level !== engine.level) {
+        this.loadLevel(engine.level, false);
+      } else {
+        this.width = engine.level.width;
+        this.height = engine.level.height;
+        this.tiles = engine.level.tiles;
+      }
+    }
+    this.setSwitchStates({
+      yellow: engine.yellowSwitchUnlocked,
+      green: engine.greenSwitchUnlocked,
+      red: engine.redSwitchUnlocked,
+      pink: engine.pinkSwitchUnlocked,
+      blue: engine.blueSwitchUnlocked,
+    });
+  }
+
+  public getQuestionBlocks(): QuestionBlock[] {
+    const blocks: QuestionBlock[] = [];
+    for (let ty = 0; ty < this.height; ty++) {
+      const row = this.tiles[ty];
+      if (!row) continue;
+      for (let tx = 0; tx < this.width; tx++) {
+        const tile = row[tx];
+        if (tile && (tile.type === 'question' || tile.type === 'question_empty')) {
+          blocks.push(QuestionBlock.fromTile(tx, ty, tile, this.tileSize));
+        }
+      }
+    }
+    return blocks;
+  }
+}
+
+export type GoombaCollisionOutcome = 'none' | 'stomped' | 'hurt_player' | 'star_defeat';
+
+export interface GoombaUpdateResult {
+  turnedAround: boolean;
+  hitPipe: boolean;
+  hitWall: boolean;
+  hitWorldBound: boolean;
+  landed: boolean;
+  collidedTiles: TileHitInfo[];
+}
+
+/**
+ * Classic Goomba enemy implementing horizontal patrol velocity, gravity,
+ * pipe and solid tile collision reversal, Mario stomp/hurt/starman interaction,
+ * and SpriteAtlas canvas rendering.
+ */
+export class Goomba {
+  public static readonly WIDTH = 16;
+  public static readonly HEIGHT = 16;
+  public static readonly DEFAULT_SPEED = 0.72;
+  public static readonly GRAVITY = 0.35;
+  public static readonly MAX_FALL_SPEED = 6.0;
+  public static readonly ANIM_INTERVAL = 10;
+  public static readonly SQUASH_DURATION = 30;
+  public static readonly STOMP_BOUNCE_VY = -6.0;
+  public static readonly SPIN_STOMP_BOUNCE_VY = -5.4;
+  public static readonly STAR_FLIP_VY = -5.0;
+
+  public id: number;
+  public readonly type = 'goomba' as const;
+  public x: number;
+  public y: number;
+  public vx: number;
+  public vy: number = 0;
+  public width: number = Goomba.WIDTH;
+  public height: number = Goomba.HEIGHT;
+  public alive: boolean = true;
+  public state: 'walk' | 'squashed' | 'flipped' = 'walk';
+  public stateTimer: number = 0;
+  public facing: 'left' | 'right';
+  public grounded: boolean = false;
+  public animFrame: number = 0;
+  public animTimer: number = 0;
+
+  constructor(
+    x: number = 0,
+    y: number = 0,
+    initialVx: number = -Goomba.DEFAULT_SPEED,
+    id: number = 0
+  ) {
+    this.id = id;
+    this.x = x;
+    this.y = y;
+    this.vx = initialVx;
+    this.facing = initialVx > 0 ? 'right' : 'left';
+  }
+
+  public static isPipeTile(type: TileType): boolean {
+    return (
+      type === 'pipe_top_left' ||
+      type === 'pipe_top_right' ||
+      type === 'pipe_body_left' ||
+      type === 'pipe_body_right' ||
+      type === 'pipe_warp_top_left' ||
+      type === 'pipe_warp_top_right' ||
+      type === 'pipe_horiz_top' ||
+      type === 'pipe_horiz_bottom'
+    );
+  }
+
+  public getHitbox(): Rect {
+    return {
+      x: this.x + 1,
+      y: this.y + 1,
+      width: this.width - 2,
+      height: this.height - 1,
+    };
+  }
+
+  public isExpired(levelPixelHeight: number = 240): boolean {
+    if (this.state === 'squashed') {
+      return this.stateTimer >= Goomba.SQUASH_DURATION;
+    }
+    if (this.state === 'flipped') {
+      return this.y > levelPixelHeight + 48;
+    }
+    return !this.alive;
+  }
+
+  public update(tileMap?: TileMap): GoombaUpdateResult {
+    const result: GoombaUpdateResult = {
+      turnedAround: false,
+      hitPipe: false,
+      hitWall: false,
+      hitWorldBound: false,
+      landed: false,
+      collidedTiles: [],
+    };
+
+    if (this.state === 'squashed') {
+      this.stateTimer++;
+      return result;
+    }
+
+    if (this.state === 'flipped') {
+      this.vy = Math.min(Goomba.MAX_FALL_SPEED, this.vy + Goomba.GRAVITY);
+      this.x += this.vx;
+      this.y += this.vy;
+      this.stateTimer++;
+      return result;
+    }
+
+    // Walking animation toggle every 10 frames (matching NES Goomba stride)
+    this.animTimer++;
+    if (this.animTimer % Goomba.ANIM_INTERVAL === 0) {
+      this.animFrame = (this.animFrame + 1) % 2;
+    }
+
+    // Horizontal patrol step
+    this.x += this.vx;
+
+    if (tileMap) {
+      const tileSize = tileMap.tileSize;
+      const levelPixelWidth = tileMap.width * tileSize;
+
+      // World horizontal boundary check
+      if (this.x < 0) {
+        this.x = 0;
+        this.vx = Math.abs(this.vx) || Goomba.DEFAULT_SPEED;
+        this.facing = 'right';
+        result.hitWorldBound = true;
+        result.turnedAround = true;
+      } else if (levelPixelWidth > 0 && this.x + this.width > levelPixelWidth) {
+        this.x = levelPixelWidth - this.width;
+        this.vx = -(Math.abs(this.vx) || Goomba.DEFAULT_SPEED);
+        this.facing = 'left';
+        result.hitWorldBound = true;
+        result.turnedAround = true;
+      }
+
+      // Horizontal wall and pipe collision check with exact boundary snapping
+      const boxH: Rect = {
+        x: this.x,
+        y: this.y + 1,
+        width: this.width,
+        height: this.height - 3,
+      };
+      const tilesH = tileMap.getTilesIntersecting(boxH);
+      for (const hit of tilesH) {
+        if (tileMap.isSolidTile(hit.tile.type)) {
+          if (this.vx > 0) {
+            this.x = hit.tileX * tileSize - this.width;
+          } else if (this.vx < 0) {
+            this.x = (hit.tileX + 1) * tileSize;
+          }
+          this.vx = -this.vx;
+          this.facing = this.vx > 0 ? 'right' : 'left';
+          result.hitWall = true;
+          result.hitPipe = Goomba.isPipeTile(hit.tile.type);
+          result.turnedAround = true;
+          result.collidedTiles.push(hit);
+          break;
+        }
+      }
+    }
+
+    // Vertical gravity & ground/pipe-top collision
+    this.vy = Math.min(Goomba.MAX_FALL_SPEED, this.vy + Goomba.GRAVITY);
+    this.y += this.vy;
+    this.grounded = false;
+
+    if (tileMap) {
+      const tileSize = tileMap.tileSize;
+      const boxV: Rect = {
+        x: this.x + 1,
+        y: this.y,
+        width: this.width - 2,
+        height: this.height,
+      };
+      const tilesV = tileMap.getTilesIntersecting(boxV);
+      for (const hit of tilesV) {
+        if (tileMap.isSolidTile(hit.tile.type)) {
+          if (this.vy > 0) {
+            this.y = hit.tileY * tileSize - this.height;
+            this.vy = 0;
+            this.grounded = true;
+            result.landed = true;
+            result.collidedTiles.push(hit);
+          } else if (this.vy < 0) {
+            this.y = (hit.tileY + 1) * tileSize;
+            this.vy = 0;
+            result.collidedTiles.push(hit);
+          }
+          break;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  public checkPlayerCollision(player: Player): GoombaCollisionOutcome {
+    if (!this.alive || this.state !== 'walk') {
+      return 'none';
+    }
+
+    if (
+      player.state === 'dead' ||
+      player.state === 'pipe_entering' ||
+      player.state === 'pipe_exiting' ||
+      player.state === 'pole_slide' ||
+      player.state === 'castle_walk' ||
+      player.state === 'castle_entered'
+    ) {
+      return 'none';
+    }
+
+    const marioBox = player.getHitbox();
+    const goombaBox = this.getHitbox();
+    const overlaps =
+      marioBox.x < goombaBox.x + goombaBox.width &&
+      marioBox.x + marioBox.width > goombaBox.x &&
+      marioBox.y < goombaBox.y + goombaBox.height &&
+      marioBox.y + marioBox.height > goombaBox.y;
+
+    if (!overlaps) {
+      return 'none';
+    }
+
+    if (player.starTimer > 0) {
+      this.alive = false;
+      this.state = 'flipped';
+      this.vy = Goomba.STAR_FLIP_VY;
+      return 'star_defeat';
+    }
+
+    const prevMarioBottom = marioBox.y + marioBox.height - player.vy;
+    const isStomp = player.vy > 0 && prevMarioBottom <= this.y + (player.isSpinJumping ? 13 : 9);
+
+    if (isStomp) {
+      this.alive = false;
+      this.state = 'squashed';
+      this.vx = 0;
+      this.vy = 0;
+      this.stateTimer = 0;
+      player.grounded = false;
+      player.state = 'jumping';
+      player.vy = player.isSpinJumping ? Goomba.SPIN_STOMP_BOUNCE_VY : Goomba.STOMP_BOUNCE_VY;
+      return 'stomped';
+    }
+
+    return 'hurt_player';
+  }
+
+  public render(ctx: CanvasRenderingContext2D, cameraX: number): void {
+    const screenX = Math.round(this.x - cameraX);
+    if (screenX < -32 || screenX > 288) {
+      return;
+    }
+
+    const atlas = SpriteAtlas.get();
+    if (this.state === 'squashed') {
+      ctx.drawImage(atlas.goombaSquashed, screenX, Math.round(this.y + 1));
+      return;
+    }
+
+    if (this.state === 'flipped') {
+      ctx.save();
+      ctx.translate(screenX + this.width / 2, Math.round(this.y) + this.height / 2);
+      ctx.scale(1, -1);
+      ctx.drawImage(atlas.goombaWalk1, -this.width / 2, -this.height / 2);
+      ctx.restore();
+      return;
+    }
+
+    const frame = this.animFrame % 2 === 0 ? atlas.goombaWalk1 : atlas.goombaWalk2;
+    ctx.drawImage(frame, screenX, Math.round(this.y));
+  }
+
+  public syncFromEnemy(enemy: Enemy): void {
+    this.id = enemy.id;
+    this.x = enemy.x;
+    this.y = enemy.y;
+    this.vx = enemy.vx;
+    this.vy = enemy.vy;
+    this.width = enemy.width;
+    this.height = enemy.height;
+    this.alive = enemy.alive;
+    this.state =
+      enemy.state === 'squashed' || enemy.state === 'flipped' ? enemy.state : 'walk';
+    this.stateTimer = enemy.stateTimer;
+    this.facing = enemy.facing;
+    this.animFrame = enemy.animFrame;
+    this.animTimer = enemy.animTimer;
+  }
+
+  public static fromEnemy(enemy: Enemy): Goomba {
+    const goomba = new Goomba(enemy.x, enemy.y, enemy.vx, enemy.id);
+    goomba.syncFromEnemy(enemy);
+    return goomba;
+  }
+}
+
+export interface QuestionBlockBumpResult {
+  bumped: boolean;
+  spent: boolean;
+  revealedInvisible: boolean;
+  spawnedItem: ItemContent;
+  coinAwarded: boolean;
+  depletedToEmpty: boolean;
+}
+
+export interface QuestionBlockOptions {
+  type?: 'question' | 'question_empty';
+  coinsLeft?: number;
+  invisible?: boolean;
+  tileSize?: number;
+}
+
+/**
+ * Interactive Question Block (?) containing coins or power-ups when bumped
+ * from below by Mario. Supports classic Mario power-dependent progression
+ * (mushroom -> fireflower when already Super+), multi-coin blocks, invisible
+ * hidden blocks, spring bump animation, and SpriteAtlas rendering.
+ */
+export class QuestionBlock {
+  public static readonly WIDTH = 16;
+  public static readonly HEIGHT = 16;
+  public static readonly BUMP_INITIAL_VY = -4;
+  public static readonly BUMP_GRAVITY = 0.8;
+
+  public tileX: number;
+  public tileY: number;
+  public x: number;
+  public y: number;
+  public width: number;
+  public height: number;
+  public type: 'question' | 'question_empty';
+  public content: ItemContent;
+  public bumpOffset: number = 0;
+  public bumpVel: number = 0;
+  public coinsLeft: number;
+  public invisible: boolean;
+
+  constructor(
+    tileX: number = 0,
+    tileY: number = 0,
+    content: ItemContent = 'coin',
+    options?: QuestionBlockOptions
+  ) {
+    const tileSize = options?.tileSize ?? QuestionBlock.WIDTH;
+    this.tileX = tileX;
+    this.tileY = tileY;
+    this.x = tileX * tileSize;
+    this.y = tileY * tileSize;
+    this.width = tileSize;
+    this.height = tileSize;
+    this.type = options?.type ?? (content === 'none' ? 'question_empty' : 'question');
+    this.content = this.type === 'question_empty' ? 'none' : content;
+    this.coinsLeft =
+      options?.coinsLeft ?? (this.content === 'coin' && this.type === 'question' ? 1 : 0);
+    this.invisible = Boolean(options?.invisible);
+  }
+
+  public isEmpty(): boolean {
+    return this.type === 'question_empty' || this.content === 'none';
+  }
+
+  public isSolid(): boolean {
+    return !this.invisible || this.bumpOffset !== 0;
+  }
+
+  public getHitbox(): Rect {
+    return {
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height,
+    };
+  }
+
+  /**
+   * Resolves which item should emerge given Mario's current power state,
+   * matching classic SMB progressive upgrade behavior for mushroom blocks.
+   */
+  public resolveDispensedItem(playerPower: MarioPower = 'small'): ItemContent {
+    if (this.isEmpty()) {
+      return 'none';
+    }
+    if (this.content === 'mushroom') {
+      return playerPower === 'small' ? 'mushroom' : 'fireflower';
+    }
+    return this.content;
+  }
+
+  /**
+   * Triggers a bump from below, revealing hidden blocks, starting the spring
+   * bounce animation, dispensing a coin or power-up, and transitioning to
+   * 'question_empty' once exhausted.
+   */
+  public bumpFromBelow(player?: Player): QuestionBlockBumpResult {
+    if (this.bumpOffset !== 0 || this.bumpVel !== 0) {
+      return {
+        bumped: false,
+        spent: this.isEmpty(),
+        revealedInvisible: false,
+        spawnedItem: 'none',
+        coinAwarded: false,
+        depletedToEmpty: false,
+      };
+    }
+
+    if (this.isEmpty()) {
+      return {
+        bumped: false,
+        spent: true,
+        revealedInvisible: false,
+        spawnedItem: 'none',
+        coinAwarded: false,
+        depletedToEmpty: false,
+      };
+    }
+
+    const revealedInvisible = this.invisible;
+    this.invisible = false;
+    this.bumpOffset = 0;
+    this.bumpVel = QuestionBlock.BUMP_INITIAL_VY;
+
+    const spawnedItem = this.resolveDispensedItem(player?.power ?? 'small');
+    const coinAwarded = spawnedItem === 'coin';
+    let depletedToEmpty = false;
+
+    if (this.content === 'coin' && this.coinsLeft > 1) {
+      this.coinsLeft -= 1;
+    } else {
+      this.coinsLeft = 0;
+      this.type = 'question_empty';
+      this.content = 'none';
+      depletedToEmpty = true;
+    }
+
+    return {
+      bumped: true,
+      spent: false,
+      revealedInvisible,
+      spawnedItem,
+      coinAwarded,
+      depletedToEmpty,
+    };
+  }
+
+  /**
+   * Checks whether an upward-moving Player bumps the bottom face of this
+   * QuestionBlock, snaps Player's head beneath the block, zeroes vy, and
+   * dispenses the block's contents.
+   */
+  public checkPlayerBumpFromBelow(player: Player): QuestionBlockBumpResult {
+    const emptyResult: QuestionBlockBumpResult = {
+      bumped: false,
+      spent: this.isEmpty(),
+      revealedInvisible: false,
+      spawnedItem: 'none',
+      coinAwarded: false,
+      depletedToEmpty: false,
+    };
+
+    if (
+      player.vy >= 0 ||
+      player.state === 'dead' ||
+      player.state === 'pipe_entering' ||
+      player.state === 'pipe_exiting' ||
+      player.state === 'pole_slide' ||
+      player.state === 'castle_walk' ||
+      player.state === 'castle_entered'
+    ) {
+      return emptyResult;
+    }
+
+    const playerBox = player.getHitbox();
+    const blockBottom = this.y + this.height;
+    const prevTop = playerBox.y - player.vy;
+    const horizOverlap =
+      playerBox.x < this.x + this.width && playerBox.x + playerBox.width > this.x;
+    const hitBottomFromBelow =
+      horizOverlap &&
+      playerBox.y <= blockBottom &&
+      prevTop >= blockBottom - 4 &&
+      playerBox.y + playerBox.height > this.y;
+
+    if (!hitBottomFromBelow) {
+      return emptyResult;
+    }
+
+    player.y = blockBottom;
+    player.vy = 0;
+    return this.bumpFromBelow(player);
+  }
+
+  /**
+   * Advances the block's vertical bump bounce animation by one frame (60 FPS).
+   */
+  public update(): void {
+    if (this.bumpOffset !== 0 || this.bumpVel !== 0) {
+      this.bumpOffset += this.bumpVel;
+      this.bumpVel += QuestionBlock.BUMP_GRAVITY;
+      if (this.bumpOffset >= 0) {
+        this.bumpOffset = 0;
+        this.bumpVel = 0;
+      }
+    }
+  }
+
+  public syncFromTile(tile: BlockTile): void {
+    this.type = tile.type === 'question_empty' ? 'question_empty' : 'question';
+    this.content = this.type === 'question_empty' ? 'none' : tile.content;
+    this.bumpOffset = tile.bumpOffset;
+    this.bumpVel = tile.bumpVel;
+    this.coinsLeft =
+      tile.coinsLeft ?? (this.content === 'coin' && this.type === 'question' ? 1 : 0);
+    this.invisible = Boolean(tile.invisible);
+  }
+
+  public syncToTile(tile: BlockTile): void {
+    tile.type = this.type;
+    tile.content = this.content;
+    tile.bumpOffset = this.bumpOffset;
+    tile.bumpVel = this.bumpVel;
+    tile.coinsLeft = this.coinsLeft;
+    tile.invisible = this.invisible;
+  }
+
+  public toTile(): BlockTile {
+    return {
+      type: this.type,
+      content: this.content,
+      bumpOffset: this.bumpOffset,
+      bumpVel: this.bumpVel,
+      coinsLeft: this.coinsLeft,
+      invisible: this.invisible,
+    };
+  }
+
+  public static fromTile(
+    tileX: number,
+    tileY: number,
+    tile: BlockTile,
+    tileSize: number = QuestionBlock.WIDTH
+  ): QuestionBlock {
+    const qb = new QuestionBlock(tileX, tileY, tile.content, {
+      type: tile.type === 'question_empty' ? 'question_empty' : 'question',
+      coinsLeft: tile.coinsLeft,
+      invisible: tile.invisible,
+      tileSize,
+    });
+    qb.syncFromTile(tile);
+    return qb;
+  }
+
+  public render(
+    ctx: CanvasRenderingContext2D,
+    cameraX: number,
+    animTickMs: number = Date.now()
+  ): void {
+    if (this.invisible && this.bumpOffset === 0) {
+      return;
+    }
+
+    const screenX = Math.round(this.x - cameraX);
+    if (screenX < -32 || screenX > 288) {
+      return;
+    }
+
+    const atlas = SpriteAtlas.get();
+    const screenY = Math.round(this.y + this.bumpOffset);
+    if (this.type === 'question_empty') {
+      ctx.drawImage(atlas.tileQuestionEmpty, screenX, screenY);
+    } else {
+      const qFrame = Math.floor((animTickMs / 150) % atlas.tileQuestionFrames.length);
+      ctx.drawImage(atlas.tileQuestionFrames[qFrame], screenX, screenY);
+    }
+  }
+}
+
+export type KoopaVariant = 'koopa' | 'red_koopa';
+export type KoopaState = 'walk' | 'shell_idle' | 'shell_moving' | 'flipped';
+export type KoopaCollisionOutcome =
+  | 'none'
+  | 'entered_shell'
+  | 'kicked_shell'
+  | 'stopped_shell'
+  | 'hurt_player'
+  | 'star_defeat'
+  | 'spin_defeat';
+
+export interface KoopaUpdateResult {
+  turnedAround: boolean;
+  turnedAtLedge: boolean;
+  hitPipe: boolean;
+  hitWall: boolean;
+  hitWorldBound: boolean;
+  landed: boolean;
+  wokeUp: boolean;
+  collidedTiles: TileHitInfo[];
+}
+
+export interface KoopaEnemyCollisionResult {
+  defeatedOther: boolean;
+  turnedAround: boolean;
+  bouncedBothShells: boolean;
+}
+
+/**
+ * Classic Koopa Troopa (Green & Red) supporting horizontal patrol, Red Koopa
+ * platform ledge reversal, retreat-into-shell stomp mechanics, sliding shell
+ * physics (wall/pipe rebound, enemy sweeping combos, stomp-to-stop, kick-to-slide),
+ * idle shell wake-up recovery, and SpriteAtlas rendering.
+ */
+export class KoopaTroopa {
+  public static readonly WIDTH = 16;
+  public static readonly WALK_HEIGHT = 24;
+  public static readonly SHELL_HEIGHT = 16;
+  public static readonly GREEN_SPEED = 0.78;
+  public static readonly RED_SPEED = 1.28;
+  public static readonly SHELL_SLIDE_SPEED = 4.8;
+  public static readonly SHELL_STOMP_KICK_SPEED = 4.2;
+  public static readonly GRAVITY = 0.35;
+  public static readonly MAX_FALL_SPEED = 6.0;
+  public static readonly ANIM_INTERVAL = 10;
+  public static readonly SHELL_REVIVE_TIME = 330;
+  public static readonly KICK_GRACE_FRAMES = 8;
+  public static readonly STOMP_BOUNCE_VY = -6.0;
+  public static readonly SHELL_STOP_BOUNCE_VY = -5.5;
+  public static readonly SHELL_KICK_BOUNCE_VY = -5.0;
+  public static readonly STAR_FLIP_VY = -5.0;
+
+  public id: number;
+  public type: KoopaVariant;
+  public x: number;
+  public y: number;
+  public vx: number;
+  public vy: number = 0;
+  public width: number = KoopaTroopa.WIDTH;
+  public height: number = KoopaTroopa.WALK_HEIGHT;
+  public alive: boolean = true;
+  public state: KoopaState = 'walk';
+  public stateTimer: number = 0;
+  public facing: 'left' | 'right';
+  public grounded: boolean = false;
+  public animFrame: number = 0;
+  public animTimer: number = 0;
+  public shellKillStreak: number = 0;
+
+  constructor(
+    x: number = 0,
+    y: number = 0,
+    variant: KoopaVariant = 'koopa',
+    initialVx?: number,
+    id: number = 0
+  ) {
+    this.id = id;
+    this.type = variant;
+    this.x = x;
+    this.y = y;
+    const defaultSpeed =
+      variant === 'red_koopa' ? KoopaTroopa.RED_SPEED : KoopaTroopa.GREEN_SPEED;
+    this.vx = initialVx !== undefined ? initialVx : -defaultSpeed;
+    this.facing = this.vx > 0 ? 'right' : 'left';
+  }
+
+  public isShell(): boolean {
+    return this.state === 'shell_idle' || this.state === 'shell_moving';
+  }
+
+  public getHitbox(): Rect {
+    return {
+      x: this.x + 1,
+      y: this.y + 1,
+      width: this.width - 2,
+      height: this.height - 1,
+    };
+  }
+
+  public isExpired(levelPixelHeight: number = 240): boolean {
+    if (this.state === 'flipped') {
+      return this.y > levelPixelHeight + 48;
+    }
+    return !this.alive;
+  }
+
+  public enterShell(reviveTime: number = KoopaTroopa.SHELL_REVIVE_TIME): void {
+    if (this.state === 'walk') {
+      this.y += KoopaTroopa.WALK_HEIGHT - KoopaTroopa.SHELL_HEIGHT;
+    }
+    this.state = 'shell_idle';
+    this.height = KoopaTroopa.SHELL_HEIGHT;
+    this.vx = 0;
+    this.stateTimer = reviveTime;
+    this.shellKillStreak = 0;
+  }
+
+  public stopShell(reviveTime: number = KoopaTroopa.SHELL_REVIVE_TIME): void {
+    this.state = 'shell_idle';
+    this.height = KoopaTroopa.SHELL_HEIGHT;
+    this.vx = 0;
+    this.stateTimer = reviveTime;
+    this.shellKillStreak = 0;
+  }
+
+  public kickShell(
+    direction: -1 | 1,
+    speed: number = KoopaTroopa.SHELL_SLIDE_SPEED
+  ): void {
+    if (this.state === 'walk') {
+      this.y += KoopaTroopa.WALK_HEIGHT - KoopaTroopa.SHELL_HEIGHT;
+    }
+    this.state = 'shell_moving';
+    this.height = KoopaTroopa.SHELL_HEIGHT;
+    this.vx = direction * Math.abs(speed);
+    this.facing = direction > 0 ? 'right' : 'left';
+    this.stateTimer = KoopaTroopa.KICK_GRACE_FRAMES;
+    this.shellKillStreak = 0;
+  }
+
+  public update(tileMap?: TileMap, targetX?: number): KoopaUpdateResult {
+    const result: KoopaUpdateResult = {
+      turnedAround: false,
+      turnedAtLedge: false,
+      hitPipe: false,
+      hitWall: false,
+      hitWorldBound: false,
+      landed: false,
+      wokeUp: false,
+      collidedTiles: [],
+    };
+
+    if (this.state === 'flipped') {
+      this.vy = Math.min(KoopaTroopa.MAX_FALL_SPEED, this.vy + KoopaTroopa.GRAVITY);
+      this.x += this.vx;
+      this.y += this.vy;
+      this.stateTimer++;
+      return result;
+    }
+
+    if (this.state === 'shell_idle') {
+      if (this.stateTimer > 0) {
+        this.stateTimer--;
+        if (this.stateTimer <= 0) {
+          const speed =
+            this.type === 'red_koopa'
+              ? KoopaTroopa.RED_SPEED
+              : KoopaTroopa.GREEN_SPEED;
+          const dir: -1 | 1 =
+            targetX !== undefined
+              ? targetX >= this.x
+                ? 1
+                : -1
+              : this.facing === 'right'
+              ? 1
+              : -1;
+          this.state = 'walk';
+          this.height = KoopaTroopa.WALK_HEIGHT;
+          this.y -= KoopaTroopa.WALK_HEIGHT - KoopaTroopa.SHELL_HEIGHT;
+          this.facing = dir > 0 ? 'right' : 'left';
+          this.vx = speed * dir;
+          result.wokeUp = true;
+        }
+      }
+    } else if (this.state === 'shell_moving') {
+      if (this.stateTimer > 0) {
+        this.stateTimer--;
+      }
+    } else {
+      // Walking patrol stride every 10 frames
+      this.animTimer++;
+      if (this.animTimer % KoopaTroopa.ANIM_INTERVAL === 0) {
+        this.animFrame = (this.animFrame + 1) % 2;
+      }
+    }
+
+    // Horizontal step (walk or sliding shell)
+    this.x += this.vx;
+
+    if (tileMap) {
+      const tileSize = tileMap.tileSize;
+      const levelPixelWidth = tileMap.width * tileSize;
+
+      // World boundary bounce
+      if (this.x < 0) {
+        this.x = 0;
+        if (this.vx !== 0) {
+          this.vx = Math.abs(this.vx);
+          this.facing = 'right';
+          result.hitWorldBound = true;
+          result.turnedAround = true;
+        }
+      } else if (levelPixelWidth > 0 && this.x + this.width > levelPixelWidth) {
+        this.x = levelPixelWidth - this.width;
+        if (this.vx !== 0) {
+          this.vx = -Math.abs(this.vx);
+          this.facing = 'left';
+          result.hitWorldBound = true;
+          result.turnedAround = true;
+        }
+      }
+
+      // Horizontal pipe/wall collision reversal (applies to both walk and sliding shell)
+      if (this.vx !== 0) {
+        const boxH: Rect = {
+          x: this.x,
+          y: this.y + 1,
+          width: this.width,
+          height: this.height - 3,
+        };
+        const tilesH = tileMap.getTilesIntersecting(boxH);
+        for (const hit of tilesH) {
+          if (tileMap.isSolidTile(hit.tile.type)) {
+            if (this.vx > 0) {
+              this.x = hit.tileX * tileSize - this.width;
+            } else if (this.vx < 0) {
+              this.x = (hit.tileX + 1) * tileSize;
+            }
+            this.vx = -this.vx;
+            this.facing = this.vx > 0 ? 'right' : 'left';
+            result.hitWall = true;
+            result.hitPipe = Goomba.isPipeTile(hit.tile.type);
+            result.turnedAround = true;
+            result.collidedTiles.push(hit);
+            break;
+          }
+        }
+      }
+    }
+
+    // Vertical gravity & ground collision
+    this.vy = Math.min(KoopaTroopa.MAX_FALL_SPEED, this.vy + KoopaTroopa.GRAVITY);
+    this.y += this.vy;
+    this.grounded = false;
+
+    if (tileMap) {
+      const tileSize = tileMap.tileSize;
+      const boxV: Rect = {
+        x: this.x + 1,
+        y: this.y,
+        width: this.width - 2,
+        height: this.height,
+      };
+      const tilesV = tileMap.getTilesIntersecting(boxV);
+      for (const hit of tilesV) {
+        if (tileMap.isSolidTile(hit.tile.type)) {
+          if (this.vy > 0) {
+            this.y = hit.tileY * tileSize - this.height;
+            this.vy = 0;
+            this.grounded = true;
+            result.landed = true;
+            result.collidedTiles.push(hit);
+          } else if (this.vy < 0) {
+            this.y = (hit.tileY + 1) * tileSize;
+            this.vy = 0;
+            result.collidedTiles.push(hit);
+          }
+          break;
+        }
+      }
+
+      // Red Koopa smart ledge-turn AI while walking on solid ground
+      if (this.type === 'red_koopa' && this.state === 'walk' && this.grounded && this.vx !== 0) {
+        const probeX = this.vx > 0 ? this.x + this.width + 2 : this.x - 2;
+        const probeTX = Math.floor(probeX / tileSize);
+        const footTY = Math.floor((this.y + this.height + 2) / tileSize);
+        if (
+          probeTX >= 0 &&
+          probeTX < tileMap.width &&
+          footTY >= 0 &&
+          footTY < tileMap.height
+        ) {
+          const groundAhead = tileMap.getTileAt(probeTX, footTY);
+          if (!groundAhead || !tileMap.isSolidTile(groundAhead.type)) {
+            this.vx = -this.vx;
+            this.facing = this.vx > 0 ? 'right' : 'left';
+            result.turnedAtLedge = true;
+            result.turnedAround = true;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  public checkPlayerCollision(player: Player): KoopaCollisionOutcome {
+    if (!this.alive || this.state === 'flipped') {
+      return 'none';
+    }
+
+    if (
+      player.state === 'dead' ||
+      player.state === 'pipe_entering' ||
+      player.state === 'pipe_exiting' ||
+      player.state === 'pole_slide' ||
+      player.state === 'castle_walk' ||
+      player.state === 'castle_entered'
+    ) {
+      return 'none';
+    }
+
+    const marioBox = player.getHitbox();
+    const koopaBox = this.getHitbox();
+    const overlaps =
+      marioBox.x < koopaBox.x + koopaBox.width &&
+      marioBox.x + marioBox.width > koopaBox.x &&
+      marioBox.y < koopaBox.y + koopaBox.height &&
+      marioBox.y + marioBox.height > koopaBox.y;
+
+    if (!overlaps) {
+      return 'none';
+    }
+
+    if (player.starTimer > 0) {
+      this.alive = false;
+      this.state = 'flipped';
+      this.vy = KoopaTroopa.STAR_FLIP_VY;
+      return 'star_defeat';
+    }
+
+    const prevMarioBottom = marioBox.y + marioBox.height - player.vy;
+    const isShell = this.isShell();
+    const isStomp =
+      player.vy > 0 &&
+      prevMarioBottom <= this.y + (isShell ? 12 : player.isSpinJumping ? 13 : 9);
+
+    if (this.state === 'shell_moving' && this.stateTimer > 0 && !isStomp) {
+      return 'none';
+    }
+
+    if (isStomp) {
+      if (player.isSpinJumping) {
+        this.alive = false;
+        this.state = 'flipped';
+        this.vx = 0;
+        this.vy = -4.2;
+        player.grounded = false;
+        player.state = 'jumping';
+        player.vy = Goomba.SPIN_STOMP_BOUNCE_VY;
+        return 'spin_defeat';
+      }
+
+      if (this.state === 'walk') {
+        this.enterShell();
+        player.grounded = false;
+        player.state = 'jumping';
+        player.y = Math.min(player.y, this.y - player.getHeight());
+        player.vy = KoopaTroopa.STOMP_BOUNCE_VY;
+        return 'entered_shell';
+      }
+
+      if (this.state === 'shell_moving') {
+        this.stopShell();
+        player.grounded = false;
+        player.state = 'jumping';
+        player.y = Math.min(player.y, this.y - player.getHeight());
+        player.vy = KoopaTroopa.SHELL_STOP_BOUNCE_VY;
+        return 'stopped_shell';
+      }
+
+      // Stationary shell stomped from above -> kick sliding shell
+      const dir: -1 | 1 = player.x + 7 < this.x + 8 ? 1 : -1;
+      this.kickShell(dir, KoopaTroopa.SHELL_STOMP_KICK_SPEED);
+      player.grounded = false;
+      player.state = 'jumping';
+      player.y = Math.min(player.y, this.y - player.getHeight());
+      player.vy = KoopaTroopa.SHELL_KICK_BOUNCE_VY;
+      return 'kicked_shell';
+    }
+
+    // Side contact
+    if (this.state === 'shell_idle') {
+      const dir: -1 | 1 = player.x < this.x ? 1 : -1;
+      this.kickShell(dir, KoopaTroopa.SHELL_SLIDE_SPEED);
+      return 'kicked_shell';
+    }
+
+    return 'hurt_player';
+  }
+
+  /**
+   * Resolves shell-sweep or walking patrol collision against another enemy.
+   */
+  public checkEnemyCollision(other: KoopaTroopa | Goomba): KoopaEnemyCollisionResult {
+    const result: KoopaEnemyCollisionResult = {
+      defeatedOther: false,
+      turnedAround: false,
+      bouncedBothShells: false,
+    };
+
+    if (!this.alive || !other.alive || other === this) {
+      return result;
+    }
+
+    const overlaps =
+      this.x < other.x + other.width &&
+      this.x + this.width > other.x &&
+      this.y < other.y + other.height &&
+      this.y + this.height > other.y;
+
+    if (!overlaps) {
+      return result;
+    }
+
+    if (this.state === 'shell_moving') {
+      const otherWasMovingShell = other.state === 'shell_moving';
+      other.alive = false;
+      other.state = 'flipped';
+      other.vy = -5;
+      this.shellKillStreak++;
+      result.defeatedOther = true;
+      if (otherWasMovingShell) {
+        this.alive = false;
+        this.state = 'flipped';
+        this.vy = -5;
+        result.bouncedBothShells = true;
+      }
+      return result;
+    }
+
+    if (
+      this.state === 'walk' &&
+      (other.state === 'walk' || other.state === 'shell_idle')
+    ) {
+      const overlapX =
+        Math.min(this.x + this.width, other.x + other.width) -
+        Math.max(this.x, other.x);
+      const overlapY =
+        Math.min(this.y + this.height, other.y + other.height) -
+        Math.max(this.y, other.y);
+      if (overlapX > 0 && overlapY > 2) {
+        const thisCenter = this.x + this.width / 2;
+        const otherCenter = other.x + other.width / 2;
+        const thisLeft = thisCenter <= otherCenter;
+        if (other.state === 'walk') {
+          const halfPush = overlapX / 2;
+          this.x += thisLeft ? -halfPush : halfPush;
+          other.x += thisLeft ? halfPush : -halfPush;
+          this.vx = thisLeft ? -Math.abs(this.vx) : Math.abs(this.vx);
+          this.facing = this.vx > 0 ? 'right' : 'left';
+          other.vx = thisLeft ? Math.abs(other.vx) : -Math.abs(other.vx);
+          other.facing = other.vx > 0 ? 'right' : 'left';
+        } else {
+          this.x = thisLeft ? other.x - this.width : other.x + other.width;
+          this.vx = thisLeft ? -Math.abs(this.vx) : Math.abs(this.vx);
+          this.facing = this.vx > 0 ? 'right' : 'left';
+        }
+        result.turnedAround = true;
+      }
+    }
+
+    return result;
+  }
+
+  public render(ctx: CanvasRenderingContext2D, cameraX: number): void {
+    const screenX = Math.round(this.x - cameraX);
+    if (screenX < -32 || screenX > 288) {
+      return;
+    }
+
+    const atlas = SpriteAtlas.get();
+    const isRed = this.type === 'red_koopa';
+
+    if (this.state === 'flipped') {
+      ctx.save();
+      ctx.translate(
+        screenX + this.width / 2,
+        Math.round(this.y) + this.height / 2
+      );
+      ctx.scale(1, -1);
+      const sprite = isRed ? atlas.redKoopaShell : atlas.koopaShell;
+      ctx.drawImage(sprite, -this.width / 2, -sprite.height / 2);
+      ctx.restore();
+      return;
+    }
+
+    if (this.state === 'shell_idle' || this.state === 'shell_moving') {
+      const shakeX =
+        this.state === 'shell_idle' &&
+        this.stateTimer > 0 &&
+        this.stateTimer < 60 &&
+        Math.floor(this.stateTimer / 3) % 2 === 0
+          ? 1
+          : 0;
+      const shellSprite = isRed ? atlas.redKoopaShell : atlas.koopaShell;
+      ctx.drawImage(shellSprite, screenX + shakeX, Math.round(this.y + 2));
+      return;
+    }
+
+    const walkSprite = isRed
+      ? this.animFrame % 2 === 0
+        ? atlas.redKoopaWalk1
+        : atlas.redKoopaWalk2
+      : this.animFrame % 2 === 0
+      ? atlas.koopaWalk1
+      : atlas.koopaWalk2;
+
+    if (this.facing === 'right') {
+      ctx.save();
+      ctx.translate(screenX + this.width, Math.round(this.y));
+      ctx.scale(-1, 1);
+      ctx.drawImage(walkSprite, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(walkSprite, screenX, Math.round(this.y));
+    }
+  }
+
+  public syncFromEnemy(enemy: Enemy): void {
+    this.id = enemy.id;
+    this.type = enemy.type === 'red_koopa' ? 'red_koopa' : 'koopa';
+    this.x = enemy.x;
+    this.y = enemy.y;
+    this.vx = enemy.vx;
+    this.vy = enemy.vy;
+    this.width = enemy.width;
+    this.height = enemy.height;
+    this.alive = enemy.alive;
+    this.state =
+      enemy.state === 'shell_idle' ||
+      enemy.state === 'shell_moving' ||
+      enemy.state === 'flipped'
+        ? enemy.state
+        : 'walk';
+    this.stateTimer = enemy.stateTimer;
+    this.facing = enemy.facing;
+    this.animFrame = enemy.animFrame;
+    this.animTimer = enemy.animTimer;
+    this.shellKillStreak = enemy.shellKillStreak ?? 0;
+  }
+
+  public toEnemy(): Enemy {
+    return {
+      id: this.id,
+      type: this.type,
+      x: this.x,
+      y: this.y,
+      vx: this.vx,
+      vy: this.vy,
+      width: this.width,
+      height: this.height,
+      alive: this.alive,
+      state: this.state,
+      stateTimer: this.stateTimer,
+      facing: this.facing,
+      animFrame: this.animFrame,
+      animTimer: this.animTimer,
+      shellKillStreak: this.shellKillStreak,
+    };
+  }
+
+  public static fromEnemy(enemy: Enemy): KoopaTroopa {
+    const koopa = new KoopaTroopa(
+      enemy.x,
+      enemy.y,
+      enemy.type === 'red_koopa' ? 'red_koopa' : 'koopa',
+      enemy.vx,
+      enemy.id
+    );
+    koopa.syncFromEnemy(enemy);
+    return koopa;
+  }
+}
+
+export type PiranhaPhase = 'hidden' | 'emerging' | 'retracting' | 'flipped';
+export type PiranhaCollisionOutcome = 'none' | 'hurt_player' | 'star_defeat' | 'spin_bounce';
+
+export interface PiranhaUpdateResult {
+  phase: PiranhaPhase;
+  protrudingHeight: number;
+  isExposed: boolean;
+  blockedByProximity: boolean;
+}
+
+/**
+ * Classic Piranha Plant emerging vertically from green pipe obstacles on a
+ * timed interval (60-frame rise window within a 180-frame cycle), pausing
+ * inside the pipe when Mario stands nearby, clipping below the pipe rim when
+ * rendered, and only damaging Mario once sufficiently exposed above the pipe.
+ */
+export class PiranhaPlant {
+  public static readonly WIDTH = 16;
+  public static readonly HEIGHT = 16;
+  public static readonly HITBOX_WIDTH = 14;
+  public static readonly MAX_RISE_HEIGHT = 24;
+  public static readonly VERTICAL_SPEED = 0.5;
+  public static readonly CYCLE_DURATION = 180;
+  public static readonly EMERGE_WINDOW = 60;
+  public static readonly SAFE_PROTRUDE_THRESHOLD = 6;
+  public static readonly RENDER_PROTRUDE_THRESHOLD = 2;
+  public static readonly PROXIMITY_THRESHOLD = 28;
+  public static readonly ANIM_INTERVAL = 8;
+  public static readonly GRAVITY = 0.35;
+  public static readonly MAX_FALL_SPEED = 6.0;
+  public static readonly STAR_FLIP_VY = -5.0;
+
+  public id: number;
+  public readonly type = 'piranha' as const;
+  public x: number;
+  public y: number;
+  public pipeOriginY: number;
+  public vx: number = 0;
+  public vy: number = 0;
+  public width: number = PiranhaPlant.WIDTH;
+  public height: number = PiranhaPlant.HEIGHT;
+  public alive: boolean = true;
+  public state: 'walk' | 'flipped' = 'walk';
+  public phase: PiranhaPhase = 'hidden';
+  public stateTimer: number;
+  public facing: 'left' | 'right' = 'left';
+  public animFrame: number = 0;
+  public animTimer: number = 0;
+
+  constructor(
+    x: number = 0,
+    pipeOriginY: number = 0,
+    id: number = 0,
+    initialStateTimer: number = 0
+  ) {
+    this.id = id;
+    this.x = x;
+    this.y = pipeOriginY;
+    this.pipeOriginY = pipeOriginY;
+    this.stateTimer = initialStateTimer;
+  }
+
+  public getProtrudingHeight(): number {
+    return Math.max(0, this.pipeOriginY - this.y);
+  }
+
+  public isExposed(): boolean {
+    return (
+      this.alive &&
+      this.state !== 'flipped' &&
+      this.y < this.pipeOriginY - PiranhaPlant.SAFE_PROTRUDE_THRESHOLD
+    );
+  }
+
+  public isVisibleAbovePipe(): boolean {
+    if (this.state === 'flipped') {
+      return true;
+    }
+    return this.y < this.pipeOriginY - PiranhaPlant.RENDER_PROTRUDE_THRESHOLD;
+  }
+
+  public isPlayerNearby(player?: Player): boolean {
+    if (!player) {
+      return false;
+    }
+    const marioCenter = player.x + 7;
+    return Math.abs(marioCenter - this.x) < PiranhaPlant.PROXIMITY_THRESHOLD;
+  }
+
+  public getHitbox(): Rect | null {
+    if (!this.isExposed()) {
+      return null;
+    }
+    const protrudingHeight = Math.max(4, this.pipeOriginY - this.y);
+    return {
+      x: this.x - 7,
+      y: this.y,
+      width: PiranhaPlant.HITBOX_WIDTH,
+      height: protrudingHeight,
+    };
+  }
+
+  public isExpired(levelPixelHeight: number = 240): boolean {
+    if (this.state === 'flipped') {
+      return this.y > levelPixelHeight + 48;
+    }
+    return !this.alive;
+  }
+
+  public update(player?: Player): PiranhaUpdateResult {
+    if (!this.alive || this.state === 'flipped') {
+      if (this.state === 'flipped') {
+        this.vy = Math.min(
+          PiranhaPlant.MAX_FALL_SPEED,
+          this.vy + PiranhaPlant.GRAVITY
+        );
+        this.x += this.vx;
+        this.y += this.vy;
+        this.stateTimer++;
+      }
+      this.phase = 'flipped';
+      return {
+        phase: 'flipped',
+        protrudingHeight: 0,
+        isExposed: false,
+        blockedByProximity: false,
+      };
+    }
+
+    // Chomp jaw animation every 8 frames
+    this.animTimer++;
+    if (this.animTimer % PiranhaPlant.ANIM_INTERVAL === 0) {
+      this.animFrame = (this.animFrame + 1) % 2;
+    }
+
+    const blockedByProximity = this.isPlayerNearby(player);
+
+    // Timed pipe emergence/retraction cycle (0..59 rise if player not standing near pipe, 60..179 retract)
+    this.stateTimer++;
+    const cycle = this.stateTimer % PiranhaPlant.CYCLE_DURATION;
+    if (cycle < PiranhaPlant.EMERGE_WINDOW && !blockedByProximity) {
+      this.y = Math.max(
+        this.pipeOriginY - PiranhaPlant.MAX_RISE_HEIGHT,
+        this.y - PiranhaPlant.VERTICAL_SPEED
+      );
+      this.phase = 'emerging';
+    } else {
+      this.y = Math.min(this.pipeOriginY, this.y + PiranhaPlant.VERTICAL_SPEED);
+      this.phase = this.y >= this.pipeOriginY ? 'hidden' : 'retracting';
+    }
+
+    return {
+      phase: this.phase,
+      protrudingHeight: this.getProtrudingHeight(),
+      isExposed: this.isExposed(),
+      blockedByProximity,
+    };
+  }
+
+  public checkPlayerCollision(player: Player): PiranhaCollisionOutcome {
+    if (!this.alive || this.state === 'flipped') {
+      return 'none';
+    }
+
+    if (
+      player.state === 'dead' ||
+      player.state === 'pipe_entering' ||
+      player.state === 'pipe_exiting' ||
+      player.state === 'pole_slide' ||
+      player.state === 'castle_walk' ||
+      player.state === 'castle_entered'
+    ) {
+      return 'none';
+    }
+
+    const piranhaBox = this.getHitbox();
+    if (!piranhaBox) {
+      return 'none';
+    }
+
+    const marioBox = player.getHitbox();
+    const overlaps =
+      marioBox.x < piranhaBox.x + piranhaBox.width &&
+      marioBox.x + marioBox.width > piranhaBox.x &&
+      marioBox.y < piranhaBox.y + piranhaBox.height &&
+      marioBox.y + marioBox.height > piranhaBox.y;
+
+    if (!overlaps) {
+      return 'none';
+    }
+
+    if (player.starTimer > 0) {
+      this.alive = false;
+      this.state = 'flipped';
+      this.phase = 'flipped';
+      this.vy = PiranhaPlant.STAR_FLIP_VY;
+      return 'star_defeat';
+    }
+
+    const prevMarioBottom = marioBox.y + marioBox.height - player.vy;
+    const isSpinBounce =
+      player.isSpinJumping &&
+      player.vy >= -0.6 &&
+      prevMarioBottom <= this.y + 13;
+
+    if (isSpinBounce) {
+      player.y = Math.min(player.y, this.y - player.getHeight());
+      player.grounded = false;
+      player.state = 'jumping';
+      player.vy = Goomba.SPIN_STOMP_BOUNCE_VY;
+      return 'spin_bounce';
+    }
+
+    return 'hurt_player';
+  }
+
+  public render(ctx: CanvasRenderingContext2D, cameraX: number): void {
+    if (!this.isVisibleAbovePipe()) {
+      return;
+    }
+
+    const ex = Math.round(this.x - cameraX);
+    if (ex < -32 || ex > 288) {
+      return;
+    }
+
+    const atlas = SpriteAtlas.get();
+    const frame = this.animFrame % 2 === 0 ? atlas.piranha1 : atlas.piranha2;
+
+    if (this.state === 'flipped') {
+      ctx.save();
+      ctx.translate(ex + 4, Math.round(this.y) + this.height / 2);
+      ctx.scale(1, -1);
+      ctx.drawImage(frame, -this.width / 2, -this.height / 2);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ex - 8, 0, 32, this.pipeOriginY);
+    ctx.clip();
+    ctx.drawImage(frame, ex - 4, Math.round(this.y));
+    ctx.restore();
+  }
+
+  public syncFromEnemy(enemy: Enemy): void {
+    this.id = enemy.id;
+    this.x = enemy.x;
+    this.y = enemy.y;
+    this.pipeOriginY = enemy.pipeOriginY ?? enemy.y;
+    this.vx = enemy.vx;
+    this.vy = enemy.vy;
+    this.width = enemy.width;
+    this.height = enemy.height;
+    this.alive = enemy.alive;
+    this.state = enemy.state === 'flipped' ? 'flipped' : 'walk';
+    this.stateTimer = enemy.stateTimer;
+    this.facing = enemy.facing;
+    this.animFrame = enemy.animFrame;
+    this.animTimer = enemy.animTimer;
+    if (this.state === 'flipped') {
+      this.phase = 'flipped';
+    } else if (this.y >= this.pipeOriginY) {
+      this.phase = 'hidden';
+    } else if (this.stateTimer % PiranhaPlant.CYCLE_DURATION < PiranhaPlant.EMERGE_WINDOW) {
+      this.phase = 'emerging';
+    } else {
+      this.phase = 'retracting';
+    }
+  }
+
+  public toEnemy(): Enemy {
+    return {
+      id: this.id,
+      type: 'piranha',
+      x: this.x,
+      y: this.y,
+      vx: this.vx,
+      vy: this.vy,
+      width: this.width,
+      height: this.height,
+      alive: this.alive,
+      state: this.state,
+      stateTimer: this.stateTimer,
+      facing: this.facing,
+      animFrame: this.animFrame,
+      animTimer: this.animTimer,
+      pipeOriginY: this.pipeOriginY,
+    };
+  }
+
+  public static fromEnemy(enemy: Enemy): PiranhaPlant {
+    const piranha = new PiranhaPlant(
+      enemy.x,
+      enemy.pipeOriginY ?? enemy.y,
+      enemy.id,
+      enemy.stateTimer
+    );
+    piranha.syncFromEnemy(enemy);
+    return piranha;
+  }
+
+  /**
+   * Scans a green pipe column in a TileMap and constructs a PiranhaPlant
+   * anchored at the top rim of that pipe, or null if no pipe top exists.
+   */
+  public static fromPipeTile(
+    tileMap: TileMap,
+    pipeLeftTileX: number,
+    id: number = 0
+  ): PiranhaPlant | null {
+    for (let ty = 0; ty < tileMap.height; ty++) {
+      const tile = tileMap.getTileAt(pipeLeftTileX, ty);
+      if (
+        tile &&
+        (tile.type === 'pipe_top_left' || tile.type === 'pipe_warp_top_left')
+      ) {
+        const plantX = pipeLeftTileX * tileMap.tileSize + 8;
+        const pipeOriginY = ty * tileMap.tileSize;
+        return new PiranhaPlant(plantX, pipeOriginY, id);
+      }
+    }
+    return null;
+  }
+}
+
 export const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const playerRef = useRef<Player>(new Player());
+  const tileMapRef = useRef<TileMap>(new TileMap());
+  const goombasRef = useRef<Goomba[]>([]);
+  const koopaTroopasRef = useRef<KoopaTroopa[]>([]);
+  const piranhaPlantsRef = useRef<PiranhaPlant[]>([]);
+  const questionBlocksRef = useRef<QuestionBlock[]>([]);
   const animFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
   const cheatBufferRef = useRef<string>('');
@@ -211,6 +2546,8 @@ export const GameCanvas: React.FC = () => {
 
   // Audio state
   const [soundStatus, setSoundStatus] = useState(() => SoundEngine.get().getStatus());
+  const [activeSmwNodeId, setActiveSmwNodeId] = useState<string | null>(null);
+  const prevGamepadSelectRef = useRef<boolean>(false);
 
   // Controls state for touch/gamepad
   const [controls, setControls] = useState<GamepadControls>({
@@ -221,7 +2558,14 @@ export const GameCanvas: React.FC = () => {
     jump: false,
     spinJump: false,
     run: false,
+    select: false,
     pause: false,
+  });
+
+  const isCurrentSmwStageCleared = canExitSmwStageWithSelect({
+    isSmwModeActive,
+    activeNodeId: activeSmwNodeId ?? smwProgress.selectedNodeId,
+    progress: smwProgress,
   });
 
   // Subscribe to multiplayer client, logoff/inactivity events & check URL invite room
@@ -445,6 +2789,7 @@ export const GameCanvas: React.FC = () => {
         setSmwCastleSaveTitle(null);
       }
       setSmwJustClearedNodeId(nodeId);
+      setActiveSmwNodeId(null);
       setIsStageClear(false);
       setIsPaused(false);
       setIsGameOver(false);
@@ -459,11 +2804,24 @@ export const GameCanvas: React.FC = () => {
         jump: false,
         spinJump: false,
         run: false,
+        select: false,
         pause: false,
       });
       setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
     };
     engineRef.current = engine;
+    tileMapRef.current.syncFromEngine(engine);
+    playerRef.current.syncFromEngine(engine);
+    goombasRef.current = engine.enemies
+      .filter(enemy => enemy.type === 'goomba')
+      .map(enemy => Goomba.fromEnemy(enemy));
+    koopaTroopasRef.current = engine.enemies
+      .filter(enemy => enemy.type === 'koopa' || enemy.type === 'red_koopa')
+      .map(enemy => KoopaTroopa.fromEnemy(enemy));
+    piranhaPlantsRef.current = engine.enemies
+      .filter(enemy => enemy.type === 'piranha')
+      .map(enemy => PiranhaPlant.fromEnemy(enemy));
+    questionBlocksRef.current = tileMapRef.current.getQuestionBlocks();
     multiplayerClient.setEngine(engine);
 
     return () => {
@@ -523,6 +2881,7 @@ export const GameCanvas: React.FC = () => {
         engine.controls.jump = false;
         engine.controls.spinJump = false;
         engine.controls.run = false;
+        engine.controls.select = false;
         setControls({
           left: false,
           right: false,
@@ -531,6 +2890,7 @@ export const GameCanvas: React.FC = () => {
           jump: false,
           spinJump: false,
           run: false,
+          select: false,
           pause: false,
         });
         return;
@@ -680,6 +3040,94 @@ export const GameCanvas: React.FC = () => {
     setDebugCoords({ x: engine.marioX, y: engine.marioY });
   }, []);
 
+  const handleReturnToSmwOverworld = useCallback(() => {
+    SoundEngine.get().stopMusic();
+    setIsPaused(false);
+    setIsGameOver(false);
+    setIsStageClear(false);
+    setSmwJustClearedNodeId(null);
+    setSmwCastleSaveTitle(null);
+    setActiveSmwNodeId(null);
+    setSmwSaveSlots(loadSmwSaveSlots());
+    setIsSmwModeActive(true);
+    setIsSmwMapOpen(true);
+    manualRunHeldRef.current = false;
+    setControls({
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      spinJump: false,
+      run: false,
+      select: false,
+      pause: false,
+    });
+    if (engineRef.current) {
+      engineRef.current.returnToSmwOverworldState();
+    }
+  }, []);
+
+  const handleSelectAction = useCallback(() => {
+    const engine = engineRef.current;
+    if (
+      !engine ||
+      !hasStarted ||
+      !engine.isGameStarted ||
+      isSmwMapOpen ||
+      isGameOver ||
+      isCampaignVictory ||
+      isMultiplayerMatchOver
+    ) {
+      return;
+    }
+
+    const currentNodeId = engine.getActiveSmwNodeId() ?? activeSmwNodeId ?? smwProgress.selectedNodeId;
+    const canExitClearedStage = canExitSmwStageWithSelect({
+      isSmwModeActive,
+      activeNodeId: currentNodeId,
+      progress: smwProgress,
+    });
+
+    if (engine.isPaused) {
+      if (isSmwModeActive) {
+        if (canExitClearedStage) {
+          handleReturnToSmwOverworld();
+        } else {
+          setCheatToast('Fase ainda não passada! Conclua a fase antes de sair com Select.');
+          setTimeout(() => setCheatToast(''), 3000);
+        }
+      }
+      return;
+    }
+
+    if (engine.dropReservePowerUp(true)) {
+      setStats({ ...engine.stats, isNewHighScore: engine.isNewHighScore });
+      return;
+    }
+
+    if (canExitClearedStage) {
+      setCheatToast('Carteira vazia! Pause (P/Esc) + Select (V) para sair da fase já passada.');
+      setTimeout(() => setCheatToast(''), 3200);
+    } else if (isSmwModeActive) {
+      setCheatToast('Nenhum power-up na carteira! Conclua a fase para sair com Select.');
+      setTimeout(() => setCheatToast(''), 3200);
+    } else {
+      setCheatToast('Nenhum power-up armazenado na carteira!');
+      setTimeout(() => setCheatToast(''), 2500);
+    }
+  }, [
+    hasStarted,
+    isSmwMapOpen,
+    isGameOver,
+    isCampaignVictory,
+    isMultiplayerMatchOver,
+    isSmwModeActive,
+    activeSmwNodeId,
+    smwProgress,
+    handleReturnToSmwOverworld,
+  ]);
+
   const togglePauseGame = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || !hasStarted || engine.isGameOver || engine.isMultiplayerMatchOver) return;
@@ -694,6 +3142,7 @@ export const GameCanvas: React.FC = () => {
         jump: false,
         spinJump: false,
         run: false,
+        select: false,
         pause: false,
       });
     }
@@ -756,6 +3205,7 @@ export const GameCanvas: React.FC = () => {
         engine.controls.jump = false;
         engine.controls.spinJump = false;
         engine.controls.run = false;
+        engine.controls.select = false;
       }
       setControls({
         left: false,
@@ -765,6 +3215,7 @@ export const GameCanvas: React.FC = () => {
         jump: false,
         spinJump: false,
         run: false,
+        select: false,
         pause: false,
       });
     };
@@ -887,6 +3338,20 @@ export const GameCanvas: React.FC = () => {
           e.preventDefault();
           SoundEngine.get().resume();
           togglePauseGame();
+          return;
+        }
+        if (
+          isPaused &&
+          hasStarted &&
+          !isGameOver &&
+          !isMultiplayerMatchOver &&
+          tv.isSelect &&
+          e.code !== 'Tab'
+        ) {
+          if (e.repeat) return;
+          e.preventDefault();
+          SoundEngine.get().resume();
+          handleSelectAction();
           return;
         }
 
@@ -1018,6 +3483,13 @@ export const GameCanvas: React.FC = () => {
             }
             setControls(c => ({ ...c, run: true }));
             break;
+          case 'select':
+            engine.controls.select = true;
+            setControls(c => ({ ...c, select: true }));
+            if (!e.repeat && !engine.reservePowerUp) {
+              handleSelectAction();
+            }
+            break;
         }
       }
 
@@ -1104,6 +3576,10 @@ export const GameCanvas: React.FC = () => {
               setControls(c => ({ ...c, run: false }));
             }
             break;
+          case 'select':
+            engine.controls.select = false;
+            setControls(c => ({ ...c, select: false }));
+            break;
         }
       }
     };
@@ -1145,6 +3621,7 @@ export const GameCanvas: React.FC = () => {
     multiplayerStatus.transport,
     activateCheat,
     togglePauseGame,
+    handleSelectAction,
   ]);
 
   // Gamepad API Polling (blocked while in menus/overlays — R1.16.UF.4)
@@ -1180,17 +3657,24 @@ export const GameCanvas: React.FC = () => {
       engine.controls.jump = false;
       engine.controls.spinJump = false;
       engine.controls.run = false;
+      engine.controls.select = false;
       engine.controls.pause = false;
+      prevGamepadSelectRef.current = false;
       return;
     }
 
     const btnStart = gp.buttons[9]?.pressed || false;
+    const btnSelect = gp.buttons[8]?.pressed || false;
     if (btnStart && !engine.controls.pause) {
       engine.togglePause();
       setIsPaused(engine.isPaused);
     }
 
     if (engine.isPaused) {
+      if (btnSelect && !prevGamepadSelectRef.current) {
+        handleSelectAction();
+      }
+      prevGamepadSelectRef.current = btnSelect;
       engine.controls.left = false;
       engine.controls.right = false;
       engine.controls.up = false;
@@ -1198,6 +3682,7 @@ export const GameCanvas: React.FC = () => {
       engine.controls.jump = false;
       engine.controls.spinJump = false;
       engine.controls.run = false;
+      engine.controls.select = false;
       engine.controls.pause = btnStart;
       return;
     }
@@ -1210,11 +3695,12 @@ export const GameCanvas: React.FC = () => {
     const dpadUp = gp.buttons[12]?.pressed || axisY < -0.4;
     const dpadDown = gp.buttons[13]?.pressed || axisY > 0.4;
 
-    // A button (button 0), B button (button 1 or 2), Spin Jump (button 3), Start (button 9)
+    // A button (button 0), B button (button 1 or 2), Spin Jump (button 3), Select (button 8), Start (button 9)
     const btnA = gp.buttons[0]?.pressed || false;
     const btnB = gp.buttons[1]?.pressed || gp.buttons[2]?.pressed || false;
     const btnSpin = gp.buttons[3]?.pressed || false;
 
+    prevGamepadSelectRef.current = btnSelect;
     engine.controls.left = dpadLeft;
     engine.controls.right = dpadRight;
     engine.controls.up = dpadUp;
@@ -1222,6 +3708,7 @@ export const GameCanvas: React.FC = () => {
     engine.controls.jump = btnA;
     engine.controls.spinJump = btnSpin;
     engine.controls.run = btnB;
+    engine.controls.select = btnSelect;
     engine.controls.pause = btnStart;
   }, [
     hasStarted,
@@ -1236,6 +3723,7 @@ export const GameCanvas: React.FC = () => {
     isLevelEditorOpen,
     isUpdatesOpen,
     isAchievementsOpen,
+    handleSelectAction,
   ]);
 
   // Main Game Loop (60 FPS) — Freezes canvas rendering & RAF loop completely while paused
@@ -1274,6 +3762,18 @@ export const GameCanvas: React.FC = () => {
         // Update Physics & Game State (freeze background stage loop while SMW Overworld Map is open)
         if (!isSmwMapOpen) {
           engine.update(deltaMs);
+          tileMapRef.current.syncFromEngine(engine);
+          playerRef.current.syncFromEngine(engine);
+          goombasRef.current = engine.enemies
+            .filter(enemy => enemy.type === 'goomba')
+            .map(enemy => Goomba.fromEnemy(enemy));
+          koopaTroopasRef.current = engine.enemies
+            .filter(enemy => enemy.type === 'koopa' || enemy.type === 'red_koopa')
+            .map(enemy => KoopaTroopa.fromEnemy(enemy));
+          piranhaPlantsRef.current = engine.enemies
+            .filter(enemy => enemy.type === 'piranha')
+            .map(enemy => PiranhaPlant.fromEnemy(enemy));
+          questionBlocksRef.current = tileMapRef.current.getQuestionBlocks();
 
           // Render Canvas
           const ctx = canvas.getContext('2d');
@@ -1299,6 +3799,7 @@ export const GameCanvas: React.FC = () => {
             setLocalStageCleared(engine.localStageCleared);
             setIsCampaignVictory(engine.isCampaignVictory);
             setIsSmwModeActive(engine.gameMode === 'smw_world_map');
+            setActiveSmwNodeId(engine.getActiveSmwNodeId());
             setIsMultiplayerMatchOver(engine.isMultiplayerMatchOver);
             setMultiplayerMatchResult(engine.multiplayerMatchResult);
             setIsCustomLevelActive(Boolean(engine.level?.isCustom));
@@ -1397,7 +3898,9 @@ export const GameCanvas: React.FC = () => {
         up: false,
         down: false,
         jump: false,
+        spinJump: false,
         run: false,
+        select: false,
         pause: false,
       });
 
@@ -1416,6 +3919,7 @@ export const GameCanvas: React.FC = () => {
         const smwStage = createSmwWikiWorldStage(stageId);
         engine.startSmwStage(smwStage, false);
         setIsSmwModeActive(true);
+        setActiveSmwNodeId(stageId);
         setStats({ ...engine.stats, isNewHighScore: false });
         setMarioPower(engine.marioPower);
         setCheatToast(`Modo Dev: ${smwStage.biomeLabel || smwStage.name}`);
@@ -1842,6 +4346,7 @@ export const GameCanvas: React.FC = () => {
       SoundEngine.get().resume();
       setIsSmwMapOpen(false);
       setIsSmwModeActive(true);
+      setActiveSmwNodeId(nodeId);
       setSmwJustClearedNodeId(null);
       setHasStarted(true);
       setIsCustomLevelActive(false);
@@ -1852,7 +4357,9 @@ export const GameCanvas: React.FC = () => {
         up: false,
         down: false,
         jump: false,
+        spinJump: false,
         run: false,
+        select: false,
         pause: false,
       });
       if (engineRef.current) {
@@ -1905,6 +4412,7 @@ export const GameCanvas: React.FC = () => {
     setHasStarted(true);
     setIsSmwModeActive(true);
     setIsSmwMapOpen(true);
+    setActiveSmwNodeId(null);
     manualRunHeldRef.current = false;
     setControls({
       left: false,
@@ -1912,7 +4420,9 @@ export const GameCanvas: React.FC = () => {
       up: false,
       down: false,
       jump: false,
+      spinJump: false,
       run: false,
+      select: false,
       pause: false,
     });
     if (engineRef.current) {
@@ -1940,31 +4450,6 @@ export const GameCanvas: React.FC = () => {
     setSmwSaveSlots(nextSlots);
     setCheatToast(`Slot ${slotIndex + 1} apagado!`);
     setTimeout(() => setCheatToast(''), 2500);
-  }, []);
-
-  const handleReturnToSmwOverworld = useCallback(() => {
-    SoundEngine.get().stopMusic();
-    setIsPaused(false);
-    setIsGameOver(false);
-    setIsStageClear(false);
-    setSmwJustClearedNodeId(null);
-    setSmwCastleSaveTitle(null);
-    setSmwSaveSlots(loadSmwSaveSlots());
-    setIsSmwModeActive(true);
-    setIsSmwMapOpen(true);
-    manualRunHeldRef.current = false;
-    setControls({
-      left: false,
-      right: false,
-      up: false,
-      down: false,
-      jump: false,
-      run: false,
-      pause: false,
-    });
-    if (engineRef.current) {
-      engineRef.current.returnToSmwOverworldState();
-    }
   }, []);
 
   return (
@@ -2151,6 +4636,9 @@ export const GameCanvas: React.FC = () => {
               onControlChange={handleControlChange}
               isPaused={isPaused}
               onTogglePause={togglePauseGame}
+              onSelectAction={handleSelectAction}
+              reservePowerUp={stats.reservePowerUp ?? null}
+              canExitClearedWorldStage={isCurrentSmwStageCleared}
               isMuted={soundStatus.muted}
               onToggleMute={toggleMute}
               onRestart={handleRestart}
@@ -2323,7 +4811,7 @@ export const GameCanvas: React.FC = () => {
                 <div className="mt-3 text-[10px] sm:text-[11px] text-amber-300/90 font-mono">
                   {smartTvMode
                     ? '[◀▶▼] Mover • [OK / ▲ / Vermelho] Pular • [Azul / 0] Correr/Fogo • [Voltar] Pausar'
-                    : '[Setas / WASD] Mover • [Espaço / Z] Pular • [C / Q] Pulo Carpado • [Shift / X] Correr / Fogo'}
+                    : '[Setas / WASD] Mover • [Espaço / Z] Pular • [C / Q] Pulo Carpado • [Shift / X] Correr/Fogo • [V / Tab] Select'}
                 </div>
               </div>
 
@@ -2469,11 +4957,27 @@ export const GameCanvas: React.FC = () => {
                 {isSmwModeActive && (
                   <button
                     type="button"
-                    onClick={handleReturnToSmwOverworld}
-                    className="px-5 py-2.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 border border-emerald-400/70 text-emerald-100 font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    disabled={!isCurrentSmwStageCleared}
+                    onClick={handleSelectAction}
+                    title={
+                      isCurrentSmwStageCleared
+                        ? 'Select (V): Sair desta fase já passada e voltar ao Mapa do Modo World'
+                        : 'Select bloqueado: conclua esta fase ao menos uma vez antes de sair pelo Select'
+                    }
+                    className={`px-5 py-2.5 rounded-lg border font-['Press_Start_2P',monospace] text-xs shadow flex items-center gap-1.5 whitespace-nowrap shrink-0 transition ${
+                      isCurrentSmwStageCleared
+                        ? 'bg-emerald-900 hover:bg-emerald-800 border-emerald-400/70 text-emerald-100 cursor-pointer'
+                        : 'bg-stone-900/90 border-stone-700 text-stone-500 opacity-60 cursor-not-allowed'
+                    }`}
                   >
-                    <MapIcon className="w-3.5 h-3.5 text-amber-300" />
-                    OVERWORLD
+                    {isCurrentSmwStageCleared ? (
+                      <MapIcon className="w-3.5 h-3.5 text-amber-300" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5 text-stone-500" />
+                    )}
+                    <span>
+                      {isCurrentSmwStageCleared ? 'SELECT · OVERWORLD' : 'SELECT · PASSE A FASE'}
+                    </span>
                   </button>
                 )}
                 <button
@@ -3067,6 +5571,9 @@ export const GameCanvas: React.FC = () => {
           onControlChange={handleControlChange}
           isPaused={isPaused}
           onTogglePause={togglePauseGame}
+          onSelectAction={handleSelectAction}
+          reservePowerUp={stats.reservePowerUp ?? null}
+          canExitClearedWorldStage={isCurrentSmwStageCleared}
           isMuted={soundStatus.muted}
           onToggleMute={toggleMute}
           onRestart={handleRestart}

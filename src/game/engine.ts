@@ -871,6 +871,8 @@ export class GameEngine {
         down: false,
         jump: false,
         run: false,
+        spinJump: false,
+        select: false,
         pause: false,
       };
       this.prevControls = { ...this.controls };
@@ -1151,6 +1153,18 @@ export class GameEngine {
     }
     if (this.keyholeHintCooldown > 0) {
       this.keyholeHintCooldown--;
+    }
+
+    // SMW SELECT button during active gameplay: release stored Reserve Box power-up ("Carteira")
+    const selectPressed = Boolean(this.controls.select) && !Boolean(this.prevControls.select);
+    if (
+      selectPressed &&
+      this.isGameStarted &&
+      !this.isStageClear &&
+      !this.isGameOver &&
+      this.marioState !== 'dead'
+    ) {
+      this.dropReservePowerUp(true);
     }
 
     // Update Floating Platforms (and carry Mario smoothly if riding one)
@@ -3861,7 +3875,16 @@ export class GameEngine {
 
   public dropReservePowerUp(manual: boolean = false): boolean {
     if (!this.reservePowerUp) return false;
-    if (this.marioState === 'dead' || this.isStageClear || this.isBonusStageActive) return false;
+    if (
+      this.marioState === 'dead' ||
+      this.marioState === 'pole_slide' ||
+      this.marioState === 'castle_walk' ||
+      this.marioState === 'castle_entered' ||
+      this.isStageClear ||
+      this.isBonusStageActive
+    ) {
+      return false;
+    }
 
     const itemType = this.reservePowerUp;
     this.reservePowerUp = null;
@@ -7154,6 +7177,10 @@ export class GameEngine {
     this.loadLevel(level, true, false);
   }
 
+  public getActiveSmwNodeId(): string | null {
+    return this.level?.smwNodeId ?? this.bonusReturnLevelMeta?.smwNodeId ?? null;
+  }
+
   public resetControls() {
     this.controls = {
       left: false,
@@ -7163,6 +7190,7 @@ export class GameEngine {
       jump: false,
       run: false,
       spinJump: false,
+      select: false,
       pause: false,
     };
     this.prevControls = { ...this.controls };

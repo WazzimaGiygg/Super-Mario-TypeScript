@@ -25,6 +25,18 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.19.SB.6',
+    version: 'R1.19.SB.6',
+    label: 'Recurso · Botão Select SMW',
+    title: 'Botão Select Para Sair de Fases Já Passadas no Modo World e Usar Power-Up da Carteira',
+    isFix: false,
+    items: [
+      'Adicionado o botão SELECT nos controles táteis (barra inferior e sobreposição), nas teclas V / Tab do teclado e no botão Select do gamepad.',
+      'Durante a fase, pressionar SELECT solta manualmente o Power-Up armazenado na Carteira (Reserve Box) no topo da tela para o personagem coletar.',
+      'No Modo Super Mario World, pausar (P / Esc / Pausa) e usar SELECT permite sair da fase de volta ao Overworld apenas em fases já concluídas anteriormente.',
+    ],
+  },
+  {
     uid: 'R1.19.ML.6',
     version: 'R1.19.ML.6',
     label: 'Correção · Bloqueio de Modo & Editor',

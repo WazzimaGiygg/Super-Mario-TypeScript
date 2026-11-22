@@ -1327,4 +1327,50 @@ export function canEnterSmwNode(
   return isSmwNodeUnlocked(nodeId, progress) && !isSmwNodeCompletedAndLocked(nodeId, progress);
 }
 
+/**
+ * Checks whether a World Map stage node has already been cleared (via normal exit,
+ * secret keyhole exit, or switch palace completion).
+ */
+export function isSmwNodeCleared(
+  nodeId: string | null | undefined,
+  progress: Pick<
+    SmwBetaProgress,
+    | 'clearedNodeIds'
+    | 'secretClearedNodeIds'
+    | 'yellowSwitchUnlocked'
+    | 'greenSwitchUnlocked'
+    | 'redSwitchUnlocked'
+    | 'pinkSwitchUnlocked'
+    | 'blueSwitchUnlocked'
+  >
+): boolean {
+  if (!nodeId) return false;
+  if (progress.clearedNodeIds.includes(nodeId)) return true;
+  if (progress.secretClearedNodeIds?.includes(nodeId)) return true;
+  return isSmwNodeCompletedAndLocked(nodeId, progress as SmwBetaProgress);
+}
+
+/**
+ * In SMW World Mode, pressing SELECT while paused allows exiting back to the
+ * Overworld Map ONLY when the current stage has already been beaten.
+ */
+export function canExitSmwStageWithSelect(params: {
+  isSmwModeActive: boolean;
+  activeNodeId: string | null | undefined;
+  progress: Pick<
+    SmwBetaProgress,
+    | 'clearedNodeIds'
+    | 'secretClearedNodeIds'
+    | 'yellowSwitchUnlocked'
+    | 'greenSwitchUnlocked'
+    | 'redSwitchUnlocked'
+    | 'pinkSwitchUnlocked'
+    | 'blueSwitchUnlocked'
+  >;
+}): boolean {
+  if (!params.isSmwModeActive) return false;
+  return isSmwNodeCleared(params.activeNodeId, params.progress);
+}
+
+
 

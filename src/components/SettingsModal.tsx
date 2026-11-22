@@ -687,6 +687,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <p className="text-[10px] text-stone-400">Correr / Lançar Bola de Fogo</p>
               </div>
               <div>
+                <span className="font-bold text-amber-400">C / Q</span>
+                <p className="text-[10px] text-stone-400">Pulo Carpado (Spin Jump / Desmontar Yoshi)</p>
+              </div>
+              <div>
+                <span className="font-bold text-amber-400">V / Tab</span>
+                <p className="text-[10px] text-stone-400">Select (Usar Power-Up da Carteira / Sair de fase já passada com Pausa)</p>
+              </div>
+              <div>
                 <span className="font-bold text-amber-400">P / Esc</span>
                 <p className="text-[10px] text-stone-400">Pausar jogo</p>
               </div>
