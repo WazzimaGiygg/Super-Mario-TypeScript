@@ -2352,8 +2352,83 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
     cloned.wCoins = cloned.wCoins.slice(0, STAGE_W_COINS_COUNT);
   }
   cloned.floatingPlatforms = floatingPlatforms.length > 0 ? floatingPlatforms : undefined;
+  if (Array.isArray(cloned.pipeWarps)) {
+    cloned.pipeWarps = cloned.pipeWarps.filter(
+      pw =>
+        pw &&
+        typeof pw.toLevel === 'string' &&
+        pw.from.x >= 0 &&
+        pw.from.x + pw.from.width <= cloned.width * 16 &&
+        pw.from.y >= 0 &&
+        pw.from.y + pw.from.height <= cloned.height * 16
+    );
+    pruneKeyCavePipeWarps(cloned);
+    if (cloned.pipeWarps.length === 0) {
+      cloned.pipeWarps = undefined;
+    }
+  }
 
   return { level: cloned, truncated };
+}
+
+export const KEY_CAVE_PIPE_TARGET = 'smw-wiki-1-secret' as const;
+
+export function pruneKeyCavePipeWarps(level: LevelData): void {
+  if (!level.pipeWarps || level.pipeWarps.length === 0) return;
+  level.pipeWarps = level.pipeWarps.filter(pw => {
+    if (pw.toLevel !== KEY_CAVE_PIPE_TARGET || pw.type !== 'down') return true;
+    const lipTx = Math.floor(pw.from.x / 16);
+    const lipTy = Math.floor((pw.from.y + pw.from.height) / 16);
+    const leftTile = level.tiles[lipTy]?.[lipTx];
+    const rightTile = level.tiles[lipTy]?.[lipTx + 1];
+    return (
+      leftTile?.type === 'pipe_warp_top_left' &&
+      rightTile?.type === 'pipe_warp_top_right'
+    );
+  });
+  if (level.pipeWarps.length === 0) {
+    level.pipeWarps = undefined;
+  }
+}
+
+export function placeKeyCavePipeInLevel(
+  level: LevelData,
+  tx: number,
+  ty: number,
+  pipeHeight: 2 | 3 | 4 = 2
+): boolean {
+  if (tx < 0 || tx + 1 >= level.width || ty < 0 || ty >= level.height) {
+    return false;
+  }
+  const bottomY = Math.min(12, Math.max(3, ty));
+  const topY = Math.max(2, bottomY - pipeHeight + 1);
+
+  level.tiles[topY][tx] = { type: 'pipe_warp_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  level.tiles[topY][tx + 1] = { type: 'pipe_warp_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  for (let py = topY + 1; py <= bottomY; py++) {
+    level.tiles[py][tx] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[py][tx + 1] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Keep mouth unobstructed by Piranha Plants
+  level.enemies = level.enemies.filter(
+    e => !(e.type === 'piranha' && Math.abs(e.x - (tx * 16 + 8)) < 16)
+  );
+
+  const pipeLeftPx = tx * 16;
+  const pipeRightPx = (tx + 2) * 16;
+  const nextWarps = (level.pipeWarps || []).filter(
+    pw => !(pw.type === 'down' && pw.from.x < pipeRightPx && pw.from.x + pw.from.width > pipeLeftPx)
+  );
+  nextWarps.push({
+    from: { x: pipeLeftPx, y: (topY - 1) * 16, width: 32, height: 16 },
+    toLevel: KEY_CAVE_PIPE_TARGET,
+    toPos: { x: 2 * 16 + 8, y: 4 * 16 },
+    type: 'down',
+  });
+  level.pipeWarps = nextWarps;
+  pruneKeyCavePipeWarps(level);
+  return true;
 }
 
 export function cloneLevelData(level: LevelData): LevelData {
@@ -2855,21 +2930,163 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
     }
   }
 
+  const pipeWarps: NonNullable<LevelData['pipeWarps']> = [];
+  if (Array.isArray(candidateObj.pipeWarps)) {
+    for (const item of candidateObj.pipeWarps) {
+      if (!item || typeof item !== 'object') continue;
+      const pw = item as Record<string, unknown>;
+      const fromObj = pw.from && typeof pw.from === 'object' ? (pw.from as Record<string, unknown>) : null;
+      const toPosObj = pw.toPos && typeof pw.toPos === 'object' ? (pw.toPos as Record<string, unknown>) : null;
+      const toLevel = typeof pw.toLevel === 'string' ? pw.toLevel.trim() : '';
+      const warpType = pw.type === 'right' ? 'right' : pw.type === 'down' ? 'down' : null;
+      if (!fromObj || !toPosObj || !toLevel || !warpType) continue;
+      if (
+        typeof fromObj.x !== 'number' ||
+        typeof fromObj.y !== 'number' ||
+        typeof fromObj.width !== 'number' ||
+        typeof fromObj.height !== 'number' ||
+        typeof toPosObj.x !== 'number' ||
+        typeof toPosObj.y !== 'number'
+      ) {
+        continue;
+      }
+      if (
+        !Number.isFinite(fromObj.x) ||
+        !Number.isFinite(fromObj.y) ||
+        !Number.isFinite(fromObj.width) ||
+        !Number.isFinite(fromObj.height) ||
+        !Number.isFinite(toPosObj.x) ||
+        !Number.isFinite(toPosObj.y)
+      ) {
+        continue;
+      }
+      const w = Math.max(8, Math.min(48, fromObj.width));
+      const h = Math.max(8, Math.min(80, fromObj.height));
+      pipeWarps.push({
+        from: {
+          x: Math.max(0, Math.min(width * 16 - w, fromObj.x)),
+          y: Math.max(0, Math.min(height * 16 - h, fromObj.y)),
+          width: w,
+          height: h,
+        },
+        toLevel,
+        toPos: {
+          x: Math.max(0, Math.min(240 * 16, toPosObj.x)),
+          y: Math.max(0, Math.min(height * 16 - 16, toPosObj.y)),
+        },
+        type: warpType,
+      });
+    }
+  }
+
+  let wCoins: LevelData['wCoins'] = undefined;
+  if (Array.isArray(candidateObj.wCoins)) {
+    const parsedWC: { x: number; y: number }[] = [];
+    for (const item of candidateObj.wCoins) {
+      if (!item || typeof item !== 'object') continue;
+      const wc = item as Record<string, unknown>;
+      if (typeof wc.x !== 'number' || typeof wc.y !== 'number') continue;
+      if (!Number.isFinite(wc.x) || !Number.isFinite(wc.y)) continue;
+      parsedWC.push({
+        x: Math.max(0, Math.min(width * 16 - 8, wc.x)),
+        y: Math.max(0, Math.min(height * 16 - 8, wc.y)),
+      });
+    }
+    wCoins = parsedWC.slice(0, STAGE_W_COINS_COUNT);
+  }
+
+  let checkpoints: LevelData['checkpoints'] = undefined;
+  if (Array.isArray(candidateObj.checkpoints)) {
+    const parsedCP: NonNullable<LevelData['checkpoints']> = [];
+    for (const item of candidateObj.checkpoints) {
+      if (!item || typeof item !== 'object') continue;
+      const cp = item as Record<string, unknown>;
+      const rp =
+        cp.respawnPos && typeof cp.respawnPos === 'object'
+          ? (cp.respawnPos as Record<string, unknown>)
+          : null;
+      if (
+        typeof cp.x !== 'number' ||
+        !Number.isFinite(cp.x) ||
+        !rp ||
+        typeof rp.x !== 'number' ||
+        typeof rp.y !== 'number' ||
+        !Number.isFinite(rp.x) ||
+        !Number.isFinite(rp.y)
+      ) {
+        continue;
+      }
+      parsedCP.push({
+        x: Math.max(0, Math.min(width * 16 - 16, cp.x)),
+        respawnPos: {
+          x: Math.max(0, Math.min((width - 2) * 16, rp.x)),
+          y: Math.max(0, Math.min((height - 2) * 16, rp.y)),
+        },
+      });
+    }
+    if (parsedCP.length > 0) checkpoints = parsedCP;
+  }
+
+  const rawMusic = typeof candidateObj.musicTrack === 'string' ? candidateObj.musicTrack : '';
+  const musicTrack: LevelData['musicTrack'] =
+    rawMusic === 'overworld' ||
+    rawMusic === 'underground' ||
+    rawMusic === 'underwater' ||
+    rawMusic === 'castle' ||
+    rawMusic === 'ghost_house' ||
+    rawMusic === 'bonus'
+      ? rawMusic
+      : undefined;
+
+  const useBonusBackdrop = candidateObj.useBonusBackdrop === true ? true : undefined;
+  const dryFinishStartX =
+    typeof candidateObj.dryFinishStartX === 'number' && Number.isFinite(candidateObj.dryFinishStartX)
+      ? Math.max(0, Math.min(width * 16, candidateObj.dryFinishStartX))
+      : undefined;
+  const bossName =
+    typeof candidateObj.bossName === 'string' && candidateObj.bossName.trim()
+      ? candidateObj.bossName.trim()
+      : undefined;
+  const smwNodeId =
+    typeof candidateObj.smwNodeId === 'string' && candidateObj.smwNodeId.trim()
+      ? candidateObj.smwNodeId.trim()
+      : undefined;
+  const smwWorldName =
+    typeof candidateObj.smwWorldName === 'string' && candidateObj.smwWorldName.trim()
+      ? candidateObj.smwWorldName.trim()
+      : undefined;
+  const isFinalCastle =
+    typeof candidateObj.isFinalCastle === 'boolean' ? candidateObj.isFinalCastle : undefined;
+  const biomeLabel =
+    typeof candidateObj.biomeLabel === 'string' && candidateObj.biomeLabel.trim()
+      ? candidateObj.biomeLabel.trim()
+      : 'FASE DO JOGADOR';
+
   return stripNonSmwPowerUpBoxes(
     sanitizeCustomLevelEntities({
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name,
       theme,
-      biomeLabel: 'FASE DO JOGADOR',
+      biomeLabel,
       width,
       height,
       tiles,
       enemies,
       coins,
+      wCoins,
       yoshis: yoshis.length > 0 ? yoshis : undefined,
       carryables: carryables.length > 0 ? carryables : undefined,
       keyholes: keyholes.length > 0 ? keyholes : undefined,
       floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
+      pipeWarps: pipeWarps.length > 0 ? pipeWarps : undefined,
+      checkpoints,
+      musicTrack,
+      useBonusBackdrop,
+      dryFinishStartX,
+      bossName,
+      smwNodeId,
+      smwWorldName,
+      isFinalCastle,
       marioStart: { x: marioStartX, y: marioStartY },
       flagX,
       castleX,
@@ -2878,6 +3095,53 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       isCustom: true,
     }).level
   );
+}
+
+export interface WorldStageJsonDefaults {
+  id: string;
+  name: string;
+  smwNodeId?: string;
+  smwWorldName?: string;
+  biomeLabel?: string;
+  isFinalCastle?: boolean;
+  bossName?: string;
+}
+
+export function parseWorldStageFromJson(
+  rawJsonData: unknown,
+  defaults: WorldStageJsonDefaults
+): LevelData {
+  const rawJsonString =
+    typeof rawJsonData === 'string' ? rawJsonData : JSON.stringify(rawJsonData);
+  const parsed = parseImportedLevelFile(rawJsonString);
+  const rootObj =
+    rawJsonData && typeof rawJsonData === 'object'
+      ? (rawJsonData as Record<string, unknown>)
+      : {};
+  const levelObj =
+    'level' in rootObj && rootObj.level && typeof rootObj.level === 'object'
+      ? (rootObj.level as Record<string, unknown>)
+      : rootObj;
+  const rawName =
+    typeof levelObj.name === 'string' && levelObj.name.trim()
+      ? levelObj.name.trim().toUpperCase().slice(0, 16)
+      : defaults.name;
+  const rawBiome =
+    typeof levelObj.biomeLabel === 'string' && levelObj.biomeLabel.trim()
+      ? levelObj.biomeLabel.trim()
+      : defaults.biomeLabel || parsed.biomeLabel;
+
+  return {
+    ...parsed,
+    id: defaults.id,
+    name: rawName,
+    biomeLabel: rawBiome,
+    smwNodeId: defaults.smwNodeId ?? parsed.smwNodeId,
+    smwWorldName: defaults.smwWorldName ?? parsed.smwWorldName,
+    isFinalCastle: defaults.isFinalCastle ?? parsed.isFinalCastle ?? false,
+    bossName: parsed.bossName ?? defaults.bossName,
+    isCustom: false,
+  };
 }
 
 

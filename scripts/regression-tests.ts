@@ -81,6 +81,11 @@ import {
   createSecretVault,
   sanitizeCustomLevelEntities,
   parseImportedLevelFile,
+  parseWorldStageFromJson,
+  serializeLevelToFileJson,
+  placeKeyCavePipeInLevel,
+  pruneKeyCavePipeWarps,
+  KEY_CAVE_PIPE_TARGET,
   isPowerUpBoxContent,
   EDITOR_MAX_ENEMIES,
   EDITOR_MAX_COINS,
@@ -96,7 +101,10 @@ import {
   SMW_ISLAND2_UNAVAILABLE_MSG,
   SMW_WIKIWORLD_NODES,
   SMW_DEV_ONLY_SWITCH_PALACES,
+  WORLD_STAGE_JSON_REGISTRY,
+  createSmwWiki1SecretRoom,
   createSmwWikiWorldStage,
+  getWorldStageFilename,
   findSmwMapPath,
   isSmwNodeUnlocked,
   isSmwNodeCompletedAndLocked,
@@ -4138,6 +4146,161 @@ async function runR116FixesTests() {
     assert.equal(keyCaveWarp.from.x, 33 * 16);
     assert.equal(keyCaveWarp.from.y, 10 * 16);
     assert.equal(keyCaveWarp.type, 'down');
+  });
+
+  await test('Cano exclusivo para entrar na caverna da chave no editor de fases', () => {
+    const editorSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'),
+      'utf8'
+    );
+    assert.ok(editorSrc.includes("id: 'pipe_key_cave'"));
+    assert.ok(editorSrc.includes("label: 'Cano Caverna Chave'"));
+    assert.ok(editorSrc.includes('placeKeyCavePipeInLevel'));
+    assert.ok(editorSrc.includes('pruneKeyCavePipeWarps'));
+
+    // 1. Posicionar o cano exclusivo gera tiles de warp + entrada para smw-wiki-1-secret
+    const customStage = createBlankCustomLevel('CAVERNA CUSTOM', 'overworld', 60);
+    customStage.id = 'custom-keycave-1';
+    const placed = placeKeyCavePipeInLevel(customStage, 20, 12, 2);
+    assert.equal(placed, true);
+    assert.equal(customStage.tiles[11][20]?.type, 'pipe_warp_top_left');
+    assert.equal(customStage.tiles[11][21]?.type, 'pipe_warp_top_right');
+    assert.equal(customStage.tiles[12][20]?.type, 'pipe_body_left');
+    assert.equal(customStage.tiles[12][21]?.type, 'pipe_body_right');
+    assert.equal(customStage.pipeWarps?.length, 1);
+    assert.equal(customStage.pipeWarps?.[0].toLevel, KEY_CAVE_PIPE_TARGET);
+    assert.equal(customStage.pipeWarps?.[0].from.x, 20 * 16);
+    assert.equal(customStage.pipeWarps?.[0].from.y, 10 * 16);
+
+    // 2. Exportação e importação preservam o cano exclusivo e seu warp
+    const exportedJson = serializeLevelToFileJson(customStage);
+    const reimported = parseImportedLevelFile(exportedJson);
+    assert.equal(reimported.tiles[11][20]?.type, 'pipe_warp_top_left');
+    assert.equal(reimported.pipeWarps?.length, 1);
+    assert.equal(reimported.pipeWarps?.[0].toLevel, KEY_CAVE_PIPE_TARGET);
+
+    // 3. Apagar a boca do cano limpa o warp órfão automaticamente
+    const erasedDraft = parseImportedLevelFile(exportedJson);
+    erasedDraft.tiles[11][20] = null;
+    pruneKeyCavePipeWarps(erasedDraft);
+    assert.equal(erasedDraft.pipeWarps, undefined);
+
+    // 4. Em partida da fase customizada: entra na caverna da chave e retorna ao cano de origem
+    const engine = createFreshEngine();
+    engine.playCustomLevel(customStage, false);
+    engine.intermissionTimer = 0;
+    engine.marioX = 20 * 16 + 8;
+    engine.marioY = 11 * 16 - 16;
+    engine.marioGrounded = true;
+    engine.controls.down = true;
+    stepEngine(engine, 3);
+    assert.equal(engine.marioState, 'pipe_entering');
+    engine.controls.down = false;
+    stepEngine(engine, 40);
+    assert.equal(engine.level.id, KEY_CAVE_PIPE_TARGET);
+    assert.ok(engine.carryables.some(c => c.kind === 'key'));
+    assert.ok(engine.keyholes.length >= 1);
+
+    // Retorna pelo cano de saída da caverna para o cano exato da fase customizada
+    engine.marioX = 28 * 16 + 8;
+    engine.marioY = 9 * 16 - 16;
+    engine.marioGrounded = true;
+    engine.controls.down = true;
+    stepEngine(engine, 40);
+    engine.controls.down = false;
+    assert.equal(engine.level.id, 'custom-keycave-1');
+    assert.equal(engine.level.isCustom, true);
+    assert.equal(engine.marioX, 20 * 16 + 8);
+
+    // 5. Em campanha personalizada, destravar a fechadura dentro da caverna avança para a próxima fase
+    const secondStage = createBlankCustomLevel('FASE DOIS', 'underground', 60);
+    secondStage.id = 'custom-keycave-2';
+    const campEngine = createFreshEngine();
+    campEngine.startCustomCampaign([customStage, secondStage], false);
+    campEngine.intermissionTimer = 0;
+    campEngine.marioX = 20 * 16 + 8;
+    campEngine.marioY = 11 * 16 - 16;
+    campEngine.marioGrounded = true;
+    campEngine.controls.down = true;
+    stepEngine(campEngine, 40);
+    campEngine.controls.down = false;
+    assert.equal(campEngine.level.id, KEY_CAVE_PIPE_TARGET);
+
+    campEngine.enemies = [];
+    const caveKey = campEngine.carryables.find(c => c.kind === 'key')!;
+    const caveKeyhole = campEngine.keyholes[0];
+    campEngine.marioX = caveKey.x;
+    campEngine.marioY = caveKey.y;
+    campEngine.controls.run = true;
+    stepEngine(campEngine, 3);
+    campEngine.marioX = caveKeyhole.x - 4;
+    campEngine.marioY = caveKeyhole.y;
+    stepEngine(campEngine, 3);
+    assert.equal(caveKeyhole.activated, true);
+    stepEngine(campEngine, 50);
+    campEngine.stats.time = 0;
+    stepEngine(campEngine, 90);
+    assert.equal(campEngine.level.id, 'custom-keycave-2');
+    assert.equal(campEngine.customCampaignIndex, 1);
+  });
+
+  await test('Fases do Modo World em JSON individuais com suporte a edição, exportação e substituição manual', () => {
+    assert.equal(WORLD_STAGE_JSON_REGISTRY.length, 11);
+
+    const worldLevelsDir = path.resolve(process.cwd(), 'src/game/worldLevels');
+    for (const entry of WORLD_STAGE_JSON_REGISTRY) {
+      const jsonPath = path.join(worldLevelsDir, entry.filename);
+      assert.ok(fs.existsSync(jsonPath), `Arquivo JSON ausente: ${entry.filename}`);
+      const rawText = fs.readFileSync(jsonPath, 'utf8');
+      const parsedPayload = JSON.parse(rawText);
+      assert.equal(parsedPayload.format, 'smb-custom-level');
+      assert.equal(parsedPayload.version, 1);
+
+      const loaded =
+        entry.key === 'smw-wiki-1-secret'
+          ? createSmwWiki1SecretRoom()
+          : createSmwWikiWorldStage(entry.key);
+      assert.equal(loaded.isCustom, false);
+      assert.equal(loaded.smwNodeId, entry.defaults.smwNodeId);
+      assert.equal(getWorldStageFilename(loaded), entry.filename);
+
+      // Round-trip via Editor upload + export mantém filename exato para substituição manual
+      const editorImported = parseImportedLevelFile(rawText);
+      assert.equal(editorImported.isCustom, true);
+      assert.equal(getWorldStageFilename(editorImported), entry.filename);
+    }
+
+    // smw-wiki-1-secret preserva o retorno exato para W-1 (536px mesmo tendo largura de 32 tiles)
+    const secretRoom = createSmwWiki1SecretRoom();
+    assert.equal(secretRoom.width, 32);
+    assert.equal(secretRoom.pipeWarps?.[0].toLevel, 'wiki-1-overworld');
+    assert.equal(secretRoom.pipeWarps?.[0].toPos.x, 33 * 16 + 8);
+
+    // Simula edição de W-1 no editor, exportação JSON e substituição manual do arquivo
+    const w1Raw = fs.readFileSync(path.join(worldLevelsDir, 'wiki-1-overworld.json'), 'utf8');
+    const editedW1 = parseImportedLevelFile(w1Raw);
+    editedW1.coins.push({ x: 18 * 16, y: 10 * 16 });
+    const exportedEditedW1Json = serializeLevelToFileJson(editedW1);
+    const w1Entry = WORLD_STAGE_JSON_REGISTRY.find(e => e.key === 'wiki-1-overworld')!;
+    const replacedStage = parseWorldStageFromJson(JSON.parse(exportedEditedW1Json), w1Entry.defaults);
+    assert.equal(replacedStage.isCustom, false);
+    assert.equal(replacedStage.smwNodeId, 'wiki-1-overworld');
+    assert.ok(replacedStage.coins.some(c => c.x === 18 * 16 && c.y === 10 * 16));
+    assert.equal(replacedStage.wCoins?.length, STAGE_W_COINS_COUNT);
+    assert.ok((replacedStage.checkpoints?.length ?? 0) >= 1);
+
+    // Não-World não recebe filename de World Mode
+    const blankCustom = createBlankCustomLevel('FASE LIVRE', 'overworld', 60);
+    assert.equal(getWorldStageFilename(blankCustom), null);
+
+    // LevelEditorModal expõe as fases do Modo World e usa getWorldStageFilename na exportação
+    const editorSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'),
+      'utf8'
+    );
+    assert.ok(editorSrc.includes('WORLD_STAGE_JSON_REGISTRY'));
+    assert.ok(editorSrc.includes('getWorldStageFilename'));
+    assert.ok(editorSrc.includes('Modo World (JSON)'));
   });
 }
 

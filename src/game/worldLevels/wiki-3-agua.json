@@ -1,0 +1,5198 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "exportedAt": "2026-11-23T13:33:34.239Z",
+  "level": {
+    "id": "smw-wiki-3",
+    "name": "W-3",
+    "theme": "underwater",
+    "biomeLabel": "WIKIWORLDWEB · ÁGUA",
+    "width": 169,
+    "height": 15,
+    "tiles": [
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole_top",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_warp_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_warp_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_door",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "coral",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_door",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        }
+      ],
+      [
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "sea_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        }
+      ]
+    ],
+    "enemies": [
+      {
+        "type": "cheep_cheep",
+        "x": 352,
+        "y": 112
+      },
+      {
+        "type": "blooper",
+        "x": 496,
+        "y": 64
+      },
+      {
+        "type": "blooper",
+        "x": 704,
+        "y": 64
+      },
+      {
+        "type": "cheep_cheep",
+        "x": 768,
+        "y": 160
+      },
+      {
+        "type": "cheep_cheep",
+        "x": 1328,
+        "y": 96
+      },
+      {
+        "type": "blooper",
+        "x": 1392,
+        "y": 112
+      },
+      {
+        "type": "blooper",
+        "x": 1552,
+        "y": 144
+      },
+      {
+        "type": "cheep_cheep",
+        "x": 1728,
+        "y": 128
+      }
+    ],
+    "coins": [
+      {
+        "x": 248,
+        "y": 144
+      },
+      {
+        "x": 264,
+        "y": 144
+      },
+      {
+        "x": 344,
+        "y": 96
+      },
+      {
+        "x": 360,
+        "y": 96
+      },
+      {
+        "x": 376,
+        "y": 96
+      },
+      {
+        "x": 392,
+        "y": 96
+      },
+      {
+        "x": 408,
+        "y": 96
+      },
+      {
+        "x": 424,
+        "y": 96
+      },
+      {
+        "x": 440,
+        "y": 96
+      },
+      {
+        "x": 664,
+        "y": 144
+      },
+      {
+        "x": 680,
+        "y": 144
+      },
+      {
+        "x": 968,
+        "y": 128
+      },
+      {
+        "x": 1032,
+        "y": 144
+      },
+      {
+        "x": 1096,
+        "y": 144
+      },
+      {
+        "x": 1192,
+        "y": 144
+      },
+      {
+        "x": 1208,
+        "y": 144
+      },
+      {
+        "x": 1544,
+        "y": 96
+      },
+      {
+        "x": 1560,
+        "y": 96
+      },
+      {
+        "x": 1576,
+        "y": 96
+      },
+      {
+        "x": 1592,
+        "y": 96
+      },
+      {
+        "x": 1608,
+        "y": 96
+      },
+      {
+        "x": 1624,
+        "y": 96
+      },
+      {
+        "x": 1640,
+        "y": 96
+      },
+      {
+        "x": 1656,
+        "y": 96
+      },
+      {
+        "x": 1672,
+        "y": 96
+      },
+      {
+        "x": 1720,
+        "y": 96
+      },
+      {
+        "x": 1736,
+        "y": 96
+      },
+      {
+        "x": 1752,
+        "y": 96
+      },
+      {
+        "x": 1768,
+        "y": 96
+      },
+      {
+        "x": 1784,
+        "y": 96
+      },
+      {
+        "x": 1800,
+        "y": 96
+      },
+      {
+        "x": 1816,
+        "y": 96
+      },
+      {
+        "x": 1880,
+        "y": 144
+      },
+      {
+        "x": 1944,
+        "y": 144
+      },
+      {
+        "x": 2112,
+        "y": 128
+      }
+    ],
+    "marioStart": {
+      "x": 40,
+      "y": 144
+    },
+    "flagX": 2480,
+    "castleX": 2576,
+    "dryFinishStartX": 2224,
+    "pipeWarps": [
+      {
+        "from": {
+          "x": 2096,
+          "y": 144,
+          "width": 32,
+          "height": 16
+        },
+        "toLevel": "smw-wiki-3",
+        "toPos": {
+          "x": 2312,
+          "y": 160
+        },
+        "type": "down"
+      }
+    ],
+    "bgColor": "#1840b8",
+    "timeLimit": 390,
+    "seed": -1079333746,
+    "enemySpeedMultiplier": 1.061764705882353,
+    "singleplayerWorld": 2,
+    "singleplayerStage": 2,
+    "isFinalCastle": false,
+    "smwNodeId": "wiki-3-agua",
+    "smwWorldName": "Ilha WikiWorldWeb",
+    "checkpoints": [
+      {
+        "x": 1120,
+        "respawnPos": {
+          "x": 1120,
+          "y": 160
+        }
+      },
+      {
+        "x": 1968,
+        "respawnPos": {
+          "x": 1968,
+          "y": 160
+        }
+      }
+    ],
+    "isCustom": true
+  }
+}

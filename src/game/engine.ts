@@ -155,7 +155,7 @@ export class GameEngine {
 
   // Pipe Warp State & Authentic In-Pipe Visual Clipping
   public warpTimer: number = 0;
-  public warpTarget: { toLevel: string; toPos: Point } | null = null;
+  public warpTarget: { toLevel: string; toPos: Point; returnPos?: Point } | null = null;
   public warpDir: 'down' | 'right' = 'down';
   public pipeExitDir: 'up' | 'down' | 'right' = 'up';
   public pipeClipLipY: number | null = null;
@@ -341,8 +341,10 @@ export class GameEngine {
   public infiniteLives: boolean = false;
   public isEditorImmortality: boolean = false;
   private customLevelTemplate: LevelData | null = null;
+  private customSubAreaOrigin: { levelTemplate: LevelData; returnPos: Point } | null = null;
   public customCampaignLevels: LevelData[] = [];
   public customCampaignIndex: number = 0;
+  private keyCavePipeLipKeys: Set<string> = new Set();
   private ceilingTileColumns: boolean[] = [];
 
   // Achievement Tracking System
@@ -419,6 +421,12 @@ export class GameEngine {
 
   public loadLevel(newLevel: LevelData, showIntermission: boolean = false, isRespawn: boolean = false, notifyNetwork: boolean = true) {
     let resolvedLevel = newLevel;
+    const isSubAreaLevel =
+      resolvedLevel.id === 'secret-vault' || resolvedLevel.id === 'smw-wiki-1-secret';
+    if (isRespawn && isSubAreaLevel && this.customSubAreaOrigin) {
+      resolvedLevel = cloneLevelData(this.customSubAreaOrigin.levelTemplate);
+      this.customSubAreaOrigin = null;
+    }
     if (resolvedLevel.isCustom) {
       if (!isRespawn) {
         const sanitized = sanitizeCustomLevelEntities(resolvedLevel).level;
@@ -427,8 +435,9 @@ export class GameEngine {
       } else if (this.customLevelTemplate) {
         resolvedLevel = cloneLevelData(this.customLevelTemplate);
       }
-    } else if (!isRespawn) {
+    } else if (!isRespawn && !isSubAreaLevel) {
       this.customLevelTemplate = null;
+      this.customSubAreaOrigin = null;
       this.customCampaignLevels = [];
       this.customCampaignIndex = 0;
       this.isEditorImmortality = false;
@@ -442,6 +451,16 @@ export class GameEngine {
       this.stageElapsedMs = 0;
     }
     this.level = resolvedLevel;
+    this.keyCavePipeLipKeys = new Set();
+    if (Array.isArray(resolvedLevel.pipeWarps)) {
+      resolvedLevel.pipeWarps.forEach(pw => {
+        if (pw.toLevel === 'smw-wiki-1-secret' && pw.type === 'down') {
+          const lipTx = Math.floor(pw.from.x / GameEngine.TILE_SIZE);
+          const lipTy = Math.floor((pw.from.y + pw.from.height) / GameEngine.TILE_SIZE);
+          this.keyCavePipeLipKeys.add(`${lipTx},${lipTy}`);
+        }
+      });
+    }
     this.ceilingTileColumns = new Array(resolvedLevel.width).fill(false);
     if (
       resolvedLevel.theme === 'underground' ||
@@ -5240,7 +5259,11 @@ export class GameEngine {
         this.marioVx = 0;
         this.marioVy = 0;
         this.warpTimer = 0;
-        this.warpTarget = { toLevel: pw.toLevel, toPos: pw.toPos };
+        this.warpTarget = {
+          toLevel: pw.toLevel,
+          toPos: pw.toPos,
+          returnPos: { x: pw.from.x + 8, y: pw.from.y },
+        };
         this.warpDir = pw.type;
         this.pipeExitDir = 'up';
 
@@ -5276,10 +5299,29 @@ export class GameEngine {
       this.level.id === 'secret-vault' || this.level.id === 'smw-wiki-1-secret';
 
     if (targetLevelId === 'secret-vault' || targetLevelId === 'smw-wiki-1-secret') {
+      const originIsCustom = Boolean(this.level.isCustom);
+      if (originIsCustom && targetLevelId === 'smw-wiki-1-secret') {
+        const savedReturnPos = this.warpTarget.returnPos
+          ? { ...this.warpTarget.returnPos }
+          : { ...this.level.marioStart };
+        this.customSubAreaOrigin = {
+          levelTemplate: cloneLevelData(this.customLevelTemplate || this.level),
+          returnPos: savedReturnPos,
+        };
+      }
       const subAreaLevel =
         targetLevelId === 'smw-wiki-1-secret'
           ? createSmwWiki1SecretRoom()
           : createSecretVault();
+      if (targetLevelId === 'smw-wiki-1-secret' && this.customSubAreaOrigin) {
+        subAreaLevel.smwNodeId = undefined;
+        subAreaLevel.pipeWarps = (subAreaLevel.pipeWarps || []).map(pw => ({
+          ...pw,
+          from: { ...pw.from },
+          toLevel: 'custom-subarea-return',
+          toPos: { ...this.customSubAreaOrigin!.returnPos },
+        }));
+      }
       this.loadLevel(subAreaLevel, false, false, false);
       this.marioX = destPos.x;
       this.marioY = destPos.y;
@@ -5296,9 +5338,14 @@ export class GameEngine {
       targetLevelId === 'world-1-1' ||
       targetLevelId === 'world-1-2' ||
       targetLevelId === 'world-2-2' ||
-      targetLevelId === 'wiki-1-overworld'
+      targetLevelId === 'wiki-1-overworld' ||
+      (targetLevelId === 'custom-subarea-return' && Boolean(this.customSubAreaOrigin))
     ) {
-      if (targetLevelId === 'world-1-1') {
+      if (targetLevelId === 'custom-subarea-return' && this.customSubAreaOrigin) {
+        const returnLevel = cloneLevelData(this.customSubAreaOrigin.levelTemplate);
+        this.customSubAreaOrigin = null;
+        this.loadLevel(returnLevel, false, false, false);
+      } else if (targetLevelId === 'world-1-1') {
         this.loadLevel(createWorld1_1(), false, false, !returningFromSubArea);
       } else if (targetLevelId === 'wiki-1-overworld') {
         this.loadLevel(
@@ -6708,7 +6755,9 @@ export class GameEngine {
   }
 
   public advanceToNextLevel() {
-    if (this.level.isCustom && this.customCampaignLevels.length > 0) {
+    const isCustomStageOrSubArea = Boolean(this.level.isCustom || this.customSubAreaOrigin);
+    if (isCustomStageOrSubArea && this.customCampaignLevels.length > 0) {
+      this.customSubAreaOrigin = null;
       const nextIndex = this.customCampaignIndex + 1;
       if (nextIndex < this.customCampaignLevels.length) {
         this.customCampaignIndex = nextIndex;
@@ -6728,7 +6777,8 @@ export class GameEngine {
       this.sound.playStageClear();
       return;
     }
-    if (this.level.isCustom && this.customLevelTemplate) {
+    if (isCustomStageOrSubArea && this.customLevelTemplate) {
+      this.customSubAreaOrigin = null;
       this.loadLevel(cloneLevelData(this.customLevelTemplate), true, false);
       return;
     }
@@ -6884,6 +6934,7 @@ export class GameEngine {
   }
 
   public playCustomLevel(customLevel: LevelData, immortality: boolean = false) {
+    this.customSubAreaOrigin = null;
     this.customCampaignLevels = [];
     this.customCampaignIndex = 0;
     this.gameMode = 'classic';
@@ -6970,6 +7021,7 @@ export class GameEngine {
       };
     });
 
+    this.customSubAreaOrigin = null;
     this.customCampaignLevels = preparedLevels;
     this.customCampaignIndex = 0;
     this.gameMode = 'classic';
@@ -7240,8 +7292,11 @@ export class GameEngine {
   }
 
   public restartGame() {
-    const isCustomRestart = Boolean(this.level?.isCustom || this.bonusReturnLevelMeta?.isCustom);
+    const isCustomRestart = Boolean(
+      this.level?.isCustom || this.bonusReturnLevelMeta?.isCustom || this.customSubAreaOrigin
+    );
     const activeSmwNodeId = this.level?.smwNodeId ?? this.bonusReturnLevelMeta?.smwNodeId;
+    this.customSubAreaOrigin = null;
     if (isCustomRestart && this.customCampaignLevels.length > 0) {
       this.startCustomCampaign(this.customCampaignLevels, this.isEditorImmortality);
       return;
@@ -7325,6 +7380,7 @@ export class GameEngine {
 
   public exitToMainMenu() {
     this.customLevelTemplate = null;
+    this.customSubAreaOrigin = null;
     this.customCampaignLevels = [];
     this.customCampaignIndex = 0;
     this.gameMode = 'classic';
@@ -8442,8 +8498,13 @@ export class GameEngine {
             ctx.drawImage(this.atlas.tileHardBlock, screenX, screenY);
             break;
           case 'pipe_top_left':
+            ctx.drawImage(this.atlas.pipeTopLeft, screenX, screenY);
+            break;
           case 'pipe_warp_top_left':
             ctx.drawImage(this.atlas.pipeTopLeft, screenX, screenY);
+            if (this.level.isCustom && this.keyCavePipeLipKeys.has(`${tx},${ty}`)) {
+              ctx.drawImage(this.atlas.itemKey, screenX + 11, screenY + 3, 10, 10);
+            }
             break;
           case 'pipe_top_right':
           case 'pipe_warp_top_right':

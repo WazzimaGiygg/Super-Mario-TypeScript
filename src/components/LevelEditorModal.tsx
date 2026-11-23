@@ -44,6 +44,7 @@ import {
   EDITOR_MAX_KEYHOLES,
   EDITOR_MAX_TOTAL_ENTITIES,
   EDITOR_MAX_YOSHIS,
+  KEY_CAVE_PIPE_TARGET,
   cloneLevelData,
   createBlankCustomLevel,
   createSecretVault,
@@ -56,9 +57,17 @@ import {
   getExportLevelFilename,
   isCastleStageForYoshi,
   parseImportedLevelFile,
+  placeKeyCavePipeInLevel,
+  pruneKeyCavePipeWarps,
   sanitizeCustomLevelEntities,
   serializeLevelToFileJson,
 } from '../game/levels.ts';
+import {
+  WORLD_STAGE_JSON_REGISTRY,
+  createSmwWiki1SecretRoom,
+  createSmwWikiWorldStage,
+  getWorldStageFilename,
+} from '../game/smwWorldMap.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 
 export const EDITOR_MAX_HISTORY = 35;
@@ -88,6 +97,7 @@ type EditorBrushKind =
   | { kind: 'coin' }
   | { kind: 'tile'; tileType: TileType; content?: ItemContent; invisible?: boolean }
   | { kind: 'pipe'; height: 2 | 3 | 4; withPiranha?: boolean }
+  | { kind: 'pipe_key_cave'; height: 2 | 3 | 4 }
   | { kind: 'flagpole_goal' }
   | { kind: 'floating_platform'; axis: 'horizontal' | 'vertical' | 'bob' }
   | { kind: 'enemy'; enemyType: EnemyType };
@@ -148,8 +158,19 @@ const ITEM_CONTENT_OPTIONS: { value: ItemContent; label: string }[] = [
 ];
 
 const hasValidStageGoal = (level: LevelData): boolean => {
-  const hasAxe = level.tiles.some(row => row.some(t => t?.type === 'axe'));
-  if (hasAxe) return true;
+  const hasGoalTile = level.tiles.some(row =>
+    row.some(
+      t =>
+        t?.type === 'axe' ||
+        t?.type === 'yellow_switch' ||
+        t?.type === 'green_switch' ||
+        t?.type === 'red_switch' ||
+        t?.type === 'pink_switch' ||
+        t?.type === 'blue_switch'
+    )
+  );
+  if (hasGoalTile) return true;
+  if ((level.keyholes?.length ?? 0) > 0) return true;
   if (level.flagX > 0 && level.flagX < level.width * 16) {
     const flagTx = Math.floor(level.flagX / 16);
     if (flagTx >= 0 && flagTx < level.width) {
@@ -159,6 +180,9 @@ const hasValidStageGoal = (level: LevelData): boolean => {
       });
       if (hasPole) return true;
     }
+  }
+  if ((level.pipeWarps || []).some(pw => pw.toLevel === KEY_CAVE_PIPE_TARGET)) {
+    return true;
   }
   return false;
 };
@@ -178,6 +202,19 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   onToggleEditorImmortality,
 }) => {
   const atlas = useMemo(() => SpriteAtlas.get(), []);
+  const keyCavePipePreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.pipeTopLeft, 0, 2, 16, 16);
+    cctx.drawImage(atlas.pipeTopRight, 8, 2, 16, 16);
+    cctx.drawImage(atlas.itemKey, 10, 10, 13, 13);
+    return c;
+  }, [atlas]);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -576,6 +613,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         brush: { kind: 'pipe', height: 4, withPiranha: true },
         preview: () => atlas.piranha1,
       },
+      {
+        id: 'pipe_key_cave',
+        label: 'Cano Caverna Chave',
+        tab: 'items',
+        brush: { kind: 'pipe_key_cave', height: 2 },
+        preview: () => keyCavePipePreview || atlas.pipeTopLeft,
+      },
 
       // Enemies
       {
@@ -742,7 +786,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => null,
       },
     ],
-    [atlas, questionContent, invisibleBlock]
+    [atlas, keyCavePipePreview, questionContent, invisibleBlock]
   );
 
   const activeOption = useMemo(
@@ -888,6 +932,24 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         }
       }
 
+      if (brush.kind === 'pipe_key_cave') {
+        if (tx + 1 >= currentLevel.width) return;
+        const bottomY = Math.min(12, Math.max(3, ty));
+        const topY = Math.max(2, bottomY - brush.height + 1);
+        const expectedFromX = tx * 16;
+        const expectedFromY = (topY - 1) * 16;
+        const alreadyPlaced =
+          currentLevel.tiles[topY]?.[tx]?.type === 'pipe_warp_top_left' &&
+          currentLevel.tiles[topY]?.[tx + 1]?.type === 'pipe_warp_top_right' &&
+          (currentLevel.pipeWarps || []).some(
+            pw =>
+              pw.toLevel === KEY_CAVE_PIPE_TARGET &&
+              pw.from.x === expectedFromX &&
+              pw.from.y === expectedFromY
+          );
+        if (alreadyPlaced) return;
+      }
+
       if (brush.kind === 'pipe') {
         if (tx + 1 >= currentLevel.width) return;
         if (brush.withPiranha) {
@@ -985,6 +1047,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           const prevTile = draft.tiles[ty][tx];
           draft.tiles[ty][tx] = null;
           clearCoinsAndEnemiesAtCell();
+          pruneKeyCavePipeWarps(draft);
           if (prevTile && (prevTile.type === 'pole' || prevTile.type === 'pole_top')) {
             const flagTx = Math.floor(draft.flagX / 16);
             if (flagTx === tx) {
@@ -1040,6 +1103,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
         if (brush.kind === 'coin') {
           draft.tiles[ty][tx] = null;
+          pruneKeyCavePipeWarps(draft);
           const exists = draft.coins.some(
             c => Math.floor(c.x / 16) === tx && Math.floor(c.y / 16) === ty
           );
@@ -1070,10 +1134,16 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             bumpVel: 0,
             invisible: brush.invisible ? true : undefined,
           };
+          pruneKeyCavePipeWarps(draft);
           if (brush.tileType === 'axe') {
             draft.flagX = 999999;
             draft.castleX = Math.min(draft.width - 2, tx + 6) * 16;
           }
+          return draft;
+        }
+
+        if (brush.kind === 'pipe_key_cave') {
+          placeKeyCavePipeInLevel(draft, tx, ty, brush.height);
           return draft;
         }
 
@@ -1087,6 +1157,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             draft.tiles[py][tx] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
             draft.tiles[py][tx + 1] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
           }
+          pruneKeyCavePipeWarps(draft);
           if (brush.withPiranha) {
             draft.enemies = draft.enemies.filter(
               e => !(e.type === 'piranha' && Math.abs(e.x - (tx * 16 + 8)) < 16)
@@ -1128,6 +1199,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             draft.tiles[12][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
             draft.castleX = (cStart + 2) * 16;
           }
+          pruneKeyCavePipeWarps(draft);
           return draft;
         }
 
@@ -1384,7 +1456,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               : block.content === '1up'
               ? atlas.itemMushroom1Up
               : atlas.itemCoinFrames[0];
-          if (itemSprite) {
+            if (itemSprite) {
             const badgeSize = Math.max(8, Math.round(cellSize * 0.55));
             ctx.drawImage(
               itemSprite,
@@ -1394,6 +1466,27 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               badgeSize
             );
           }
+        }
+        if (
+          block.type === 'pipe_warp_top_left' &&
+          (currentLevel.pipeWarps || []).some(
+            pw =>
+              pw.toLevel === KEY_CAVE_PIPE_TARGET &&
+              Math.floor(pw.from.x / 16) === tx &&
+              Math.floor((pw.from.y + pw.from.height) / 16) === ty
+          )
+        ) {
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(dx + 1, dy + 1, cellSize * 2 - 2, cellSize - 2);
+          const keyBadge = Math.max(10, Math.round(cellSize * 0.72));
+          ctx.drawImage(
+            atlas.itemKey,
+            dx + cellSize - keyBadge / 2,
+            dy + Math.round((cellSize - keyBadge) / 2),
+            keyBadge,
+            keyBadge
+          );
         }
         ctx.restore();
       }
@@ -1723,33 +1816,42 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
       return;
     }
+    const isWorldStage = sourceId.startsWith('world:');
     let base: LevelData;
-    switch (sourceId) {
-      case 'world-1-2':
-        base = createWorld1_2();
-        break;
-      case 'world-2-2':
-        base = createWorld2_2();
-        break;
-      case 'world-ghost':
-        base = createWorldGhostHouse();
-        break;
-      case 'world-1-4':
-        base = createWorld1_4();
-        break;
-      case 'secret-vault':
-        base = createSecretVault();
-        break;
-      default:
-        base = createWorld1_1();
-        break;
+    if (isWorldStage) {
+      const worldKey = sourceId.slice('world:'.length);
+      base =
+        worldKey === 'smw-wiki-1-secret'
+          ? createSmwWiki1SecretRoom()
+          : createSmwWikiWorldStage(worldKey);
+    } else {
+      switch (sourceId) {
+        case 'world-1-2':
+          base = createWorld1_2();
+          break;
+        case 'world-2-2':
+          base = createWorld2_2();
+          break;
+        case 'world-ghost':
+          base = createWorldGhostHouse();
+          break;
+        case 'world-1-4':
+          base = createWorld1_4();
+          break;
+        case 'secret-vault':
+          base = createSecretVault();
+          break;
+        default:
+          base = createWorld1_1();
+          break;
+      }
     }
     const { level: sanitized, truncated } = sanitizeCustomLevelEntities(base);
     const copy: LevelData = {
       ...sanitized,
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: `EDIT ${base.name}`.slice(0, 16),
-      biomeLabel: 'FASE EDITADA',
+      name: isWorldStage ? base.name.slice(0, 16) : `EDIT ${base.name}`.slice(0, 16),
+      biomeLabel: isWorldStage ? base.biomeLabel : 'FASE EDITADA',
       isCustom: true,
     };
     onUpdateCustomLevels([...customLevels, copy], copy.id);
@@ -1828,6 +1930,10 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         draft.width = clamped;
         draft.enemies = draft.enemies.filter(e => e.x < clamped * 16 - 8);
         draft.coins = draft.coins.filter(c => c.x < clamped * 16 - 8);
+        if (draft.pipeWarps) {
+          draft.pipeWarps = draft.pipeWarps.filter(pw => pw.from.x + pw.from.width <= clamped * 16);
+          pruneKeyCavePipeWarps(draft);
+        }
         draft.marioStart.x = Math.min(draft.marioStart.x, (clamped - 4) * 16);
         if (draft.flagX < 99000 && draft.flagX >= clamped * 16) {
           draft.flagX = (clamped - 8) * 16;
@@ -1865,7 +1971,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const handleExportLevelFile = () => {
     const json = serializeLevelToFileJson(currentLevel);
-    const filename = getExportLevelFilename(currentLevel.name);
+    const filename = getWorldStageFilename(currentLevel) || getExportLevelFilename(currentLevel.name);
     const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -2163,6 +2269,9 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               onChange={e => handleWidthChange(Number(e.target.value))}
               className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 font-mono text-xs text-stone-200"
             >
+              {![60, 100, 140, 180, 220].includes(currentLevel.width) && (
+                <option value={currentLevel.width}>Atual ({currentLevel.width})</option>
+              )}
               <option value={60}>Curta (60)</option>
               <option value={100}>Média (100)</option>
               <option value={140}>Longa (140)</option>
@@ -2180,12 +2289,21 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 font-mono text-xs text-amber-200"
               >
                 <option value="">Importar Base...</option>
-                <option value="world-1-1">Mundo 1-1</option>
-                <option value="world-1-2">Mundo 1-2</option>
-                <option value="world-2-2">Mundo 2-2 (Água)</option>
-                <option value="world-ghost">Mansão de Fantasmas</option>
-                <option value="world-1-4">Mundo 1-4 (Castelo)</option>
-                <option value="secret-vault">Cofre Secreto</option>
+                <optgroup label="Modo World (JSON)">
+                  {WORLD_STAGE_JSON_REGISTRY.map(entry => (
+                    <option key={entry.key} value={`world:${entry.key}`}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Fases Clássicas">
+                  <option value="world-1-1">Mundo 1-1</option>
+                  <option value="world-1-2">Mundo 1-2</option>
+                  <option value="world-2-2">Mundo 2-2 (Água)</option>
+                  <option value="world-ghost">Mansão de Fantasmas</option>
+                  <option value="world-1-4">Mundo 1-4 (Castelo)</option>
+                  <option value="secret-vault">Cofre Secreto</option>
+                </optgroup>
               </select>
 
               <button
