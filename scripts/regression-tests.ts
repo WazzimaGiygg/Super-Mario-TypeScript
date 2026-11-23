@@ -119,6 +119,17 @@ import {
   findBestSpatialCandidateIndex,
 } from '../src/game/smartTv.ts';
 import { SoundEngine } from '../src/game/audio.ts';
+import {
+  COMMERCIAL_SKIP_DELAY_SECONDS,
+  WAZZIMAGIYGG_COMMERCIALS,
+  canSkipCommercial,
+  getActiveCommercialScene,
+  getCommercialById,
+  getCommercialRemainingSeconds,
+  getDossierWazzimaCommercial,
+  getNextCommercialInRotation,
+  getPrimaryWazzimaCommercial,
+} from '../src/game/commercials.ts';
 import type { Enemy, Item } from '../src/game/types.ts';
 
 function stepEngine(engine: GameEngine, frames: number, deltaMs = 16.67) {
@@ -3913,6 +3924,175 @@ async function runR116FixesTests() {
     assert.ok(canvasSrc.includes('handleSelectAction'));
     assert.ok(canvasSrc.includes('canExitSmwStageWithSelect'));
     assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.SB.6'));
+  });
+
+  await test('Comercial pré-jogo WazzimaGiygg (WikiMaker): 15 segundos de espera e botão Pular comercial', () => {
+    assert.equal(COMMERCIAL_SKIP_DELAY_SECONDS, 15);
+    assert.ok(WAZZIMAGIYGG_COMMERCIALS.length >= 1);
+
+    const primary = getPrimaryWazzimaCommercial();
+    assert.equal(primary.ecosystem, 'WazzimaGiygg');
+    assert.equal(primary.siteUrl, 'https://wikimaker.wazzimagiygg.com/');
+    assert.equal(primary.durationSeconds, 15);
+    assert.equal(primary.skipDelaySeconds, 15);
+
+    // Antes dos 15s não permite pular; após 15s libera o botão Pular comercial
+    assert.equal(canSkipCommercial(0), false);
+    assert.equal(canSkipCommercial(14.9), false);
+    assert.equal(canSkipCommercial(15), true);
+    assert.equal(getCommercialRemainingSeconds(0), 15);
+    assert.equal(getCommercialRemainingSeconds(10.2), 5);
+    assert.equal(getCommercialRemainingSeconds(15), 0);
+
+    // Cenas do comercial progridem corretamente ao longo dos 15 segundos
+    assert.equal(getActiveCommercialScene(primary, 1).id, 'wikimaker-intro');
+    assert.equal(getActiveCommercialScene(primary, 6).id, 'wikimaker-editor');
+    assert.equal(getActiveCommercialScene(primary, 12).id, 'wikimaker-cta');
+
+    // Verificação de integração na UI do comercial e GameCanvas
+    const adOverlaySrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/WazzimaCommercialOverlay.tsx'),
+      'utf8'
+    );
+    const canvasSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'),
+      'utf8'
+    );
+    assert.ok(adOverlaySrc.includes('Pular comercial'));
+    assert.ok(adOverlaySrc.includes('commercial.siteUrl'));
+    assert.ok(canvasSrc.includes('WazzimaCommercialOverlay'));
+    assert.ok(canvasSrc.includes('isCommercialOpen'));
+  });
+
+  await test('Comercial Dossiê Wikipédia (averdade), áudio de fundo, narração e suspensão do som do jogo', () => {
+    assert.ok(WAZZIMAGIYGG_COMMERCIALS.length >= 2);
+
+    const dossier = getDossierWazzimaCommercial();
+    assert.equal(dossier.id, 'wazzimagiygg-averdade-02');
+    assert.equal(dossier.ecosystem, 'WazzimaGiygg');
+    assert.equal(dossier.siteUrl, 'https://wazzimagiygg.com/averdade/');
+    assert.equal(dossier.audioTheme, 'investigative');
+    assert.equal(dossier.durationSeconds, 15);
+    assert.equal(dossier.skipDelaySeconds, 15);
+    assert.equal(dossier.scenes.length, 3);
+
+    // Todas as cenas possuem narração falada (spokenText) sincronizada
+    for (const scene of dossier.scenes) {
+      assert.ok(scene.spokenText.trim().length >= 20);
+    }
+    assert.equal(getActiveCommercialScene(dossier, 1).id, 'averdade-intro');
+    assert.equal(getActiveCommercialScene(dossier, 6).id, 'averdade-evidencias');
+    assert.equal(getActiveCommercialScene(dossier, 12).id, 'averdade-cta');
+
+    // Rotação alterna entre WikiMaker e Dossiê A Verdade
+    assert.equal(getNextCommercialInRotation(null).id, 'wazzimagiygg-wikimaker-01');
+    assert.equal(
+      getNextCommercialInRotation('wazzimagiygg-wikimaker-01').id,
+      'wazzimagiygg-averdade-02'
+    );
+    assert.equal(
+      getNextCommercialInRotation('wazzimagiygg-averdade-02').id,
+      'wazzimagiygg-wikimaker-01'
+    );
+    assert.equal(getCommercialById('wazzimagiygg-averdade-02').id, 'wazzimagiygg-averdade-02');
+
+    // SoundEngine suspende som e música do jogo durante o comercial e restaura ao encerrar
+    const sound = SoundEngine.get();
+    sound.setCommercialSuspended(true);
+    assert.equal(sound.isCommercialSuspended(), true);
+    assert.equal(sound.getStatus().commercialSuspended, true);
+
+    sound.playMusic('overworld');
+    assert.equal(sound.isCommercialSuspended(), true);
+    assert.equal(sound.getStatus().currentTrack, 'overworld');
+
+    sound.setCommercialSuspended(false);
+    assert.equal(sound.isCommercialSuspended(), false);
+    assert.equal(sound.getStatus().commercialSuspended, false);
+    sound.stopMusic();
+
+    // Verificação de integração na UI: som de fundo, fala de texto e suspensão no GameCanvas
+    const adOverlaySrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/WazzimaCommercialOverlay.tsx'),
+      'utf8'
+    );
+    const canvasSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'),
+      'utf8'
+    );
+    assert.ok(adOverlaySrc.includes('SpeechSynthesisUtterance'));
+    assert.ok(adOverlaySrc.includes('playUnderscoreSlice'));
+    assert.ok(adOverlaySrc.includes('Som do jogo suspenso durante o comercial'));
+    assert.ok(canvasSrc.includes('setCommercialSuspended(isCommercialOpen)'));
+    assert.ok(canvasSrc.includes('getNextCommercialInRotation'));
+  });
+
+  await test('Trilha sonora pós-comercial, Game Over sem loop de som e opção Tela Inicial no Game Over', () => {
+    const sound = SoundEngine.get();
+    sound.setCommercialSuspended(false);
+    sound.stopMusic();
+
+    // 1. Antes de iniciar partida (após comercial), trilha de fase não dispara na tela inicial
+    const menuEngine = new GameEngine();
+    assert.equal(menuEngine.isGameStarted, false);
+    assert.equal(sound.getStatus().currentTrack, 'none');
+
+    // Ao iniciar partida, trilha da fase inicia normalmente
+    menuEngine.restartGame();
+    assert.equal(menuEngine.isGameStarted, true);
+    assert.equal(sound.getStatus().currentTrack, 'overworld');
+
+    // 2. No Game Over, playGameOver() dispara apenas 1 vez (nunca em loop 60fps)
+    let gameOverCalls = 0;
+    const origPlayGameOver = sound.playGameOver.bind(sound);
+    sound.playGameOver = () => {
+      gameOverCalls++;
+      origPlayGameOver();
+    };
+    try {
+      menuEngine.intermissionTimer = 0;
+      menuEngine.stats.lives = 1;
+      menuEngine.marioState = 'dead';
+      menuEngine.marioDeathTimer = 136;
+      stepEngine(menuEngine, 15);
+      assert.equal(menuEngine.isGameOver, true);
+      assert.equal(sound.getStatus().currentTrack, 'none');
+      assert.equal(gameOverCalls, 1, 'playGameOver deve ser chamado exatamente 1 vez ao perder a última vida');
+    } finally {
+      sound.playGameOver = origPlayGameOver;
+      sound.stopMusic();
+    }
+
+    // 3. Política permite sair para Tela Inicial durante Game Over mantendo bloqueio durante partida ativa
+    assert.equal(
+      canExitToMainMenu({
+        hasStarted: true,
+        isDeveloperMode: false,
+        isUsingEditor: false,
+        isGameOver: false,
+      }),
+      false
+    );
+    assert.equal(
+      canExitToMainMenu({
+        hasStarted: true,
+        isDeveloperMode: false,
+        isUsingEditor: false,
+        isGameOver: true,
+      }),
+      true
+    );
+
+    const canvasSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'),
+      'utf8'
+    );
+    const gameOverIdx = canvasSrc.indexOf('Solo Game Over Overlay');
+    const victoryIdx = canvasSrc.indexOf('Final Campaign Victory Overlay');
+    assert.ok(gameOverIdx > 0 && victoryIdx > gameOverIdx);
+    const gameOverBlock = canvasSrc.slice(gameOverIdx, victoryIdx);
+    assert.ok(gameOverBlock.includes('handleReturnToMainMenu'));
+    assert.ok(gameOverBlock.includes('TELA INICIAL'));
   });
 }
 

@@ -10,6 +10,7 @@ export interface ModeAndEditorPolicyInput {
   isDeveloperMode: boolean;
   isUsingEditor: boolean;
   isCampaignVictory?: boolean;
+  isGameOver?: boolean;
 }
 
 /**
@@ -30,5 +31,9 @@ export function canSwitchGameMode(input: ModeAndEditorPolicyInput): boolean {
 }
 
 export function canExitToMainMenu(input: ModeAndEditorPolicyInput): boolean {
-  return !isModeAndEditorLocked(input) || Boolean(input.isCampaignVictory);
+  return (
+    !isModeAndEditorLocked(input) ||
+    Boolean(input.isCampaignVictory) ||
+    Boolean(input.isGameOver)
+  );
 }

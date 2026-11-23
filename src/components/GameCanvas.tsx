@@ -15,6 +15,12 @@ import { LevelEditorModal } from './LevelEditorModal.tsx';
 import { UpdatesModal, UpdatesModalFilter } from './UpdatesModal.tsx';
 import { AchievementsModal } from './AchievementsModal.tsx';
 import { SmwOverworldMap } from './SmwOverworldMap.tsx';
+import { WazzimaCommercialOverlay } from './WazzimaCommercialOverlay.tsx';
+import {
+  LAST_COMMERCIAL_STORAGE_KEY,
+  WazzimaCommercial,
+  getNextCommercialInRotation,
+} from '../game/commercials.ts';
 import { multiplayerClient } from '../game/multiplayer.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 import { SoundEngine } from '../game/audio.ts';
@@ -57,7 +63,7 @@ import {
   canSwitchGameMode,
   canExitToMainMenu,
 } from '../game/modePolicy.ts';
-import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen, Lock } from 'lucide-react';
+import { Award, Settings, Play, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Trophy, Flame, Users, Crown, Clock, CheckCircle2, WifiOff, Hammer, ShieldAlert, Shield, ScrollText, Heart, Map as MapIcon, Bug, Crosshair, ChevronLeft, ChevronRight, Plus, Tv, Wrench, FolderOpen, Lock, Home } from 'lucide-react';
 
 export interface PlayerPhysicsStepOptions {
   isUnderwater?: boolean;
@@ -2437,7 +2443,34 @@ export const GameCanvas: React.FC = () => {
   const [cheatToast, setCheatToast] = useState('');
   const [splashCheatInput, setSplashCheatInput] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
+  const [isCommercialOpen, setIsCommercialOpen] = useState(true);
+  const [activeCommercial] = useState<WazzimaCommercial>(() => {
+    try {
+      const lastId = localStorage.getItem(LAST_COMMERCIAL_STORAGE_KEY);
+      return getNextCommercialInRotation(lastId);
+    } catch {
+      return getNextCommercialInRotation(null);
+    }
+  });
   const [crtFilter, setCrtFilter] = useState(true);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAST_COMMERCIAL_STORAGE_KEY, activeCommercial.id);
+    } catch {
+      // Ignore storage errors in restricted environments
+    }
+  }, [activeCommercial.id]);
+
+  // Suspende completamente som e música do jogo enquanto o comercial estiver ativo
+  useEffect(() => {
+    const sound = SoundEngine.get();
+    sound.setCommercialSuspended(isCommercialOpen);
+    setSoundStatus(sound.getStatus());
+    return () => {
+      sound.setCommercialSuspended(false);
+    };
+  }, [isCommercialOpen]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const wasNativeFullscreenRef = useRef(false);
   const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
@@ -2540,8 +2573,9 @@ export const GameCanvas: React.FC = () => {
           engineRef.current?.level?.isCustom
       ),
       isCampaignVictory,
+      isGameOver: isGameOver || Boolean(engineRef.current?.isGameOver),
     }),
-    [hasStarted, isCheatActive, isDebugMode, isLevelEditorOpen, isCustomLevelActive, isCampaignVictory]
+    [hasStarted, isCheatActive, isDebugMode, isLevelEditorOpen, isCustomLevelActive, isCampaignVictory, isGameOver]
   );
 
   // Audio state
@@ -3150,7 +3184,7 @@ export const GameCanvas: React.FC = () => {
 
   // Auto-focus primary menu button for 10-foot Smart TV D-Pad navigation
   useEffect(() => {
-    if (!smartTvMode) return;
+    if (!smartTvMode || isCommercialOpen) return;
     const timer = window.setTimeout(() => {
       if (isSettingsOpen || isLeaderboardOpen || isCheatMenuOpen || isMultiplayerOpen || isUpdatesOpen || isAchievementsOpen || isLevelEditorOpen) {
         const dialog = document.querySelector<HTMLElement>('.fixed.inset-0.z-50');
@@ -3178,6 +3212,7 @@ export const GameCanvas: React.FC = () => {
     return () => clearTimeout(timer);
   }, [
     smartTvMode,
+    isCommercialOpen,
     hasStarted,
     isPaused,
     isGameOver,
@@ -3221,6 +3256,9 @@ export const GameCanvas: React.FC = () => {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isCommercialOpen) {
+        return;
+      }
       const target = e.target as HTMLElement | null;
       const inputType = target?.tagName === 'INPUT' ? (target as HTMLInputElement).type.toLowerCase() : '';
       const isTextEntry = Boolean(
@@ -3399,6 +3437,7 @@ export const GameCanvas: React.FC = () => {
         }
 
         if (tv.actions.includes('restart') && !e.ctrlKey && !e.metaKey && hasStarted && engineRef.current) {
+          SoundEngine.get().resume();
           if (multiplayerStatus.connected) {
             if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
               multiplayerClient.startMultiplayerRematch();
@@ -3600,6 +3639,7 @@ export const GameCanvas: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [
+    isCommercialOpen,
     hasStarted,
     isPaused,
     isGameOver,
@@ -3642,6 +3682,7 @@ export const GameCanvas: React.FC = () => {
       isAchievementsOpen;
 
     if (
+      isCommercialOpen ||
       !hasStarted ||
       !engine.isGameStarted ||
       isSmwMapOpen ||
@@ -3711,6 +3752,7 @@ export const GameCanvas: React.FC = () => {
     engine.controls.select = btnSelect;
     engine.controls.pause = btnStart;
   }, [
+    isCommercialOpen,
     hasStarted,
     isSmwMapOpen,
     isGameOver,
@@ -4104,6 +4146,7 @@ export const GameCanvas: React.FC = () => {
   }, [getModePolicyInput]);
 
   const handleRestart = () => {
+    SoundEngine.get().resume();
     if (multiplayerStatus.connected) {
       if (multiplayerStatus.transport === 'websocket' || multiplayerStatus.isHost) {
         if (engineRef.current) engineRef.current.isPaused = false;
@@ -5237,6 +5280,14 @@ export const GameCanvas: React.FC = () => {
                   <Trophy className="w-4 h-4 text-amber-400" />
                   {!isCheatActive && !isCustomLevelActive && stats.score > 0 ? 'RANKING / NOME' : 'VER RANKING'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleReturnToMainMenu}
+                  className="px-5 py-3 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-600 font-['Press_Start_2P',monospace] text-xs font-bold shadow-lg flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Home className="w-4 h-4 text-stone-300" />
+                  TELA INICIAL
+                </button>
               </div>
             </div>
           )}
@@ -5803,6 +5854,19 @@ export const GameCanvas: React.FC = () => {
           <span>{cheatToast}</span>
         </div>
       )}
+
+      {/* YouTube-Style WazzimaGiygg Ecosystem Pre-Roll Commercial (15s Skip Guard) */}
+      <WazzimaCommercialOverlay
+        isOpen={isCommercialOpen}
+        commercial={activeCommercial}
+        onSkipCommercial={() => {
+          const sound = SoundEngine.get();
+          sound.setCommercialSuspended(false);
+          sound.resume();
+          setSoundStatus(sound.getStatus());
+          setIsCommercialOpen(false);
+        }}
+      />
     </div>
   );
 };

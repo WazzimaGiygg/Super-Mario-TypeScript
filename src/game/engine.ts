@@ -771,8 +771,12 @@ export class GameEngine {
     this.particleSystem.clear();
     this.generateBackgroundScenery();
 
-    // Start background music
-    this.startLevelMusic(newLevel.theme);
+    // Start background music only when gameplay has actually started
+    if (this.isGameStarted) {
+      this.startLevelMusic(newLevel.theme);
+    } else {
+      this.sound.stopMusic();
+    }
 
     if (
       !isRespawn &&
@@ -891,6 +895,7 @@ export class GameEngine {
     // Check multiplayer game-over condition (someone ran out of lives)
     this.evaluateMultiplayerMatchEnd();
     if (this.isMultiplayerMatchOver) return;
+    if (this.isGameOver) return;
 
     // Check pause button pressed (edge-triggered)
     if (this.controls.pause && !this.prevControls.pause) {
@@ -3711,6 +3716,7 @@ export class GameEngine {
   }
 
   private handleLifeLost() {
+    if (this.isGameOver) return;
     this.marioPower = 'small';
     this.marioStarTimer = 0;
 

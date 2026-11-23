@@ -33,6 +33,7 @@ export class SoundEngine {
   private musicTimer: number | null = null;
   private musicStep: number = 0;
   private musicPaused: boolean = false;
+  private commercialSuspended: boolean = false;
   private currentScore: Note[] = [];
   private currentBass: Note[] = [];
 
@@ -54,7 +55,10 @@ export class SoundEngine {
       this.ctx = new AudioCtx();
 
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(
+        this.isMuted || this.commercialSuspended ? 0 : this.volume,
+        this.ctx.currentTime
+      );
       this.masterGain.connect(this.ctx.destination);
 
       this.sfxGain = this.ctx.createGain();
@@ -70,32 +74,110 @@ export class SoundEngine {
   }
 
   public resume() {
+    if (this.commercialSuspended) return;
     this.init();
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx
+        .resume()
+        .then(() => {
+          if (
+            !this.commercialSuspended &&
+            !this.musicPaused &&
+            this.musicEnabled &&
+            this.currentTrack !== 'none' &&
+            this.musicTimer === null &&
+            this.ctx?.state === 'running'
+          ) {
+            if (this.currentScore.length > 0) {
+              this.playNextMusicSlice();
+            } else {
+              this.playMusic(this.currentTrack);
+            }
+          }
+        })
+        .catch(() => {});
     }
   }
 
   public setVolume(val: number) {
     this.volume = Math.max(0, Math.min(1, val));
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(
+        this.isMuted || this.commercialSuspended ? 0 : this.volume,
+        this.ctx.currentTime
+      );
     }
   }
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(
+        this.isMuted || this.commercialSuspended ? 0 : this.volume,
+        this.ctx.currentTime
+      );
     }
     return this.isMuted;
+  }
+
+  public isCommercialSuspended(): boolean {
+    return this.commercialSuspended;
+  }
+
+  public setCommercialSuspended(suspended: boolean) {
+    this.commercialSuspended = suspended;
+    if (suspended) {
+      this.stopMusicSequence();
+      if (this.masterGain && this.ctx) {
+        this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      }
+      if (this.ctx && this.ctx.state === 'running' && typeof this.ctx.suspend === 'function') {
+        this.ctx.suspend().catch(() => {});
+      }
+      return;
+    }
+
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+    }
+
+    const startActiveTrack = () => {
+      if (
+        this.commercialSuspended ||
+        this.musicPaused ||
+        !this.musicEnabled ||
+        this.currentTrack === 'none'
+      ) {
+        return;
+      }
+      if (this.currentScore.length > 0) {
+        this.stopMusicSequence();
+        this.playNextMusicSlice();
+      } else {
+        this.playMusic(this.currentTrack);
+      }
+    };
+
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx
+        .resume()
+        .then(() => {
+          if (this.masterGain && this.ctx && !this.commercialSuspended) {
+            this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
+          }
+          startActiveTrack();
+        })
+        .catch(() => {});
+    } else {
+      startActiveTrack();
+    }
   }
 
   public toggleMusic(): boolean {
     this.musicEnabled = !this.musicEnabled;
     if (!this.musicEnabled) {
       this.stopMusic();
-    } else {
+    } else if (!this.commercialSuspended) {
       if (this.currentTrack === 'overworld') this.playMusic('overworld');
       else if (this.currentTrack === 'underground') this.playMusic('underground');
       else if (this.currentTrack === 'underwater') this.playMusic('underwater');
@@ -113,6 +195,7 @@ export class SoundEngine {
       volume: this.volume,
       musicEnabled: this.musicEnabled,
       currentTrack: this.currentTrack,
+      commercialSuspended: this.commercialSuspended,
     };
   }
 
@@ -757,32 +840,43 @@ export class SoundEngine {
 
   public playGameOver() {
     this.stopMusic();
-    this.resume();
+    if (this.commercialSuspended) return;
+    this.init();
     if (!this.ctx || !this.sfxGain) return;
-    const now = this.ctx.currentTime;
 
-    const notes: Note[] = [
-      [N.C5, 0.15], [N.G4, 0.15], [N.E4, 0.2],
-      [N.A4, 0.15], [N.B4, 0.15], [N.A4, 0.15], [N.Gs4, 0.15],
-      [N.As4, 0.15], [N.Gs4, 0.15], [N.G4, 0.3],
-    ];
+    const scheduleNotes = () => {
+      if (this.commercialSuspended || !this.ctx || !this.sfxGain) return;
+      const now = this.ctx.currentTime;
 
-    let t = now;
-    notes.forEach(([freq, dur]) => {
-      const osc = this.ctx!.createOscillator();
-      const gain = this.ctx!.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(0.3, t);
-      gain.gain.linearRampToValueAtTime(0.01, t + dur);
+      const notes: Note[] = [
+        [N.C5, 0.15], [N.G4, 0.15], [N.E4, 0.2],
+        [N.A4, 0.15], [N.B4, 0.15], [N.A4, 0.15], [N.Gs4, 0.15],
+        [N.As4, 0.15], [N.Gs4, 0.15], [N.G4, 0.45],
+      ];
 
-      osc.connect(gain);
-      gain.connect(this.sfxGain!);
+      let t = now;
+      notes.forEach(([freq, dur]) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.linearRampToValueAtTime(0.01, t + dur);
 
-      osc.start(t);
-      osc.stop(t + dur);
-      t += dur + 0.03;
-    });
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+
+        osc.start(t);
+        osc.stop(t + dur);
+        t += dur + 0.03;
+      });
+    };
+
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().then(scheduleNotes).catch(() => {});
+    } else {
+      scheduleNotes();
+    }
   }
 
   public playPause() {
@@ -811,7 +905,7 @@ export class SoundEngine {
       this.stopMusicSequence();
     } else if (this.musicPaused) {
       this.musicPaused = false;
-      if (this.musicEnabled && this.currentTrack !== 'none') {
+      if (!this.commercialSuspended && this.musicEnabled && this.currentTrack !== 'none') {
         this.playNextMusicSlice();
       }
     }
@@ -822,7 +916,7 @@ export class SoundEngine {
   public playMusic(track: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'bonus' | 'starman') {
     this.currentTrack = track;
     this.musicPaused = false;
-    if (!this.musicEnabled) return;
+    if (!this.musicEnabled || this.commercialSuspended) return;
     this.stopMusicSequence();
     this.resume();
 
@@ -851,6 +945,7 @@ export class SoundEngine {
 
   private stopMusicSequence() {
     if (this.musicTimer !== null) {
+      clearTimeout(this.musicTimer);
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
@@ -1100,7 +1195,20 @@ export class SoundEngine {
   }
 
   private playNextMusicSlice() {
-    if (this.musicPaused || !this.musicEnabled || !this.ctx || !this.musicGain || this.currentScore.length === 0) return;
+    if (
+      this.commercialSuspended ||
+      this.musicPaused ||
+      !this.musicEnabled ||
+      !this.ctx ||
+      !this.musicGain ||
+      this.currentScore.length === 0
+    ) {
+      return;
+    }
+    if (this.ctx.state !== 'running') {
+      this.resume();
+      return;
+    }
 
     const [noteFreq, noteDur] = this.currentScore[this.musicStep % this.currentScore.length];
     const [bassFreq] = this.currentBass[this.musicStep % this.currentBass.length];
@@ -1142,7 +1250,9 @@ export class SoundEngine {
     }
 
     this.musicStep++;
+    this.stopMusicSequence();
     this.musicTimer = window.setTimeout(() => {
+      this.musicTimer = null;
       this.playNextMusicSlice();
     }, noteDur * 1000);
   }
