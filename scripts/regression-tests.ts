@@ -4094,6 +4094,51 @@ async function runR116FixesTests() {
     assert.ok(gameOverBlock.includes('handleReturnToMainMenu'));
     assert.ok(gameOverBlock.includes('TELA INICIAL'));
   });
+
+  await test('W-1 (wiki-1-overworld) fiel à primeira fase do Super Mario World preservando cano secreto da chave', () => {
+    const w1 = createSmwWikiWorldStage('wiki-1-overworld');
+    assert.equal(w1.id, 'smw-wiki-1');
+    assert.equal(w1.smwNodeId, 'wiki-1-overworld');
+    assert.ok(w1.biomeLabel?.includes("YOSHI'S ISLAND"), 'biomeLabel deve referenciar Yoshi\'s Island');
+
+    // Platôs elevados característicos de Yoshi's Island 2
+    assert.equal(w1.tiles[11][25]?.type, 'ground');
+    assert.equal(w1.tiles[11][50]?.type, 'ground');
+    assert.equal(w1.tiles[10][113]?.type, 'ground');
+
+    // Blocos [!] amarelos SMW (>= 4) e zero caixas de power-up não-SMW
+    let exclamCount = 0;
+    for (const row of w1.tiles) {
+      for (const tile of row) {
+        if (tile?.type === 'exclam_yellow') exclamCount++;
+      }
+    }
+    assert.ok(exclamCount >= 4, `Esperado >= 4 blocos [!] amarelos em W-1, obtido ${exclamCount}`);
+
+    // Elenco clássico SMW (Koopa verde, Red Koopa em platôs, Paratroopa e Piranha)
+    assert.ok(w1.enemies.some((e) => e.type === 'koopa'));
+    assert.ok(w1.enemies.some((e) => e.type === 'red_koopa'));
+    assert.ok(w1.enemies.some((e) => e.type === 'paratroopa'));
+    assert.ok(w1.enemies.some((e) => e.type === 'piranha'));
+
+    // P-Switch azul, plataforma móvel, checkpoint intermediário, 4 Dragon/W-Coins e sem Yoshi natural
+    assert.ok(w1.carryables?.some((c) => c.kind === 'p_switch_blue'));
+    assert.ok((w1.floatingPlatforms?.length ?? 0) >= 1);
+    assert.ok((w1.checkpoints?.length ?? 0) >= 1);
+    assert.equal(w1.wCoins?.length, 4);
+    assert.equal(w1.yoshis?.length ?? 0, 0);
+
+    // Cano secreto da caverna da chave preservado exatamente em x=33 e desobstruído acima
+    assert.equal(w1.tiles[11][33]?.type, 'pipe_warp_top_left');
+    assert.equal(w1.tiles[11][34]?.type, 'pipe_warp_top_right');
+    assert.equal(w1.tiles[9][33], null);
+    assert.equal(w1.tiles[9][34], null);
+    const keyCaveWarp = w1.pipeWarps?.find((pw) => pw.toLevel === 'smw-wiki-1-secret');
+    assert.ok(keyCaveWarp, 'Cano secreto para smw-wiki-1-secret deve estar presente');
+    assert.equal(keyCaveWarp.from.x, 33 * 16);
+    assert.equal(keyCaveWarp.from.y, 10 * 16);
+    assert.equal(keyCaveWarp.type, 'down');
+  });
 }
 
 async function main() {

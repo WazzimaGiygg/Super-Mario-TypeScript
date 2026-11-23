@@ -110,7 +110,7 @@ export const SMW_WIKIWORLD_NODES: SmwMapNode[] = [
     order: 0,
     code: 'W-1',
     title: 'Overworld',
-    subtitle: 'Planícies iniciais da Ilha WikiWorldWeb',
+    subtitle: "Planícies de Yoshi's Island · Cano secreto à caverna da chave",
     theme: 'overworld',
     mapX: 16,
     mapY: 64,
@@ -890,6 +890,204 @@ export function createSmwWiki1SecretRoom(): LevelData {
   };
 }
 
+export function createSmwWiki1OverworldStage(): LevelData {
+  const width = 168;
+  const height = 15;
+  const tiles: (BlockTile | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
+
+  const placeGroundSpan = (startX: number, endX: number) => {
+    for (let x = startX; x <= endX && x < width; x++) {
+      tiles[13][x] = makeTile('ground');
+      tiles[14][x] = makeTile('ground');
+    }
+  };
+
+  const placePlateau = (startX: number, endX: number, topRow: number) => {
+    for (let x = startX; x <= endX && x < width; x++) {
+      for (let y = topRow; y <= 12; y++) {
+        tiles[y][x] = makeTile('ground');
+      }
+    }
+  };
+
+  const placePipeTile = (x: number, bottomY: number, pipeHeight: number, isWarp: boolean = false) => {
+    const topY = bottomY - pipeHeight + 1;
+    tiles[topY][x] = makeTile(isWarp ? 'pipe_warp_top_left' : 'pipe_top_left');
+    tiles[topY][x + 1] = makeTile(isWarp ? 'pipe_warp_top_right' : 'pipe_top_right');
+    for (let y = topY + 1; y <= bottomY; y++) {
+      tiles[y][x] = makeTile('pipe_body_left');
+      tiles[y][x + 1] = makeTile('pipe_body_right');
+    }
+  };
+
+  // Base meadow ground with 3 fair SMW gaps (43..45, 61..63, 93..97)
+  placeGroundSpan(0, 42);
+  placeGroundSpan(46, 60);
+  placeGroundSpan(64, 92);
+  placeGroundSpan(98, width - 1);
+
+  // --- Section 1: Yoshi's Island opening meadow, Yellow [!] & classic prize row ---
+  tiles[9][12] = makeTile('exclam_yellow', 'mushroom');
+  tiles[9][16] = makeTile('brick');
+  tiles[9][17] = makeTile('question', 'coin');
+  tiles[9][18] = makeTile('brick');
+  tiles[9][19] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 5 };
+  tiles[9][20] = makeTile('brick');
+
+  // Elevated plateau #1 with Red Koopa patrol
+  placePlateau(24, 27, 11);
+  tiles[7][25] = makeTile('question', 'coin');
+
+  // --- Section 2: P-Switch + Preserved Secret Key Cave Pipe (x=33) + Piranha Pipe ---
+  placePipeTile(33, 12, 2, true); // Cano secreto (x=33) -> smw-wiki-1-secret
+  for (let x = 36; x <= 39; x++) {
+    tiles[9][x] = makeTile('brick');
+  }
+  placePipeTile(40, 12, 3, false);
+
+  // --- Section 3: Stepped Yoshi's Island plateau & Paratroopa gap ---
+  placePlateau(48, 54, 11);
+  tiles[7][50] = makeTile('exclam_yellow', 'mushroom');
+  tiles[7][52] = makeTile('question', 'coin');
+
+  // --- Section 4: Midway Checkpoint & Dual-Path Overhead Brick Bridge ---
+  tiles[9][68] = makeTile('question', 'coin');
+  for (let x = 74; x <= 85; x++) {
+    const isQ = x === 76 || x === 80 || x === 83;
+    tiles[8][x] = makeTile(isQ ? 'question' : 'brick', isQ ? 'coin' : 'none');
+  }
+  tiles[5][79] = makeTile('exclam_yellow', 'mushroom');
+  placePipeTile(88, 12, 2, false);
+
+  // --- Section 5: Hillside terraces, multi-coin block & final stretch ---
+  placePlateau(101, 106, 11);
+  tiles[7][102] = makeTile('brick');
+  tiles[7][103] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0, coinsLeft: 5 };
+  tiles[7][104] = makeTile('brick');
+
+  placePlateau(110, 117, 10);
+  tiles[6][114] = makeTile('exclam_yellow', 'mushroom');
+  placePipeTile(122, 12, 3, false);
+
+  // --- Section 6: SMW Goal Tape Gate & Castle ---
+  const flagXTile = width - 17; // 151
+  tiles[12][flagXTile] = makeTile('hard_block');
+  for (let y = 3; y <= 11; y++) {
+    tiles[y][flagXTile] = makeTile('pole');
+  }
+  tiles[2][flagXTile] = makeTile('pole_top');
+
+  const castleXTile = width - 11; // 157
+  for (let cx = castleXTile; cx <= castleXTile + 5; cx++) {
+    for (let cy = 8; cy <= 12; cy++) {
+      tiles[cy][cx] = makeTile('castle_brick');
+    }
+    if (cx % 2 === 0) {
+      tiles[7][cx] = makeTile('castle_crenel');
+    }
+  }
+  tiles[11][castleXTile + 2] = makeTile('castle_door');
+  tiles[12][castleXTile + 2] = makeTile('castle_door');
+
+  const coins: { x: number; y: number }[] = [
+    // Opening coin trail & sky bonus over block row
+    { x: 11 * 16 + 8, y: 11 * 16 },
+    { x: 17 * 16 + 4, y: 5 * 16 },
+    { x: 18 * 16 + 4, y: 5 * 16 },
+    { x: 19 * 16 + 4, y: 5 * 16 },
+    // Hint coins over the Blue P-Switch brick row
+    { x: 36 * 16 + 4, y: 7 * 16 },
+    { x: 37 * 16 + 4, y: 7 * 16 },
+    { x: 38 * 16 + 4, y: 7 * 16 },
+    { x: 39 * 16 + 4, y: 7 * 16 },
+    // Arc over Pit #1
+    { x: 43 * 16 + 4, y: 10 * 16 },
+    { x: 44 * 16 + 4, y: 9 * 16 },
+    { x: 45 * 16 + 4, y: 10 * 16 },
+    // Upper bridge coins
+    { x: 75 * 16 + 4, y: 6 * 16 },
+    { x: 77 * 16 + 4, y: 6 * 16 },
+    { x: 81 * 16 + 4, y: 6 * 16 },
+    { x: 84 * 16 + 4, y: 6 * 16 },
+    // Hillside coin arc
+    { x: 111 * 16 + 4, y: 5 * 16 },
+    { x: 112 * 16 + 4, y: 4 * 16 },
+    { x: 113 * 16 + 4, y: 4 * 16 },
+    // Final sprint coins to Goal Tape
+    { x: 136 * 16 + 4, y: 10 * 16 },
+    { x: 137 * 16 + 4, y: 9 * 16 },
+    { x: 138 * 16 + 4, y: 9 * 16 },
+    { x: 139 * 16 + 4, y: 10 * 16 },
+  ];
+
+  const enemies: LevelData['enemies'] = [
+    { type: 'koopa', x: 14 * 16, y: 11 * 16 + 8 },
+    { type: 'red_koopa', x: 25 * 16, y: 9 * 16 + 8 },
+    { type: 'piranha', x: 40 * 16 + 8, y: 10 * 16 },
+    { type: 'red_koopa', x: 49 * 16, y: 9 * 16 + 8 },
+    { type: 'koopa', x: 57 * 16, y: 11 * 16 + 8 },
+    { type: 'paratroopa', x: 62 * 16, y: 9 * 16 },
+    { type: 'koopa', x: 76 * 16, y: 11 * 16 + 8 },
+    { type: 'red_koopa', x: 80 * 16, y: 6 * 16 + 8 },
+    { type: 'koopa', x: 84 * 16, y: 11 * 16 + 8 },
+    { type: 'red_koopa', x: 103 * 16, y: 9 * 16 + 8 },
+    { type: 'red_koopa', x: 113 * 16, y: 8 * 16 + 8 },
+    { type: 'piranha', x: 122 * 16 + 8, y: 10 * 16 },
+    { type: 'paratroopa', x: 128 * 16, y: 9 * 16 },
+    { type: 'koopa', x: 134 * 16, y: 11 * 16 + 8 },
+    { type: 'koopa', x: 139 * 16, y: 11 * 16 + 8 },
+  ];
+
+  return {
+    id: 'smw-wiki-1',
+    name: 'W-1',
+    theme: 'overworld',
+    width,
+    height,
+    tiles,
+    enemies,
+    coins,
+    wCoins: [
+      { x: 20 * 16, y: 6 * 16 },
+      { x: 52 * 16, y: 4 * 16 },
+      { x: 82 * 16, y: 5 * 16 },
+      { x: 116 * 16, y: 5 * 16 },
+    ],
+    marioStart: { x: 2 * 16, y: 12 * 16 },
+    flagX: flagXTile * 16,
+    castleX: castleXTile * 16,
+    bgColor: '#5c94fc',
+    timeLimit: 400,
+    biomeLabel: "WIKIWORLDWEB · YOSHI'S ISLAND (W-1)",
+    checkpoints: [{ x: 66 * 16, respawnPos: { x: 66 * 16, y: 12 * 16 } }],
+    floatingPlatforms: [
+      {
+        x: 94 * 16,
+        y: 11 * 16,
+        width: 48,
+        axis: 'horizontal',
+        range: 16,
+        speed: 0.032,
+        phase: 0,
+      },
+    ],
+    carryables: [{ kind: 'p_switch_blue', x: 29 * 16, y: 12 * 16 }],
+    pipeWarps: [
+      {
+        from: { x: 33 * 16, y: 10 * 16, width: 32, height: 16 },
+        toLevel: 'smw-wiki-1-secret',
+        toPos: { x: 2 * 16 + 8, y: 4 * 16 },
+        type: 'down',
+      },
+    ],
+    smwNodeId: 'wiki-1-overworld',
+    smwWorldName: SMW_WORLD_ISLAND_NAME,
+    isFinalCastle: false,
+  };
+}
+
 export function createSmwWikiWorldStage(nodeId: string): LevelData {
   switch (nodeId) {
     case 'wiki-switch-yellow':
@@ -965,34 +1163,8 @@ export function createSmwWikiWorldStage(nodeId: string): LevelData {
     }
 
     case 'wiki-1-overworld':
-    default: {
-      const level = createSingleplayerLevel(1, 1, {
-        seedOverride: 90101,
-        id: 'smw-wiki-1',
-        name: 'W-1',
-        biomeLabel: 'WIKIWORLDWEB · OVERWORLD',
-        smwNodeId: 'wiki-1-overworld',
-        smwWorldName: SMW_WORLD_ISLAND_NAME,
-        isFinalCastle: false,
-      });
-      level.carryables = [{ kind: 'p_switch_blue', x: 9 * 16, y: 12 * 16 }];
-      level.coins.push(
-        { x: 11 * 16 + 8, y: 10 * 16 },
-        { x: 12 * 16 + 8, y: 10 * 16 },
-        { x: 13 * 16 + 8, y: 10 * 16 }
-      );
-      // Pipe #2 (x=33, top at row 11) leads to the underground secret Key & Keyhole room
-      level.pipeWarps = [
-        ...(level.pipeWarps ?? []),
-        {
-          from: { x: 33 * 16, y: 10 * 16, width: 32, height: 16 },
-          toLevel: 'smw-wiki-1-secret',
-          toPos: { x: 2 * 16 + 8, y: 4 * 16 },
-          type: 'down',
-        },
-      ];
-      return placeYellowExclamBlocks(level, [18, 46, 84, 128], 9);
-    }
+    default:
+      return createSmwWiki1OverworldStage();
   }
 }
 
