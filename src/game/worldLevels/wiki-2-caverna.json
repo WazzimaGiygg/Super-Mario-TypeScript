@@ -1,13 +1,13 @@
 {
   "format": "smb-custom-level",
   "version": 1,
-  "exportedAt": "2026-11-23T13:33:34.238Z",
+  "exportedAt": "2026-11-24T00:05:56.469Z",
   "level": {
-    "id": "smw-wiki-2",
-    "name": "W-2",
+    "id": "custom-1795478004896-ogi0",
+    "name": "MINHA FASE 1",
     "theme": "underground",
-    "biomeLabel": "WIKIWORLDWEB · CAVERNA",
-    "width": 171,
+    "biomeLabel": "FASE DO JOGADOR",
+    "width": 220,
     "height": 15,
     "tiles": [
       [
@@ -887,31 +887,450 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        }
       ],
       [
         {
@@ -1790,33 +2209,507 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        }
       ],
       [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -1986,6 +2879,706 @@
         null,
         null,
         null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -2149,18 +3742,72 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
-          "type": "pole",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         null,
         null,
         null,
-        null,
-        null,
-        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -2258,77 +3905,8 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         {
-          "type": "pole",
+          "type": "hard_block",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
@@ -2343,56 +3921,12 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -2511,365 +4045,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pole",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pole",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
         null,
         null,
         {
@@ -2894,9 +4069,6 @@
         },
         null,
         null,
-        null,
-        null,
-        null,
         null
       ],
       [
@@ -2935,6 +4107,66 @@
         null,
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -2970,12 +4202,24 @@
         null,
         null,
         null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
         null,
         null,
         null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -2989,10 +4233,79 @@
         null,
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3001,13 +4314,67 @@
         null,
         null,
         null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3018,6 +4385,12 @@
         null,
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3035,6 +4408,12 @@
         null,
         null,
         null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3048,6 +4427,34 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3062,9 +4469,6 @@
         },
         null,
         null,
-        null,
-        null,
-        null,
         {
           "type": "castle_brick",
           "content": "none",
@@ -3095,14 +4499,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
         null,
         null,
         null
@@ -3113,62 +4509,9 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         {
           "type": "underground_brick",
           "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "question",
-          "content": "coin",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -3178,53 +4521,87 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "hard_block",
+          "type": "underground_brick",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -3267,39 +4644,6 @@
         null,
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "underground_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "question",
-          "content": "coin",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -3326,9 +4670,8 @@
         null,
         null,
         null,
-        null,
         {
-          "type": "pole",
+          "type": "hard_block",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
@@ -3338,69 +4681,39 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
         {
-          "type": "castle_brick",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "castle_brick",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "castle_brick",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "castle_brick",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "castle_brick",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -3410,12 +4723,7 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
         null,
         null,
         null,
@@ -3465,32 +4773,17 @@
         null,
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -3507,31 +4800,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -3569,14 +4837,269 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_top_right",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
@@ -3602,10 +5125,72 @@
         null,
         null,
         null,
+        {
+          "type": "pipe_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3623,9 +5208,6 @@
         },
         null,
         null,
-        null,
-        null,
-        null,
         {
           "type": "castle_brick",
           "content": "none",
@@ -3656,14 +5238,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
         null,
         null,
         null
@@ -3691,24 +5265,104 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -3758,121 +5412,7 @@
         null,
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
@@ -3896,6 +5436,42 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
           "content": "none",
@@ -3903,17 +5479,20 @@
           "bumpVel": 0
         },
         {
-          "type": "hard_block",
+          "type": "pipe_body_left",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "hard_block",
+          "type": "pipe_body_right",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -3928,27 +5507,17 @@
         null,
         null,
         {
-          "type": "pipe_top_left",
+          "type": "pipe_body_left",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "pipe_top_right",
+          "type": "pipe_body_right",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -3964,9 +5533,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
         null,
         null,
         {
@@ -3999,14 +5565,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
         null,
         null,
         null
@@ -4033,6 +5591,54 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "hard_block",
           "content": "none",
@@ -4051,12 +5657,34 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -4106,178 +5734,6 @@
         null,
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -4316,8 +5772,16 @@
         null,
         null,
         null,
+        null,
+        null,
         {
-          "type": "hard_block",
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
@@ -4325,6 +5789,67 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "hard_block",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         {
@@ -4357,14 +5882,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
         null,
         null,
         null
@@ -4460,39 +5977,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         {
           "type": "underground_ground",
           "content": "none",
@@ -4519,93 +6003,6 @@
         },
         null,
         null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         {
           "type": "underground_ground",
           "content": "none",
@@ -4692,16 +6089,385 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         {
-          "type": "hard_block",
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "hard_block",
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
@@ -4709,28 +6475,8 @@
         null,
         null,
         {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -4903,50 +6649,50 @@
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -5149,26 +6895,26 @@
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "underground_ground",
-          "content": "none",
+          "type": "exclam_yellow",
+          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -5408,39 +7154,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         {
           "type": "underground_ground",
           "content": "none",
@@ -5467,93 +7180,6 @@
         },
         null,
         null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         {
           "type": "underground_ground",
           "content": "none",
@@ -5640,486 +7266,745 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         {
-          "type": "hard_block",
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "hard_block",
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
-          "type": "hard_block",
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "hard_block",
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "underground_ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         null,
         null,
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "hard_block",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "underground_ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
         {
           "type": "underground_ground",
           "content": "none",
@@ -6268,163 +8153,278 @@
     ],
     "enemies": [
       {
-        "type": "koopa",
-        "x": 304,
-        "y": 184
-      },
-      {
-        "type": "goomba",
-        "x": 400,
-        "y": 192
-      },
-      {
-        "type": "paratroopa",
-        "x": 576,
-        "y": 160
-      },
-      {
-        "type": "goomba",
-        "x": 640,
-        "y": 192
+        "type": "red_koopa",
+        "x": 64,
+        "y": 136
       },
       {
         "type": "red_koopa",
-        "x": 864,
+        "x": 96,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 112,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 128,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 144,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 160,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 176,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 192,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 208,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 240,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 224,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 256,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 272,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 288,
+        "y": 120
+      },
+      {
+        "type": "red_koopa",
+        "x": 304,
+        "y": 120
+      },
+      {
+        "type": "paratroopa",
+        "x": 608,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 656,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 704,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1088,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1024,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1152,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1344,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1600,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1680,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1760,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 1888,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2096,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2192,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2304,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2640,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2784,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 2944,
+        "y": 152
+      },
+      {
+        "type": "paratroopa",
+        "x": 3280,
+        "y": 152
+      },
+      {
+        "type": "koopa",
+        "x": 1264,
+        "y": 184
+      },
+      {
+        "type": "koopa",
+        "x": 1440,
         "y": 184
       },
       {
         "type": "hammer_bro",
-        "x": 1312,
+        "x": 1568,
         "y": 184
       },
       {
-        "type": "koopa",
-        "x": 1424,
-        "y": 184
-      },
-      {
-        "type": "goomba",
-        "x": 1552,
-        "y": 192
-      },
-      {
-        "type": "koopa",
-        "x": 1680,
+        "type": "hammer_bro",
+        "x": 2272,
         "y": 184
       },
       {
         "type": "piranha",
-        "x": 1768,
-        "y": 160
-      },
-      {
-        "type": "goomba",
-        "x": 1920,
-        "y": 192
-      },
-      {
-        "type": "goomba",
-        "x": 1984,
-        "y": 192
+        "x": 2024,
+        "y": 144
       },
       {
         "type": "piranha",
-        "x": 2136,
-        "y": 176
+        "x": 2888,
+        "y": 144
       }
     ],
     "coins": [
       {
-        "x": 248,
-        "y": 144
+        "x": 744,
+        "y": 208
       },
       {
-        "x": 264,
-        "y": 144
+        "x": 776,
+        "y": 208
       },
       {
-        "x": 280,
-        "y": 144
+        "x": 792,
+        "y": 208
       },
       {
-        "x": 440,
-        "y": 144
+        "x": 760,
+        "y": 208
       },
       {
-        "x": 456,
-        "y": 144
+        "x": 808,
+        "y": 208
       },
       {
-        "x": 472,
-        "y": 144
+        "x": 840,
+        "y": 208
       },
       {
-        "x": 536,
-        "y": 144
+        "x": 856,
+        "y": 208
       },
       {
-        "x": 552,
-        "y": 144
+        "x": 824,
+        "y": 208
+      },
+      {
+        "x": 888,
+        "y": 208
+      },
+      {
+        "x": 872,
+        "y": 208
       },
       {
         "x": 920,
-        "y": 144
+        "y": 208
+      },
+      {
+        "x": 904,
+        "y": 208
       },
       {
         "x": 936,
-        "y": 144
+        "y": 208
       },
       {
-        "x": 1032,
-        "y": 128
+        "x": 952,
+        "y": 208
       },
       {
-        "x": 1096,
-        "y": 128
-      },
-      {
-        "x": 1160,
-        "y": 144
+        "x": 968,
+        "y": 208
       }
     ],
     "marioStart": {
-      "x": 40,
+      "x": 48,
       "y": 192
     },
-    "flagX": 2464,
-    "castleX": 2592,
+    "flagX": 3344,
+    "castleX": 3424,
     "bgColor": "#000000",
-    "timeLimit": 390,
-    "seed": 1951962109,
-    "enemySpeedMultiplier": 1.0720588235294117,
-    "singleplayerWorld": 2,
-    "singleplayerStage": 3,
-    "isFinalCastle": false,
-    "smwNodeId": "wiki-2-caverna",
-    "smwWorldName": "Ilha WikiWorldWeb",
-    "checkpoints": [
-      {
-        "x": 1184,
-        "respawnPos": {
-          "x": 1184,
-          "y": 192
-        }
-      },
-      {
-        "x": 1920,
-        "respawnPos": {
-          "x": 1920,
-          "y": 192
-        }
-      }
-    ],
+    "timeLimit": 400,
+    "isCustom": true,
     "carryables": [
       {
-        "kind": "p_switch_cyan",
-        "x": 160,
+        "kind": "p_switch_blue",
+        "x": 400,
         "y": 192
       }
-    ],
-    "isCustom": true
+    ]
   }
 }
