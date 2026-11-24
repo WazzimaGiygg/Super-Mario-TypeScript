@@ -1,9 +1,9 @@
 {
   "format": "smb-custom-level",
   "version": 1,
-  "exportedAt": "2026-11-24T16:35:59.603Z",
+  "exportedAt": "2026-11-24T16:42:19.138Z",
   "level": {
-    "id": "custom-1795537995950-q36k",
+    "id": "custom-1795538490899-4yua",
     "name": "W-1",
     "theme": "overworld",
     "biomeLabel": "WIKIWORLDWEB · YOSHI'S ISLAND (W-1)",
@@ -5310,6 +5310,26 @@
       {
         "x": 72,
         "y": 80
+      },
+      {
+        "x": 1272,
+        "y": 192
+      },
+      {
+        "x": 1272,
+        "y": 176
+      },
+      {
+        "x": 1304,
+        "y": 176
+      },
+      {
+        "x": 1288,
+        "y": 176
+      },
+      {
+        "x": 1304,
+        "y": 192
       }
     ],
     "wCoins": [
@@ -5331,11 +5351,6 @@
       }
     ],
     "carryables": [
-      {
-        "kind": "p_switch_blue",
-        "x": 464,
-        "y": 192
-      },
       {
         "kind": "p_switch_blue",
         "x": 1280,
