@@ -16,6 +16,8 @@ import { UpdatesModal, UpdatesModalFilter } from './UpdatesModal.tsx';
 import { AchievementsModal } from './AchievementsModal.tsx';
 import { SmwOverworldMap } from './SmwOverworldMap.tsx';
 import { WazzimaCommercialOverlay } from './WazzimaCommercialOverlay.tsx';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
+import { OfflineIndicator } from './OfflineIndicator.tsx';
 import {
   LAST_COMMERCIAL_STORAGE_KEY,
   WazzimaCommercial,
@@ -834,13 +836,30 @@ export class TileMap {
           case 'pipe_body_right':
             ctx.drawImage(atlas.pipeBodyRight, screenX, screenY);
             break;
+          case 'pipe_horiz_top':
+            ctx.drawImage(atlas.pipeHorizTop, screenX, screenY);
+            break;
+          case 'pipe_horiz_bottom':
+            ctx.drawImage(atlas.pipeHorizBottom, screenX, screenY);
+            break;
           case 'castle_brick':
           case 'castle_stone':
-          case 'castle_crenel':
             ctx.drawImage(atlas.castleBrick, screenX, screenY);
+            break;
+          case 'castle_crenel':
+            ctx.drawImage(atlas.castleCrenel, screenX, screenY);
+            break;
+          case 'castle_window':
+            ctx.drawImage(atlas.castleWindow, screenX, screenY);
             break;
           case 'castle_door':
             ctx.drawImage(atlas.castleDoor, screenX, screenY);
+            break;
+          case 'ghost_door_top':
+            ctx.drawImage(atlas.ghostDoorTop, screenX, screenY);
+            break;
+          case 'ghost_door_bottom':
+            ctx.drawImage(atlas.ghostDoorBottom, screenX, screenY);
             break;
           case 'pole':
             ctx.drawImage(atlas.flagPoleBody, screenX, screenY);
@@ -2549,6 +2568,10 @@ export const GameCanvas: React.FC = () => {
   const [multiplayerStatus, setMultiplayerStatus] = useState(() => multiplayerClient.getStatus());
   const [multiplayerNotice, setMultiplayerNotice] = useState<MultiplayerLogoffEvent | null>(null);
 
+  useEffect(() => {
+    engineRef.current?.registerCustomLevels(customLevels);
+  }, [customLevels]);
+
   const isDeveloperModeActive = isCheatActive || isDebugMode;
   const isUsingLevelEditor = isLevelEditorOpen || isCustomLevelActive;
   const isModeAndEditorLocked = isModeAndEditorLockedPolicy({
@@ -4061,6 +4084,7 @@ export const GameCanvas: React.FC = () => {
       setIsSmwMapOpen(false);
       setIsSmwModeActive(false);
       if (engineRef.current) {
+        engineRef.current.registerCustomLevels(customLevels);
         engineRef.current.playCustomLevel(sanitizedLevel, immortal);
         setIsPaused(false);
         setIsGameOver(false);
@@ -4069,7 +4093,7 @@ export const GameCanvas: React.FC = () => {
         setMarioPower(engineRef.current.marioPower);
       }
     },
-    [multiplayerStatus.connected, editorImmortality]
+    [multiplayerStatus.connected, editorImmortality, customLevels]
   );
 
   const handlePlayCustomCampaign = useCallback(
@@ -4094,6 +4118,7 @@ export const GameCanvas: React.FC = () => {
       setIsSmwMapOpen(false);
       setIsSmwModeActive(false);
       if (engineRef.current) {
+        engineRef.current.registerCustomLevels(customLevels);
         engineRef.current.startCustomCampaign(sanitizedLevels, immortal);
         setIsPaused(false);
         setIsGameOver(false);
@@ -4102,7 +4127,7 @@ export const GameCanvas: React.FC = () => {
         setMarioPower(engineRef.current.marioPower);
       }
     },
-    [multiplayerStatus.connected, editorImmortality]
+    [multiplayerStatus.connected, editorImmortality, customLevels]
   );
 
   const handleReturnToMainMenu = useCallback(() => {
@@ -4513,7 +4538,7 @@ export const GameCanvas: React.FC = () => {
           ? `fixed inset-0 z-40 flex flex-col items-center justify-between w-screen h-[100dvh] bg-black select-none overflow-hidden ${
               smartTvMode ? 'p-3 sm:p-4' : ''
             }`
-          : `relative flex flex-col items-center justify-start w-full min-h-screen bg-stone-950 select-none overflow-x-hidden ${
+          : `relative flex flex-col items-center justify-start w-full min-h-[100dvh] bg-stone-950 select-none overflow-x-hidden ${
               smartTvMode ? 'px-4 py-2 sm:px-6 sm:py-3' : ''
             }`
       }
@@ -4672,7 +4697,7 @@ export const GameCanvas: React.FC = () => {
           )}
 
           {/* Translucent On-Screen D-Pad & Action Buttons (A, B) Overlay on Canvas for Mobile Devices (hidden in Smart TV mode) */}
-          {!smartTvMode && isMobileDevice && touchOverlayOnCanvas && hasStarted && !isSmwMapOpen && !isPaused && !isGameOver && !isMultiplayerMatchOver && (
+          {!smartTvMode && isMobileDevice && touchOverlayOnCanvas && hasStarted && !isSmwMapOpen && !isPaused && !isGameOver && !isCampaignVictory && !isMultiplayerMatchOver && (
             <TouchControls
               variant="canvas-overlay"
               controls={controls}
@@ -4713,7 +4738,10 @@ export const GameCanvas: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <OfflineIndicator />
+                  <PWAInstallButton compact />
+
                   <button
                     type="button"
                     onClick={toggleSmartTvMode}
@@ -5576,6 +5604,10 @@ export const GameCanvas: React.FC = () => {
             <span className="hidden sm:inline text-[11px]">TV</span>
           </button>
 
+          {/* PWA Install & Offline Status */}
+          <OfflineIndicator />
+          <PWAInstallButton />
+
           {/* Fullscreen */}
           <button
             type="button"
@@ -5586,6 +5618,55 @@ export const GameCanvas: React.FC = () => {
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
+        </div>
+      )}
+
+      {/* Mobile Compact Utility Strip (Install App, Offline Indicator, Menu & Mode Toggles below canvas when not fullscreen) */}
+      {!isFullscreen && (
+        <div className="flex sm:hidden w-full max-w-4xl px-3 py-1.5 items-center justify-between gap-2 text-stone-300 text-xs">
+          <div className="flex items-center gap-1.5">
+            <OfflineIndicator />
+            <PWAInstallButton compact />
+            <button
+              type="button"
+              onClick={toggleTouchOverlayMode}
+              title="Alternar posição dos controles táteis"
+              className={`px-2 py-1 rounded-lg border font-mono text-[10px] font-bold transition ${
+                touchOverlayOnCanvas
+                  ? 'bg-emerald-950/85 border-emerald-500/70 text-emerald-200'
+                  : 'bg-stone-900 border-stone-700 text-stone-300'
+              }`}
+            >
+              {touchOverlayOnCanvas ? 'D-Pad: Tela' : 'D-Pad: Barra'}
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => openUpdatesModal('fixes')}
+              title="Correções recentes"
+              className="p-1.5 rounded-lg bg-stone-900 border border-amber-500/45 text-amber-300"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Configurações"
+              className="px-2 py-1 rounded-lg bg-stone-900 border border-stone-700 text-stone-200 font-mono text-[10px] flex items-center gap-1"
+            >
+              <Settings className="w-3.5 h-3.5 text-amber-400" />
+              <span>Menu</span>
+            </button>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title="Tela Cheia"
+              className="p-1.5 rounded-lg bg-stone-900 border border-stone-700 text-stone-200"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
 

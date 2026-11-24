@@ -3,8 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EnemyType, Particle } from './types.ts';
+import { EnemyType, Item, Particle } from './types.ts';
 import { SpriteAtlas } from './sprites.ts';
+
+export type EnemyDefeatKind =
+  | 'default'
+  | 'squash'
+  | 'shell'
+  | 'fire'
+  | 'star'
+  | 'tail'
+  | 'yoshi'
+  | 'boss';
 
 export class ParticleSystem {
   public static readonly MAX_ACTIVE_PARTICLES = 250;
@@ -50,6 +60,9 @@ export class ParticleSystem {
       } else if (p.type === 'smoke' || p.type === 'enemy_poof') {
         p.vx *= 0.94;
         p.vy *= 0.94;
+      } else if (p.type === 'star_burst') {
+        p.vx *= 0.93;
+        p.vy *= 0.93;
       } else if (p.type === 'dust') {
         p.vx *= 0.88;
         p.vy *= 0.9;
@@ -104,14 +117,14 @@ export class ParticleSystem {
   public emitBrickBreak(x: number, y: number, theme: 'overworld' | 'underground' | 'castle' | 'underwater' | 'ghost_house' = 'overworld') {
     const themeColors =
       theme === 'underground'
-        ? { primary: '#187888', secondary: '#70d8e8', dust: '#70b8c8' }
+        ? { primary: '#187888', secondary: '#70d8e8', dust: '#70b8c8', ring: '#70d8e8' }
         : theme === 'castle'
-        ? { primary: '#787878', secondary: '#d0d0d0', dust: '#b8b8b8' }
+        ? { primary: '#787878', secondary: '#d0d0d0', dust: '#b8b8b8', ring: '#e8e8e8' }
         : theme === 'underwater'
-        ? { primary: '#e05848', secondary: '#ffb090', dust: '#98e0ff' }
+        ? { primary: '#e05848', secondary: '#ffb090', dust: '#98e0ff', ring: '#98e0ff' }
         : theme === 'ghost_house'
-        ? { primary: '#48346c', secondary: '#8868b0', dust: '#b898e0' }
-        : { primary: undefined, secondary: '#f8b880', dust: '#e09060' };
+        ? { primary: '#48346c', secondary: '#8868b0', dust: '#b898e0', ring: '#c898ff' }
+        : { primary: undefined, secondary: '#f8b880', dust: '#e09060', ring: '#fff4c0' };
 
     // 4 main tumbling corner brick chunks
     const velocities = [
@@ -144,6 +157,8 @@ export class ParticleSystem {
         ? ['#187888', '#70d8e8', '#0c4858']
         : theme === 'castle'
         ? ['#787878', '#c8c8c8', '#484848']
+        : theme === 'underwater'
+        ? ['#e05848', '#ffb090', '#98e0ff']
         : theme === 'ghost_house'
         ? ['#48346c', '#8868b0', '#241438']
         : ['#c84c0c', '#f8b880', '#882800'];
@@ -178,10 +193,28 @@ export class ParticleSystem {
       vx: 0,
       vy: 0,
       life: 0,
-      maxLife: 10,
-      size: 18,
-      color: '#fff4c0',
+      maxLife: 11,
+      size: 20,
+      color: themeColors.ring,
     });
+
+    // 4 crisp corner mortar spark bursts
+    for (let i = 0; i < 4; i++) {
+      const angle = (Math.PI * 2 * i) / 4 + Math.PI / 4;
+      this.add({
+        type: 'star_burst',
+        x: x + 8,
+        y: y + 8,
+        vx: Math.cos(angle) * 2.1,
+        vy: Math.sin(angle) * 2.1 - 0.5,
+        life: 0,
+        maxLife: 14,
+        color: i % 2 === 0 ? '#ffffff' : themeColors.secondary,
+        size: 2,
+        rotation: 0,
+        rotSpeed: 0.22,
+      });
+    }
 
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI * 2 * i) / 6 + Math.PI / 6;
@@ -200,9 +233,50 @@ export class ParticleSystem {
     }
   }
 
+  /** Subtle mortar dust puffs when bumping a brick without shattering it */
+  public emitBrickBumpDust(x: number, y: number, theme: 'overworld' | 'underground' | 'castle' | 'underwater' | 'ghost_house' = 'overworld') {
+    const dustColor =
+      theme === 'underground'
+        ? '#70d8e8'
+        : theme === 'castle'
+        ? '#c8c8c8'
+        : theme === 'underwater'
+        ? '#98e0ff'
+        : theme === 'ghost_house'
+        ? '#b898e0'
+        : '#f8b880';
+
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? -1 : 1;
+      this.add({
+        type: 'dust',
+        x: x + 8 + side * 5,
+        y: y + 14,
+        vx: side * (0.65 + (i % 2) * 0.45),
+        vy: 0.35 + (i % 2) * 0.25,
+        life: 0,
+        maxLife: 12,
+        size: 2 + (i % 2),
+        color: i % 2 === 0 ? '#ffffff' : dustColor,
+      });
+    }
+  }
+
   /** Glittering sparkles on coin pickup or ? block coin pop */
   public emitCoinSparkles(x: number, y: number) {
     const colors = ['#ffffff', '#fce078', '#fc9838', '#f8d838'];
+    this.add({
+      type: 'impact_ring',
+      x: x + 8,
+      y: y + 8,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: 9,
+      size: 13,
+      color: '#fce078',
+    });
+
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8 + (Math.random() * 0.35 - 0.175);
       const speed = 1.4 + Math.random() * 1.7;
@@ -300,6 +374,17 @@ export class ParticleSystem {
   /** Colorful 8-way sparkles on collecting a power-up */
   public emitPowerUpSparkles(x: number, y: number) {
     const colors = ['#ffffff', '#fc5454', '#fce078', '#5c94fc'];
+    this.add({
+      type: 'impact_ring',
+      x: x + 8,
+      y: y + 12,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: 12,
+      size: 20,
+      color: '#fce078',
+    });
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8;
       this.add({
@@ -316,19 +401,111 @@ export class ParticleSystem {
     }
   }
 
+  /** Item-specific burst effects for collecting coins, W-coins, mushrooms, flowers, leaves, feathers, stars, bows, and 1-UPs */
+  public emitItemCollect(x: number, y: number, itemType: Item['type']) {
+    if (itemType === 'coin') {
+      this.emitCoinSparkles(x, y);
+      return;
+    }
+
+    const cx = x + 8;
+    const cy = y + 8;
+
+    const paletteByItem: Record<Exclude<Item['type'], 'coin'>, { ring: string; colors: string[]; bursts: number }> = {
+      mushroom: { ring: '#fc5454', colors: ['#fc5454', '#fff0d0', '#ffffff'], bursts: 6 },
+      fireflower: { ring: '#fc9838', colors: ['#fc5454', '#fc9838', '#fce078', '#ffffff'], bursts: 8 },
+      leaf: { ring: '#f8b858', colors: ['#d87828', '#f8b858', '#fff4d0'], bursts: 7 },
+      feather: { ring: '#fce078', colors: ['#fce078', '#58d8f8', '#ffffff'], bursts: 8 },
+      femboy: { ring: '#ff70c8', colors: ['#ff70c8', '#ffd6eb', '#ffffff'], bursts: 6 },
+      star: { ring: '#ffffff', colors: ['#fce078', '#58f8f8', '#78f858', '#ff70b8', '#ffffff'], bursts: 10 },
+      '1up': { ring: '#78f858', colors: ['#00c838', '#78f858', '#ffffff'], bursts: 8 },
+      w_coin: { ring: '#fce078', colors: ['#fce078', '#fc9838', '#ffffff'], bursts: 8 },
+    };
+
+    const cfg = paletteByItem[itemType];
+    this.add({
+      type: 'impact_ring',
+      x: cx,
+      y: cy,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      maxLife: itemType === 'star' || itemType === 'w_coin' ? 15 : 12,
+      size: itemType === 'star' || itemType === 'w_coin' ? 26 : 20,
+      color: cfg.ring,
+    });
+
+    if (itemType === 'star' || itemType === 'w_coin') {
+      this.add({
+        type: 'impact_ring',
+        x: cx,
+        y: cy,
+        vx: 0,
+        vy: 0,
+        life: 2,
+        maxLife: 16,
+        size: 16,
+        color: '#ffffff',
+      });
+    }
+
+    for (let i = 0; i < cfg.bursts; i++) {
+      const angle = (Math.PI * 2 * i) / cfg.bursts + (Math.random() * 0.25 - 0.125);
+      const speed = (itemType === 'star' ? 2.1 : 1.5) + Math.random() * 1.1;
+      this.add({
+        type: i % 2 === 0 ? 'star_burst' : 'coin_glint',
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.65,
+        life: 0,
+        maxLife: 22 + (i % 4) * 3,
+        color: cfg.colors[i % cfg.colors.length],
+        size: i % 2 === 0 ? 3 : 2,
+        gravity: itemType === 'fireflower' ? -0.03 : 0.06,
+        rotation: 0,
+        rotSpeed: 0.18,
+      });
+    }
+
+    if (itemType === 'femboy') {
+      this.emitHeart(cx - 5, cy - 6);
+      this.emitHeart(cx + 5, cy - 2);
+    }
+  }
+
   /** Flying enemy debris shards, impact shockwave, star bursts, and smoke poofs on defeating an enemy */
-  public emitEnemyDefeat(x: number, y: number, enemyType?: EnemyType) {
-    const isBoss = enemyType === 'bowser';
+  public emitEnemyDefeat(
+    x: number,
+    y: number,
+    enemyType?: EnemyType,
+    defeatKind: EnemyDefeatKind = 'default'
+  ) {
+    const isBoss = enemyType === 'bowser' || defeatKind === 'boss';
+    const isSquash = defeatKind === 'squash';
+    const isFire = defeatKind === 'fire';
     const centerOffset = isBoss ? 14 : 8;
-    const palette = this.getEnemyDebrisPalette(enemyType);
+    const palette = isFire
+      ? { primary: '#fc5454', secondary: '#fce078', accent: '#ffffff' }
+      : this.getEnemyDebrisPalette(enemyType);
     const debrisColors = [palette.primary, palette.secondary, palette.accent];
-    const debrisCount = isBoss ? 16 : 10;
+    const debrisCount = isBoss ? 16 : isSquash ? 7 : isFire ? 8 : 10;
 
     // Expanding flying debris fragments that arc and scatter across the screen
     for (let i = 0; i < debrisCount; i++) {
       const dir = i % 2 === 0 ? -1 : 1;
-      const speedX = (isBoss ? 1.6 + Math.random() * 3.2 : 1.1 + Math.random() * 2.5) * dir;
-      const speedY = isBoss ? -2.2 - Math.random() * 4.8 : -1.5 - Math.random() * 4.1;
+      const speedX = (
+        isBoss
+          ? 1.6 + Math.random() * 3.2
+          : isSquash
+          ? 1.5 + Math.random() * 2.2
+          : 1.1 + Math.random() * 2.5
+      ) * dir;
+      const speedY = isBoss
+        ? -2.2 - Math.random() * 4.8
+        : isSquash
+        ? -0.8 - Math.random() * 2.4
+        : -1.5 - Math.random() * 4.1;
       this.add({
         type: 'debris',
         x: x + centerOffset + (Math.random() * 8 - 4),
@@ -336,12 +513,12 @@ export class ParticleSystem {
         vx: speedX,
         vy: speedY,
         life: 0,
-        maxLife: (isBoss ? 52 : 40) + Math.floor(Math.random() * 16),
+        maxLife: (isBoss ? 52 : isSquash ? 30 : 40) + Math.floor(Math.random() * 16),
         size: isBoss ? 3 + (i % 3) : 2 + (i % 3),
         color: debrisColors[i % debrisColors.length],
         secondaryColor: '#ffffff',
         shape: i % 3 === 0 ? 'shell' : i % 2 === 0 ? 'splinter' : 'chunk',
-        gravity: 0.34,
+        gravity: isFire ? 0.22 : 0.34,
         rotation: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.42,
       });
@@ -356,41 +533,57 @@ export class ParticleSystem {
       vy: 0,
       life: 0,
       maxLife: isBoss ? 14 : 10,
-      size: isBoss ? 28 : 16,
+      size: isBoss ? 28 : isSquash ? 18 : 16,
       color: palette.secondary,
     });
 
+    if (isBoss) {
+      this.add({
+        type: 'impact_ring',
+        x: x + centerOffset,
+        y: y + centerOffset,
+        vx: 0,
+        vy: 0,
+        life: 3,
+        maxLife: 17,
+        size: 36,
+        color: '#fc9838',
+      });
+    }
+
     // Impact star bursts
-    const starCount = isBoss ? 10 : 6;
+    const starCount = isBoss ? 10 : isSquash ? 4 : 6;
     for (let i = 0; i < starCount; i++) {
       const angle = (Math.PI * 2 * i) / starCount;
-      const speed = (isBoss ? 2.4 : 1.8) + Math.random() * 1.6;
+      const speed = (isBoss ? 2.4 : isSquash ? 1.5 : 1.8) + Math.random() * 1.4;
       this.add({
         type: 'star_burst',
         x: x + centerOffset,
         y: y + centerOffset,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 0.8,
+        vy: Math.sin(angle) * speed - (isSquash ? 0.3 : 0.8),
         life: 0,
         maxLife: 18 + Math.floor(Math.random() * 8),
-        color: i % 2 === 0 ? '#fffa50' : '#ffffff',
+        color: isFire ? (i % 2 === 0 ? '#fc9838' : '#fce078') : i % 2 === 0 ? '#fffa50' : '#ffffff',
         size: isBoss ? 4 : 3,
         rotation: 0,
         rotSpeed: 0.2,
       });
     }
 
-    // Smoke poofs
-    for (let i = 0; i < 4; i++) {
+    // Smoke / enemy defeat poofs
+    const poofCount = isBoss ? 6 : 4;
+    for (let i = 0; i < poofCount; i++) {
       this.add({
-        type: 'smoke',
+        type: isFire || isSquash ? 'enemy_poof' : 'smoke',
         x: x + 4 + (i % 2) * 8,
-        y: y + 4 + Math.floor(i / 2) * 8,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: -0.6 - Math.random() * 0.8,
+        y: y + 4 + Math.floor(i / 2) * 6,
+        vx: (Math.random() - 0.5) * (isSquash ? 2.0 : 1.5),
+        vy: isSquash ? -0.35 - Math.random() * 0.5 : -0.6 - Math.random() * 0.8,
         life: 0,
-        maxLife: 20,
+        maxLife: isBoss ? 24 : 20,
         size: (isBoss ? 6 : 4) + Math.floor(Math.random() * 3),
+        color: isFire ? '#fce078' : '#f8f8f8',
       });
     }
   }

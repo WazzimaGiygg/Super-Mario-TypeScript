@@ -945,13 +945,34 @@ export function createWorldGhostHouse(): LevelData {
   enemies.push({ type: 'boo', x: 152 * 16, y: 6 * 16 });
   enemies.push({ type: 'dry_bones', x: 156 * 16, y: 13 * 16 - 24 });
 
-  // Final Mansion Staircase (162..167)
-  for (let step = 0; step < 6; step++) {
-    const sx = 162 + step;
+  // Final Mansion Hallway Steps (161..164) leading to the Haunted Exit Door at 166
+  for (let step = 0; step < 4; step++) {
+    const sx = 161 + step;
     for (let y = 12 - step; y <= 12; y++) {
       grid[y][sx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
     }
   }
+  // Ghost House Exit Door (triggers with UP -> warps outside the mansion to the finish courtyard)
+  grid[11][166] = { type: 'ghost_door_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[12][166] = { type: 'ghost_door_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  // Haunted Mansion Exterior Wall sealing the interior at x=168
+  for (let wy = 2; wy <= 12; wy++) {
+    grid[wy][168] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Outside the Mansion Courtyard ("Fora da Mansão", x=169..194)
+  for (let gx = 169; gx < width; gx++) {
+    grid[13][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    grid[14][gx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  // Decorative exterior porch frame & exit doorway where Mario emerges outside
+  for (let py = 9; py <= 12; py++) {
+    grid[py][169] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  grid[9][170] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[10][170] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[11][170] = { type: 'ghost_door_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  grid[12][170] = { type: 'ghost_door_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
 
   // Flagpole at tile 175
   const flagTile = 175;
@@ -1001,6 +1022,15 @@ export function createWorldGhostHouse(): LevelData {
     marioStart: { x: 48, y: 192 },
     flagX: flagTile * 16,
     castleX: 182 * 16,
+    dryFinishStartX: 169 * 16,
+    pipeWarps: [
+      {
+        from: { x: 166 * 16, y: 11 * 16, width: 16, height: 32 },
+        toLevel: 'world-ghost',
+        toPos: { x: 170 * 16, y: 12 * 16 },
+        type: 'door',
+      },
+    ],
     bgColor: '#120822',
     timeLimit: 380,
     checkpoints: [
@@ -2363,9 +2393,11 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
         pw.from.y + pw.from.height <= cloned.height * 16
     );
     pruneKeyCavePipeWarps(cloned);
-    if (cloned.pipeWarps.length === 0) {
+    if (cloned.pipeWarps && cloned.pipeWarps.length === 0) {
       cloned.pipeWarps = undefined;
     }
+  } else {
+    pruneGhostDoorWarps(cloned);
   }
 
   return { level: cloned, truncated };
@@ -2373,10 +2405,60 @@ export function sanitizeCustomLevelEntities(level: LevelData): {
 
 export const KEY_CAVE_PIPE_TARGET = 'smw-wiki-1-secret' as const;
 
-export function pruneKeyCavePipeWarps(level: LevelData): void {
+export function isGhostDoorTile(type?: TileType | null): boolean {
+  return type === 'ghost_door_top' || type === 'ghost_door_bottom';
+}
+
+export function isGhostOutsideExitDoorWarp(
+  level: Pick<LevelData, 'id'>,
+  pw: NonNullable<LevelData['pipeWarps']>[number]
+): boolean {
+  return pw.type === 'door' && (pw.toLevel === level.id || pw.toLevel === '__GHOST_OUTSIDE_EXIT__');
+}
+
+export function pruneGhostDoorWarps(level: LevelData): void {
+  if (level.theme !== 'ghost_house') {
+    for (let y = 0; y < level.height; y++) {
+      for (let x = 0; x < level.width; x++) {
+        if (isGhostDoorTile(level.tiles[y]?.[x]?.type)) {
+          level.tiles[y][x] = null;
+        }
+      }
+    }
+    if (level.pipeWarps && level.pipeWarps.length > 0) {
+      level.pipeWarps = level.pipeWarps.filter(pw => pw.type !== 'door');
+      if (level.pipeWarps.length === 0) {
+        level.pipeWarps = undefined;
+      }
+    }
+    return;
+  }
+
   if (!level.pipeWarps || level.pipeWarps.length === 0) return;
   level.pipeWarps = level.pipeWarps.filter(pw => {
-    if (pw.toLevel !== KEY_CAVE_PIPE_TARGET || pw.type !== 'down') return true;
+    if (pw.type !== 'door') return true;
+    const doorTx = Math.floor(pw.from.x / 16);
+    const doorTopTy = Math.floor(pw.from.y / 16);
+    const topTile = level.tiles[doorTopTy]?.[doorTx];
+    const bottomTile = level.tiles[doorTopTy + 1]?.[doorTx];
+    return topTile?.type === 'ghost_door_top' && bottomTile?.type === 'ghost_door_bottom';
+  });
+  if (level.pipeWarps.length === 0) {
+    level.pipeWarps = undefined;
+  }
+}
+
+export function isSurfaceExitPipeWarp(
+  level: Pick<LevelData, 'id'>,
+  pw: NonNullable<LevelData['pipeWarps']>[number]
+): boolean {
+  return pw.type === 'down' && (pw.toLevel === level.id || pw.toLevel === '__SURFACE_EXIT__');
+}
+
+export function pruneSurfaceExitPipeWarps(level: LevelData): void {
+  if (!level.pipeWarps || level.pipeWarps.length === 0) return;
+  level.pipeWarps = level.pipeWarps.filter(pw => {
+    if (!isSurfaceExitPipeWarp(level, pw) || pw.type !== 'down') return true;
     const lipTx = Math.floor(pw.from.x / 16);
     const lipTy = Math.floor((pw.from.y + pw.from.height) / 16);
     const leftTile = level.tiles[lipTy]?.[lipTx];
@@ -2387,6 +2469,51 @@ export function pruneKeyCavePipeWarps(level: LevelData): void {
     );
   });
   if (level.pipeWarps.length === 0) {
+    level.pipeWarps = undefined;
+  }
+}
+
+export function pruneKeyCavePipeWarps(level: LevelData): void {
+  if (level.pipeWarps && level.pipeWarps.length > 0) {
+    level.pipeWarps = level.pipeWarps.filter(pw => {
+      if (pw.toLevel !== KEY_CAVE_PIPE_TARGET || pw.type !== 'down') return true;
+      const lipTx = Math.floor(pw.from.x / 16);
+      const lipTy = Math.floor((pw.from.y + pw.from.height) / 16);
+      const leftTile = level.tiles[lipTy]?.[lipTx];
+      const rightTile = level.tiles[lipTy]?.[lipTx + 1];
+      return (
+        leftTile?.type === 'pipe_warp_top_left' &&
+        rightTile?.type === 'pipe_warp_top_right'
+      );
+    });
+    if (level.isCustom) {
+      level.pipeWarps = level.pipeWarps.filter(pw => {
+        if (pw.type === 'door') return true;
+        if (pw.toLevel === KEY_CAVE_PIPE_TARGET || isSurfaceExitPipeWarp(level, pw)) return true;
+        if (pw.type === 'down') {
+          const lipTx = Math.floor(pw.from.x / 16);
+          const lipTy = Math.floor((pw.from.y + pw.from.height) / 16);
+          const leftTile = level.tiles[lipTy]?.[lipTx];
+          const rightTile = level.tiles[lipTy]?.[lipTx + 1];
+          return (
+            (leftTile?.type === 'pipe_warp_top_left' || leftTile?.type === 'pipe_top_left') &&
+            (rightTile?.type === 'pipe_warp_top_right' || rightTile?.type === 'pipe_top_right')
+          );
+        }
+        if (pw.type === 'right') {
+          const mouthTx = Math.floor((pw.from.x + pw.from.width) / 16);
+          const topTy = Math.floor(pw.from.y / 16);
+          const topTile = level.tiles[topTy]?.[mouthTx];
+          const botTile = level.tiles[topTy + 1]?.[mouthTx];
+          return topTile?.type === 'pipe_horiz_top' && botTile?.type === 'pipe_horiz_bottom';
+        }
+        return true;
+      });
+    }
+  }
+  pruneSurfaceExitPipeWarps(level);
+  pruneGhostDoorWarps(level);
+  if (level.pipeWarps && level.pipeWarps.length === 0) {
     level.pipeWarps = undefined;
   }
 }
@@ -2431,6 +2558,676 @@ export function placeKeyCavePipeInLevel(
   return true;
 }
 
+export function placeSurfaceExitPipeInLevel(
+  level: LevelData,
+  tx: number,
+  ty: number,
+  pipeHeight: 2 | 3 | 4 = 2
+): boolean {
+  if (tx < 0 || tx + 1 >= level.width || ty < 0 || ty >= level.height) {
+    return false;
+  }
+  const bottomY = Math.min(12, Math.max(3, ty));
+  const topY = Math.max(2, bottomY - pipeHeight + 1);
+
+  level.tiles[topY][tx] = { type: 'pipe_warp_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  level.tiles[topY][tx + 1] = { type: 'pipe_warp_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  for (let py = topY + 1; py <= bottomY; py++) {
+    level.tiles[py][tx] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[py][tx + 1] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+
+  // Keep mouth unobstructed by Piranha Plants
+  level.enemies = level.enemies.filter(
+    e => !(e.type === 'piranha' && Math.abs(e.x - (tx * 16 + 8)) < 16)
+  );
+
+  // Locate or construct the surface finish zone & emergence pipe near the stage goal
+  let flagTx = Math.floor(level.flagX / 16);
+  const hasExistingFlagpole =
+    level.flagX > 0 &&
+    flagTx >= 0 &&
+    flagTx < level.width &&
+    level.tiles.some(row => row[flagTx]?.type === 'pole' || row[flagTx]?.type === 'pole_top');
+
+  if (!hasExistingFlagpole) {
+    flagTx = Math.max(tx + 10, Math.min(level.width - 7, level.width - 14));
+    if (flagTx < level.width - 2) {
+      level.tiles[12][flagTx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      for (let py = 3; py <= 11; py++) {
+        level.tiles[py][flagTx] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      level.tiles[2][flagTx] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.flagX = flagTx * 16;
+
+      const cStart = Math.min(level.width - 6, flagTx + 3);
+      for (let cx = cStart; cx <= cStart + 4 && cx < level.width - 1; cx++) {
+        for (let cy = 8; cy <= 12; cy++) {
+          level.tiles[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+        if ((cx - cStart) % 2 === 0) {
+          level.tiles[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+      }
+      if (cStart + 2 < level.width - 1) {
+        level.tiles[11][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[12][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.castleX = (cStart + 2) * 16;
+      }
+    }
+  }
+
+  let dryShoreTx =
+    level.dryFinishStartX !== undefined && Math.floor(level.dryFinishStartX / 16) > tx + 2
+      ? Math.floor(level.dryFinishStartX / 16)
+      : undefined;
+
+  if (
+    level.theme !== 'overworld' &&
+    dryShoreTx === undefined &&
+    flagTx > tx + 6 &&
+    flagTx < level.width
+  ) {
+    dryShoreTx = Math.max(tx + 4, Math.min(flagTx - 5, flagTx - 12));
+    level.dryFinishStartX = dryShoreTx * 16;
+
+    // Ensure open sky & surface ground across the dry finish screen
+    for (let sx = dryShoreTx; sx < level.width; sx++) {
+      for (let cy = 0; cy <= 1; cy++) {
+        level.tiles[cy][sx] = null;
+      }
+      if (!level.tiles[13][sx]) {
+        level.tiles[13][sx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (!level.tiles[14][sx]) {
+        level.tiles[14][sx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+
+    // Add a clean separating barrier column immediately before dryShoreTx if unobstructed
+    const wallTx = dryShoreTx - 1;
+    if (wallTx > tx + 2 && !level.tiles[6]?.[wallTx]) {
+      const barrierType: TileType =
+        level.theme === 'underwater'
+          ? 'coral'
+          : level.theme === 'underground'
+          ? 'underground_brick'
+          : 'castle_stone';
+      for (let wy = 0; wy <= 12; wy++) {
+        if (!level.tiles[wy][wallTx]) {
+          level.tiles[wy][wallTx] = { type: barrierType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+      }
+    }
+  }
+
+  // Search for an existing surface emergence pipe close to the stage goal
+  const searchMinTx = Math.max(tx + 3, dryShoreTx ?? Math.max(tx + 3, flagTx - 18));
+  const searchMaxTx = Math.max(searchMinTx, Math.min(level.width - 3, flagTx - 3));
+  let emergeTx = -1;
+  let emergeTopY = 11;
+
+  for (let sx = searchMinTx; sx <= searchMaxTx; sx++) {
+    for (let sy = 2; sy <= 11; sy++) {
+      if (
+        level.tiles[sy]?.[sx]?.type === 'pipe_top_left' &&
+        level.tiles[sy]?.[sx + 1]?.type === 'pipe_top_right'
+      ) {
+        emergeTx = sx;
+        emergeTopY = sy;
+        break;
+      }
+    }
+    if (emergeTx !== -1) break;
+  }
+
+  if (emergeTx === -1) {
+    const preferredTx =
+      dryShoreTx !== undefined
+        ? Math.min(searchMaxTx, dryShoreTx + 4)
+        : Math.max(searchMinTx, flagTx - 9);
+    emergeTx = Math.max(0, Math.min(level.width - 3, preferredTx));
+    emergeTopY = 11;
+
+    // Clear emergence lane & ensure ground underneath
+    for (let py = 9; py <= 12; py++) {
+      level.tiles[py][emergeTx] = null;
+      level.tiles[py][emergeTx + 1] = null;
+    }
+    const baseGroundType: TileType =
+      level.theme === 'overworld' || dryShoreTx !== undefined
+        ? 'ground'
+        : level.theme === 'underground'
+        ? 'underground_ground'
+        : 'ground';
+    level.tiles[13][emergeTx] = { type: baseGroundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[13][emergeTx + 1] = { type: baseGroundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[14][emergeTx] = { type: baseGroundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[14][emergeTx + 1] = { type: baseGroundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+    placePipe(level.tiles, emergeTx, 12, 2, false);
+  }
+
+  const pipeLeftPx = tx * 16;
+  const pipeRightPx = (tx + 2) * 16;
+  const nextWarps = (level.pipeWarps || []).filter(
+    pw => !(pw.type === 'down' && pw.from.x < pipeRightPx && pw.from.x + pw.from.width > pipeLeftPx)
+  );
+  nextWarps.push({
+    from: { x: pipeLeftPx, y: (topY - 1) * 16, width: 32, height: 16 },
+    toLevel: level.id,
+    toPos: { x: emergeTx * 16 + 8, y: (emergeTopY - 1) * 16 },
+    type: 'down',
+  });
+  level.pipeWarps = nextWarps;
+  pruneKeyCavePipeWarps(level);
+  return true;
+}
+
+export function placeGhostDoorInLevel(
+  level: LevelData,
+  tx: number,
+  ty: number,
+  target: { mode: 'outside_exit' } | { mode: 'map'; toLevel: string; toPos?: Point }
+): boolean {
+  if (level.theme !== 'ghost_house') {
+    return false;
+  }
+  if (tx < 0 || tx >= level.width || ty < 1 || ty >= level.height) {
+    return false;
+  }
+
+  const bottomY = Math.min(12, Math.max(2, ty));
+  const topY = bottomY - 1;
+  level.tiles[topY][tx] = { type: 'ghost_door_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  level.tiles[bottomY][tx] = { type: 'ghost_door_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
+
+  const doorLeftPx = tx * 16;
+  const doorRightPx = (tx + 1) * 16;
+  const nextWarps = (level.pipeWarps || []).filter(
+    pw => !(pw.type === 'door' && pw.from.x < doorRightPx && pw.from.x + pw.from.width > doorLeftPx)
+  );
+
+  if (target.mode === 'outside_exit') {
+    let flagTx = Math.floor(level.flagX / 16);
+    const hasExistingFlagpole =
+      level.flagX > 0 &&
+      flagTx >= 0 &&
+      flagTx < level.width &&
+      level.tiles.some(row => row[flagTx]?.type === 'pole' || row[flagTx]?.type === 'pole_top');
+
+    if (!hasExistingFlagpole) {
+      flagTx = Math.max(tx + 9, Math.min(level.width - 7, level.width - 14));
+      if (flagTx < level.width - 2) {
+        level.tiles[12][flagTx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        for (let py = 3; py <= 11; py++) {
+          level.tiles[py][flagTx] = { type: 'pole', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+        level.tiles[2][flagTx] = { type: 'pole_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.flagX = flagTx * 16;
+
+        const cStart = Math.min(level.width - 6, flagTx + 3);
+        for (let cx = cStart; cx <= cStart + 4 && cx < level.width - 1; cx++) {
+          for (let cy = 8; cy <= 12; cy++) {
+            level.tiles[cy][cx] = { type: 'castle_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+          if ((cx - cStart) % 2 === 0) {
+            level.tiles[7][cx] = { type: 'castle_crenel', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+        }
+        if (cStart + 2 < level.width - 1) {
+          level.tiles[11][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          level.tiles[12][cStart + 2] = { type: 'castle_door', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          level.castleX = (cStart + 2) * 16;
+        }
+      }
+    }
+
+    let dryShoreTx =
+      level.dryFinishStartX !== undefined && Math.floor(level.dryFinishStartX / 16) > tx + 1
+        ? Math.floor(level.dryFinishStartX / 16)
+        : undefined;
+
+    if (dryShoreTx === undefined && flagTx > tx + 5 && flagTx < level.width) {
+      dryShoreTx = Math.max(tx + 3, Math.min(flagTx - 5, flagTx - 12));
+      level.dryFinishStartX = dryShoreTx * 16;
+
+      // Clear ceiling & ensure open-air grass ground outside the mansion
+      for (let sx = dryShoreTx; sx < level.width; sx++) {
+        for (let cy = 0; cy <= 1; cy++) {
+          level.tiles[cy][sx] = null;
+        }
+        level.tiles[13][sx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[14][sx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+
+      // Separate mansion interior from outdoor courtyard with haunted brick exterior wall
+      const wallTx = dryShoreTx - 1;
+      if (wallTx > tx + 1 && !level.tiles[6]?.[wallTx]) {
+        for (let wy = 0; wy <= 12; wy++) {
+          if (!level.tiles[wy][wallTx]) {
+            level.tiles[wy][wallTx] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+          }
+        }
+      }
+    }
+
+    const minOutsideTx = dryShoreTx ?? Math.max(tx + 3, flagTx - 12);
+    const maxOutsideTx = Math.max(minOutsideTx, Math.min(level.width - 3, flagTx - 3));
+    let emergeTx = -1;
+    let emergeBottomY = 12;
+
+    // Look for an existing exterior doorway (without an entry warp) outside the mansion
+    for (let sx = minOutsideTx; sx <= maxOutsideTx; sx++) {
+      for (let sy = 2; sy <= 12; sy++) {
+        if (
+          level.tiles[sy - 1]?.[sx]?.type === 'ghost_door_top' &&
+          level.tiles[sy]?.[sx]?.type === 'ghost_door_bottom'
+        ) {
+          emergeTx = sx;
+          emergeBottomY = sy;
+          break;
+        }
+      }
+      if (emergeTx !== -1) break;
+    }
+
+    if (emergeTx === -1) {
+      emergeTx = Math.max(minOutsideTx, Math.min(maxOutsideTx, minOutsideTx + 1));
+      emergeBottomY = 12;
+      for (let py = 9; py <= 12; py++) {
+        level.tiles[py][emergeTx] = null;
+      }
+      if (emergeTx - 1 >= minOutsideTx && !level.tiles[12]?.[emergeTx - 1]) {
+        for (let py = 9; py <= 12; py++) {
+          level.tiles[py][emergeTx - 1] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+      }
+      level.tiles[9][emergeTx] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[10][emergeTx] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[11][emergeTx] = { type: 'ghost_door_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[12][emergeTx] = { type: 'ghost_door_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[13][emergeTx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[14][emergeTx] = { type: 'ground', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+
+    nextWarps.push({
+      from: { x: doorLeftPx, y: topY * 16, width: 16, height: 32 },
+      toLevel: level.id,
+      toPos: { x: emergeTx * 16, y: emergeBottomY * 16 },
+      type: 'door',
+    });
+  } else {
+    const destId = target.toLevel.trim();
+    if (!destId) return false;
+    nextWarps.push({
+      from: { x: doorLeftPx, y: topY * 16, width: 16, height: 32 },
+      toLevel: destId,
+      toPos: target.toPos ? { ...target.toPos } : { x: 48, y: 192 },
+      type: 'door',
+    });
+  }
+
+  level.pipeWarps = nextWarps;
+  pruneKeyCavePipeWarps(level);
+  return true;
+}
+
+export function placeWarpPipeInLevel(
+  level: LevelData,
+  tx: number,
+  ty: number,
+  options: {
+    dir: 'down' | 'right';
+    height?: 2 | 3 | 4;
+    toLevel: string;
+    toPos?: { x: number; y: number };
+  }
+): boolean {
+  const destId = options.toLevel.trim();
+  if (!destId) return false;
+  const pipeHeight = options.height ?? 2;
+
+  if (options.dir === 'right') {
+    if (tx < 1 || tx + 1 >= level.width || ty < 2 || ty + 1 >= level.height) {
+      return false;
+    }
+    const topTy = Math.min(11, Math.max(2, ty - 1));
+    level.tiles[topTy][tx] = { type: 'pipe_horiz_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[topTy + 1][tx] = { type: 'pipe_horiz_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    for (let py = Math.max(2, topTy - 1); py <= 12; py++) {
+      if (!level.tiles[py][tx + 1]) {
+        level.tiles[py][tx + 1] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    const triggerX = (tx - 1) * 16 + 4;
+    const triggerY = topTy * 16;
+    const nextWarps = (level.pipeWarps || []).filter(
+      pw => !(pw.type === 'right' && Math.abs(pw.from.x - triggerX) < 20 && Math.abs(pw.from.y - triggerY) < 24)
+    );
+    nextWarps.push({
+      from: { x: triggerX, y: triggerY, width: 12, height: 32 },
+      toLevel: destId,
+      toPos: options.toPos ? { ...options.toPos } : { x: 48, y: 192 },
+      type: 'right',
+    });
+    level.pipeWarps = nextWarps;
+    pruneKeyCavePipeWarps(level);
+    return true;
+  }
+
+  if (tx < 0 || tx + 1 >= level.width || ty < 0 || ty >= level.height) {
+    return false;
+  }
+  const bottomY = Math.min(12, Math.max(3, ty));
+  const topY = Math.max(2, bottomY - pipeHeight + 1);
+  level.tiles[topY][tx] = { type: 'pipe_warp_top_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  level.tiles[topY][tx + 1] = { type: 'pipe_warp_top_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  for (let py = topY + 1; py <= bottomY; py++) {
+    level.tiles[py][tx] = { type: 'pipe_body_left', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[py][tx + 1] = { type: 'pipe_body_right', content: 'none', bumpOffset: 0, bumpVel: 0 };
+  }
+  level.enemies = level.enemies.filter(
+    e => !(e.type === 'piranha' && Math.abs(e.x - (tx * 16 + 8)) < 16)
+  );
+  const pipeLeftPx = tx * 16;
+  const pipeRightPx = (tx + 2) * 16;
+  const nextWarps = (level.pipeWarps || []).filter(
+    pw => !(pw.type === 'down' && pw.from.x < pipeRightPx && pw.from.x + pw.from.width > pipeLeftPx)
+  );
+  nextWarps.push({
+    from: { x: pipeLeftPx, y: (topY - 1) * 16, width: 32, height: 16 },
+    toLevel: destId,
+    toPos: options.toPos ? { ...options.toPos } : { x: 48, y: 192 },
+    type: 'down',
+  });
+  level.pipeWarps = nextWarps;
+  pruneKeyCavePipeWarps(level);
+  return true;
+}
+
+export function placeWCoinInLevel(level: LevelData, tx: number, ty: number): boolean {
+  if (tx < 0 || tx >= level.width || ty < 0 || ty >= level.height) return false;
+  const wx = tx * 16 - 2;
+  const wy = ty * 16 - 2;
+  const current = level.wCoins ? [...level.wCoins] : [];
+  const filtered = current.filter(c => !(Math.abs(c.x - wx) < 16 && Math.abs(c.y - wy) < 16));
+  if (filtered.length >= STAGE_W_COINS_COUNT) {
+    return false;
+  }
+  filtered.push({ x: wx, y: wy });
+  level.wCoins = filtered;
+  return true;
+}
+
+export function placeMidwayCheckpointInLevel(level: LevelData, tx: number, ty: number): boolean {
+  if (tx < 1 || tx >= level.width - 1 || ty < 2 || ty >= level.height - 1) return false;
+  const cpx = tx * 16;
+  const cpy = Math.max(16, Math.min((level.height - 3) * 16, ty * 16));
+  const existing = (level.checkpoints || []).filter(cp => Math.abs(cp.x - cpx) >= 24);
+  existing.push({
+    x: cpx,
+    respawnPos: { x: cpx, y: cpy },
+    visible: true,
+  });
+  existing.sort((a, b) => a.x - b.x);
+  level.checkpoints = existing;
+  return true;
+}
+
+export function insertLevelColumnAt(level: LevelData, atTx: number): boolean {
+  if (level.width >= 240) return false;
+  const tx = Math.max(0, Math.min(level.width, Math.floor(atTx)));
+  const groundType: TileType =
+    level.theme === 'underground'
+      ? 'underground_ground'
+      : level.theme === 'underwater'
+      ? 'sea_ground'
+      : level.theme === 'castle'
+      ? 'castle_stone'
+      : level.theme === 'ghost_house'
+      ? 'ghost_floor'
+      : 'ground';
+  const ceilingType: TileType =
+    level.theme === 'castle'
+      ? 'castle_stone'
+      : level.theme === 'ghost_house'
+      ? 'ghost_brick'
+      : 'underground_brick';
+
+  for (let ty = 0; ty < level.height; ty++) {
+    let insertedTile: BlockTile | null = null;
+    if (ty >= 13) {
+      insertedTile = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    } else if (
+      (level.theme === 'underground' || level.theme === 'castle' || level.theme === 'ghost_house') &&
+      ty <= 1
+    ) {
+      insertedTile = { type: ceilingType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    level.tiles[ty].splice(tx, 0, insertedTile);
+  }
+  level.width += 1;
+
+  const thresholdX = tx * 16;
+  const shiftPoint = (p: { x: number; y: number }) => {
+    if (p.x >= thresholdX) p.x += 16;
+  };
+  level.enemies.forEach(shiftPoint);
+  level.coins.forEach(shiftPoint);
+  level.wCoins?.forEach(shiftPoint);
+  level.yoshis?.forEach(shiftPoint);
+  level.carryables?.forEach(shiftPoint);
+  level.keyholes?.forEach(shiftPoint);
+  level.floatingPlatforms?.forEach(shiftPoint);
+  if (level.marioStart.x >= thresholdX) level.marioStart.x += 16;
+  if (level.flagX < 99000 && level.flagX >= thresholdX) level.flagX += 16;
+  if (level.castleX < 99000 && level.castleX >= thresholdX) level.castleX += 16;
+  if (level.dryFinishStartX !== undefined && level.dryFinishStartX >= thresholdX) {
+    level.dryFinishStartX += 16;
+  }
+  level.checkpoints?.forEach(cp => {
+    if (cp.x >= thresholdX) cp.x += 16;
+    if (cp.respawnPos.x >= thresholdX) cp.respawnPos.x += 16;
+  });
+  level.pipeWarps?.forEach(pw => {
+    if (pw.from.x >= thresholdX) pw.from.x += 16;
+    if ((pw.toLevel === level.id || isSurfaceExitPipeWarp(level, pw) || isGhostOutsideExitDoorWarp(level, pw)) && pw.toPos.x >= thresholdX) {
+      pw.toPos.x += 16;
+    }
+  });
+  return true;
+}
+
+export function deleteLevelColumnAt(level: LevelData, atTx: number): boolean {
+  if (level.width <= 40) return false;
+  const tx = Math.max(0, Math.min(level.width - 1, Math.floor(atTx)));
+  for (let ty = 0; ty < level.height; ty++) {
+    level.tiles[ty].splice(tx, 1);
+  }
+  level.width -= 1;
+
+  const colStart = tx * 16;
+  const colEnd = (tx + 1) * 16;
+  const shiftAndFilter = <T extends { x: number }>(list: T[] | undefined): T[] | undefined => {
+    if (!list) return undefined;
+    const next = list
+      .filter(item => !(item.x >= colStart && item.x < colEnd))
+      .map(item => (item.x >= colEnd ? { ...item, x: item.x - 16 } : item));
+    return next;
+  };
+  level.enemies = shiftAndFilter(level.enemies) || [];
+  level.coins = shiftAndFilter(level.coins) || [];
+  if (level.wCoins) {
+    const nextW = shiftAndFilter(level.wCoins);
+    level.wCoins = nextW && nextW.length > 0 ? nextW : undefined;
+  }
+  if (level.yoshis) {
+    const nextY = shiftAndFilter(level.yoshis);
+    level.yoshis = nextY && nextY.length > 0 ? nextY : undefined;
+  }
+  if (level.carryables) {
+    const nextC = shiftAndFilter(level.carryables);
+    level.carryables = nextC && nextC.length > 0 ? nextC : undefined;
+  }
+  if (level.keyholes) {
+    const nextK = shiftAndFilter(level.keyholes);
+    level.keyholes = nextK && nextK.length > 0 ? nextK : undefined;
+  }
+  if (level.floatingPlatforms) {
+    const nextP = shiftAndFilter(level.floatingPlatforms);
+    level.floatingPlatforms = nextP && nextP.length > 0 ? nextP : undefined;
+  }
+  if (level.marioStart.x >= colEnd) level.marioStart.x = Math.max(0, level.marioStart.x - 16);
+  else if (level.marioStart.x >= colStart) level.marioStart.x = Math.max(0, colStart - 16);
+  if (level.flagX < 99000 && level.flagX >= colEnd) level.flagX -= 16;
+  if (level.castleX < 99000 && level.castleX >= colEnd) level.castleX -= 16;
+  if (level.dryFinishStartX !== undefined && level.dryFinishStartX >= colEnd) {
+    level.dryFinishStartX -= 16;
+  }
+  if (level.checkpoints) {
+    const nextCP = level.checkpoints
+      .filter(cp => !(cp.x >= colStart && cp.x < colEnd))
+      .map(cp => ({
+        ...cp,
+        x: cp.x >= colEnd ? cp.x - 16 : cp.x,
+        respawnPos: {
+          x: cp.respawnPos.x >= colEnd ? cp.respawnPos.x - 16 : cp.respawnPos.x,
+          y: cp.respawnPos.y,
+        },
+      }));
+    level.checkpoints = nextCP.length > 0 ? nextCP : undefined;
+  }
+  if (level.pipeWarps) {
+    level.pipeWarps = level.pipeWarps
+      .filter(pw => !(pw.from.x < colEnd && pw.from.x + pw.from.width > colStart))
+      .map(pw => ({
+        ...pw,
+        from: { ...pw.from, x: pw.from.x >= colEnd ? pw.from.x - 16 : pw.from.x },
+        toPos: {
+          ...pw.toPos,
+          x:
+            (pw.toLevel === level.id || isSurfaceExitPipeWarp(level, pw) || isGhostOutsideExitDoorWarp(level, pw)) &&
+            pw.toPos.x >= colEnd
+              ? pw.toPos.x - 16
+              : pw.toPos.x,
+        },
+      }));
+    pruneKeyCavePipeWarps(level);
+  }
+  return true;
+}
+
+export type TerrainPresetId =
+  | 'flat'
+  | 'hills_pits'
+  | 'ghost_maze'
+  | 'underwater_tunnels'
+  | 'castle_lava';
+
+export function applyTerrainPresetToLevel(level: LevelData, preset: TerrainPresetId): void {
+  const fresh = createBlankCustomLevel(level.name, level.theme, level.width, level.id);
+  level.tiles = fresh.tiles;
+  level.enemies = [];
+  level.coins = [];
+  level.wCoins = undefined;
+  level.yoshis = undefined;
+  level.carryables = undefined;
+  level.keyholes = undefined;
+  level.floatingPlatforms = undefined;
+  level.pipeWarps = undefined;
+  level.checkpoints = undefined;
+  level.dryFinishStartX = undefined;
+  level.marioStart = { x: 48, y: 192 };
+  level.flagX = fresh.flagX;
+  level.castleX = fresh.castleX;
+
+  const groundType: TileType =
+    level.theme === 'underground'
+      ? 'underground_ground'
+      : level.theme === 'underwater'
+      ? 'sea_ground'
+      : level.theme === 'castle'
+      ? 'castle_stone'
+      : level.theme === 'ghost_house'
+      ? 'ghost_floor'
+      : 'ground';
+  const blockType: TileType =
+    level.theme === 'underground'
+      ? 'underground_brick'
+      : level.theme === 'castle'
+      ? 'castle_brick'
+      : level.theme === 'ghost_house'
+      ? 'ghost_brick'
+      : level.theme === 'underwater'
+      ? 'coral'
+      : 'brick';
+
+  const w = level.width;
+  if (preset === 'hills_pits') {
+    for (let x = 14; x < w - 16; x++) {
+      if (x % 22 >= 18 && x % 22 <= 20) {
+        level.tiles[13][x] = null;
+        level.tiles[14][x] = null;
+      } else if (x % 16 >= 5 && x % 16 <= 10) {
+        for (let y = 10; y <= 12; y++) {
+          level.tiles[y][x] = { type: groundType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+        }
+      }
+      if (x % 18 === 12) {
+        level.tiles[9][x] = { type: 'question', content: 'coin', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[9][x + 1] = { type: blockType, content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+  } else if (preset === 'castle_lava') {
+    for (let x = 10; x < w - 14; x++) {
+      if (x % 15 >= 11) {
+        level.tiles[13][x] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[14][x] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      if (x % 15 === 8) {
+        level.tiles[9][x] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[9][x + 1] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    const axeTx = Math.max(12, w - 12);
+    for (let bx = axeTx - 6; bx < axeTx; bx++) {
+      level.tiles[11][bx] = { type: 'bridge', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[13][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[14][bx] = { type: 'lava', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    level.tiles[12][axeTx] = { type: 'hard_block', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.tiles[11][axeTx] = { type: 'axe', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    level.flagX = 999999;
+    level.castleX = Math.min(w - 2, axeTx + 6) * 16;
+  } else if (preset === 'ghost_maze') {
+    for (let x = 12; x < w - 18; x += 14) {
+      for (let y = 5; y <= 10; y++) {
+        level.tiles[y][x] = { type: 'ghost_brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      level.tiles[8][x + 2] = { type: 'ghost_floor', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[8][x + 3] = { type: 'ghost_floor', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      level.tiles[8][x + 4] = { type: 'ghost_floor', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    }
+    if (level.theme === 'ghost_house') {
+      placeGhostDoorInLevel(level, Math.max(20, w - 28), 12, { mode: 'outside_exit' });
+    }
+  } else if (preset === 'underwater_tunnels') {
+    for (let x = 10; x < w - 18; x += 12) {
+      for (let y = 3; y <= 6; y++) {
+        level.tiles[y][x] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+        level.tiles[y][x + 1] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+      for (let y = 11; y <= 12; y++) {
+        level.tiles[y][x + 6] = { type: 'coral', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      }
+    }
+    if (level.theme === 'underwater') {
+      placeSurfaceExitPipeInLevel(level, Math.max(16, w - 28), 12, 2);
+    }
+  }
+}
+
 export function cloneLevelData(level: LevelData): LevelData {
   return {
     ...level,
@@ -2443,7 +3240,11 @@ export function cloneLevelData(level: LevelData): LevelData {
     carryables: level.carryables ? level.carryables.map(c => ({ ...c })) : undefined,
     keyholes: level.keyholes ? level.keyholes.map(k => ({ ...k })) : undefined,
     checkpoints: level.checkpoints
-      ? level.checkpoints.map(cp => ({ x: cp.x, respawnPos: { ...cp.respawnPos } }))
+      ? level.checkpoints.map(cp => ({
+          x: cp.x,
+          respawnPos: { ...cp.respawnPos },
+          ...(cp.visible ? { visible: true } : {}),
+        }))
       : undefined,
     floatingPlatforms: level.floatingPlatforms
       ? level.floatingPlatforms.map(fp => ({ ...fp }))
@@ -2604,6 +3405,8 @@ const VALID_TILE_TYPES = new Set<TileType>([
   'axe',
   'ghost_floor',
   'ghost_brick',
+  'ghost_door_top',
+  'ghost_door_bottom',
   'exclam_yellow',
   'exclam_green',
   'exclam_red',
@@ -2938,7 +3741,14 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       const fromObj = pw.from && typeof pw.from === 'object' ? (pw.from as Record<string, unknown>) : null;
       const toPosObj = pw.toPos && typeof pw.toPos === 'object' ? (pw.toPos as Record<string, unknown>) : null;
       const toLevel = typeof pw.toLevel === 'string' ? pw.toLevel.trim() : '';
-      const warpType = pw.type === 'right' ? 'right' : pw.type === 'down' ? 'down' : null;
+      const warpType =
+        pw.type === 'right'
+          ? 'right'
+          : pw.type === 'down'
+          ? 'down'
+          : pw.type === 'door'
+          ? 'door'
+          : null;
       if (!fromObj || !toPosObj || !toLevel || !warpType) continue;
       if (
         typeof fromObj.x !== 'number' ||
@@ -3022,6 +3832,7 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
           x: Math.max(0, Math.min((width - 2) * 16, rp.x)),
           y: Math.max(0, Math.min((height - 2) * 16, rp.y)),
         },
+        ...(cp.visible === true ? { visible: true } : {}),
       });
     }
     if (parsedCP.length > 0) checkpoints = parsedCP;
@@ -3062,9 +3873,27 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       ? candidateObj.biomeLabel.trim()
       : 'FASE DO JOGADOR';
 
+  const sourceLevelId =
+    typeof candidateObj.id === 'string' && candidateObj.id.trim() ? candidateObj.id.trim() : undefined;
+  const generatedLevelId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const remappedPipeWarps =
+    pipeWarps.length > 0
+      ? pipeWarps.map(pw =>
+          sourceLevelId && pw.toLevel === sourceLevelId
+            ? { ...pw, toLevel: generatedLevelId }
+            : pw
+        )
+      : undefined;
+
+  const enemySpeedMultiplier =
+    typeof candidateObj.enemySpeedMultiplier === 'number' &&
+    Number.isFinite(candidateObj.enemySpeedMultiplier)
+      ? Math.max(0.5, Math.min(2.5, Number(candidateObj.enemySpeedMultiplier.toFixed(2))))
+      : undefined;
+
   return stripNonSmwPowerUpBoxes(
     sanitizeCustomLevelEntities({
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: generatedLevelId,
       name,
       theme,
       biomeLabel,
@@ -3078,10 +3907,11 @@ export function parseImportedLevelFile(rawJson: string): LevelData {
       carryables: carryables.length > 0 ? carryables : undefined,
       keyholes: keyholes.length > 0 ? keyholes : undefined,
       floatingPlatforms: floatingPlatforms.length > 0 ? floatingPlatforms : undefined,
-      pipeWarps: pipeWarps.length > 0 ? pipeWarps : undefined,
+      pipeWarps: remappedPipeWarps,
       checkpoints,
       musicTrack,
       useBonusBackdrop,
+      enemySpeedMultiplier,
       dryFinishStartX,
       bossName,
       smwNodeId,
@@ -3130,12 +3960,16 @@ export function parseWorldStageFromJson(
     typeof levelObj.biomeLabel === 'string' && levelObj.biomeLabel.trim()
       ? levelObj.biomeLabel.trim()
       : defaults.biomeLabel || parsed.biomeLabel;
+  const remappedPipeWarps = parsed.pipeWarps?.map(pw =>
+    pw.toLevel === parsed.id ? { ...pw, toLevel: defaults.id } : pw
+  );
 
   return {
     ...parsed,
     id: defaults.id,
     name: rawName,
     biomeLabel: rawBiome,
+    pipeWarps: remappedPipeWarps,
     smwNodeId: defaults.smwNodeId ?? parsed.smwNodeId,
     smwWorldName: defaults.smwWorldName ?? parsed.smwWorldName,
     isFinalCastle: defaults.isFinalCastle ?? parsed.isFinalCastle ?? false,

@@ -85,6 +85,19 @@ import {
   serializeLevelToFileJson,
   placeKeyCavePipeInLevel,
   pruneKeyCavePipeWarps,
+  placeSurfaceExitPipeInLevel,
+  pruneSurfaceExitPipeWarps,
+  isSurfaceExitPipeWarp,
+  placeGhostDoorInLevel,
+  pruneGhostDoorWarps,
+  isGhostDoorTile,
+  isGhostOutsideExitDoorWarp,
+  placeWarpPipeInLevel,
+  placeWCoinInLevel,
+  placeMidwayCheckpointInLevel,
+  insertLevelColumnAt,
+  deleteLevelColumnAt,
+  applyTerrainPresetToLevel,
   KEY_CAVE_PIPE_TARGET,
   isPowerUpBoxContent,
   EDITOR_MAX_ENEMIES,
@@ -93,6 +106,7 @@ import {
   EDITOR_MAX_TOTAL_ENTITIES,
   STAGE_W_COINS_COUNT,
 } from '../src/game/levels.ts';
+import { CameraSystem } from '../src/game/camera.ts';
 import { AchievementManager } from '../src/game/achievements.ts';
 import {
   JOHANNNNES_CASTLE_1_BOSS_NAME,
@@ -1723,7 +1737,11 @@ async function runR116FixesTests() {
     // 4. Editor usa janela virtual limitada (<= 2048px), inclui isOpen no redraw e mantém hover fora das dependências
     const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
     assert.ok(editorSrc.includes('EDITOR_MAX_CANVAS_BACKING_WIDTH = 2048'));
-    assert.ok(editorSrc.includes('}, [isOpen, currentLevel, cellSize, showGrid, atlas]);'));
+    assert.ok(
+      editorSrc.includes(
+        '}, [isOpen, currentLevel, cellSize, showGrid, showScreenGuides, showSpritesLayer, showExitsOverlay, atlas]);'
+      )
+    );
     assert.ok(editorSrc.includes('EDITOR_MAX_TOTAL_ENTITIES'));
     assert.ok(editorSrc.includes('EDITOR_MAX_ENEMIES'));
   });
@@ -4301,6 +4319,505 @@ async function runR116FixesTests() {
     assert.ok(editorSrc.includes('WORLD_STAGE_JSON_REGISTRY'));
     assert.ok(editorSrc.includes('getWorldStageFilename'));
     assert.ok(editorSrc.includes('Modo World (JSON)'));
+  });
+
+  await test('Sistema de partículas para quebra de tijolos, coleta de itens e derrota de inimigos', () => {
+    const engine = createFreshEngine();
+    engine.loadLevel(createWorld1_1());
+    engine.intermissionTimer = 0;
+
+    // 1. Quebra de tijolo emite brick_piece, debris, impact_ring, star_burst e dust temáticos
+    engine.particleSystem.clear();
+    engine.particleSystem.emitBrickBreak(80, 144, 'underwater');
+    assert.ok(engine.particles.some(p => p.type === 'brick_piece'));
+    assert.ok(engine.particles.some(p => p.type === 'debris' && p.color === '#98e0ff'));
+    assert.ok(engine.particles.some(p => p.type === 'impact_ring'));
+    assert.ok(engine.particles.some(p => p.type === 'star_burst'));
+    assert.ok(engine.particles.some(p => p.type === 'dust'));
+
+    // Mario pequeno batendo em tijolo emite poeira de impacto sem quebrar
+    engine.particleSystem.clear();
+    engine.marioPower = 'small';
+    engine.level.tiles[9][10] = { type: 'brick', content: 'none', bumpOffset: 0, bumpVel: 0 };
+    engine.marioX = 10 * 16;
+    engine.marioY = 10 * 16;
+    engine.marioVy = -4;
+    (engine as any).hitBlock(10, 9, engine.level.tiles[9][10]!);
+    assert.ok(engine.level.tiles[9][10] !== null);
+    assert.ok(engine.particles.some(p => p.type === 'dust'));
+
+    // 2. Coleta de itens (incluindo 1-UP, estrela, cogumelo, pena, laço femboy e W-coin) emite partículas dedicadas
+    const itemTypes = ['mushroom', 'fireflower', 'leaf', 'feather', 'femboy', 'star', '1up', 'w_coin', 'coin'] as const;
+    for (const itemType of itemTypes) {
+      engine.particleSystem.clear();
+      engine.spawnItemCollectParticles(100, 120, itemType);
+      assert.ok(engine.particles.length >= 4, `Item ${itemType} deve emitir partículas`);
+      assert.ok(engine.particles.some(p => p.type === 'impact_ring'));
+    }
+
+    // Coleta real de 1-UP via GameEngine agora emite partículas de item
+    engine.particleSystem.clear();
+    engine.items = [{
+      id: 9001,
+      type: '1up',
+      x: 112,
+      y: 192,
+      vx: 0,
+      vy: 0,
+      width: 16,
+      height: 16,
+      grounded: true,
+      collected: false,
+      emerging: false,
+      emergeY: 192,
+    }];
+    engine.marioX = 112;
+    engine.marioY = 192 - (engine as any).getMarioHeight() + 16;
+    stepEngine(engine, 1);
+    assert.ok(engine.particles.some(p => p.type === 'impact_ring' && p.color === '#78f858'));
+    assert.ok(engine.particles.some(p => p.type === 'star_burst' || p.type === 'coin_glint'));
+
+    // 3. Derrota de inimigos (squash, fire, boss e língua do Yoshi na altura real)
+    engine.particleSystem.clear();
+    engine.particleSystem.emitEnemyDefeat(120, 176, 'goomba', 'squash');
+    assert.ok(engine.particles.some(p => p.type === 'enemy_poof'));
+    assert.ok(engine.particles.some(p => p.type === 'debris'));
+    assert.ok(engine.particles.some(p => p.type === 'star_burst'));
+
+    engine.particleSystem.clear();
+    engine.particleSystem.emitEnemyDefeat(140, 176, 'koopa', 'fire');
+    assert.ok(engine.particles.some(p => p.type === 'enemy_poof' && p.color === '#fce078'));
+
+    engine.particleSystem.clear();
+    engine.particleSystem.emitEnemyDefeat(200, 150, 'bowser', 'boss');
+    assert.ok(engine.particles.filter(p => p.type === 'impact_ring').length >= 2);
+    assert.ok(engine.particles.filter(p => p.type === 'debris').length >= 16);
+
+    // Yoshi comendo inimigo deve gerar partículas na posição real do inimigo (não fora da tela)
+    engine.particleSystem.clear();
+    engine.marioOnYoshi = true;
+    engine.marioFacing = 'right';
+    engine.yoshiTongueTimer = 7;
+    engine.marioX = 100;
+    engine.marioY = 176;
+    engine.enemies = [{
+      id: 9002,
+      type: 'goomba',
+      x: 120,
+      y: 176,
+      vx: 0,
+      vy: 0,
+      width: 16,
+      height: 16,
+      alive: true,
+      state: 'walk',
+      stateTimer: 0,
+      facing: 'left',
+      animFrame: 0,
+      animTimer: 0,
+    }];
+    (engine as any).checkYoshiTongueCollisions();
+    assert.equal(engine.enemies[0].alive, false);
+    const defeatRing = engine.particles.find(p => p.type === 'impact_ring');
+    assert.ok(defeatRing, 'Yoshi comendo inimigo deve emitir impact_ring');
+    assert.ok(defeatRing.y < 220, `Partícula não pode nascer fora da tela (y=${defeatRing.y})`);
+  });
+
+  await test('R1.19.1KI.7: Fases aquáticas isolam tela da superfície no cano final e editor possui Cano Superfície (Fim)', () => {
+    // 1. CameraSystem respeita limites de zona (sub-área aquática vs superfície seca)
+    const cam = new CameraSystem();
+    const levelPx = 220 * 16;
+    const dryX = 165 * 16;
+    cam.centerOn(dryX - 24, levelPx, { minX: 0, maxX: dryX });
+    assert.ok(cam.x + 256 <= dryX, `Câmera subaquática não pode vazar para superfície seca (cam.x=${cam.x})`);
+    cam.centerOn(dryX + 64, levelPx, { minX: dryX, maxX: levelPx });
+    assert.ok(cam.x >= dryX, `Câmera na superfície após sair do cano não pode vazar para área aquática (cam.x=${cam.x})`);
+
+    // 2. World 2-2 e Wiki-3 (Fase da Água) isolam a câmera e transitam para superfície com fade e overworld
+    for (const waterLevel of [createWorld2_2(), createSmwWikiWorldStage('wiki-3-agua')]) {
+      assert.ok(
+        waterLevel.dryFinishStartX !== undefined && waterLevel.dryFinishStartX > 0,
+        `${waterLevel.id} deve definir dryFinishStartX`
+      );
+      const dryStart = waterLevel.dryFinishStartX!;
+      const surfaceWarp = waterLevel.pipeWarps?.find(pw => isSurfaceExitPipeWarp(waterLevel, pw));
+      assert.ok(surfaceWarp, `${waterLevel.id} deve ter pipeWarp de retorno à superfície`);
+      assert.ok(surfaceWarp!.toPos.x >= dryStart, `${waterLevel.id} warp deve levar à zona seca >= ${dryStart}`);
+
+      const engine = createFreshEngine();
+      engine.loadLevel(waterLevel, false, false, false);
+      engine.intermissionTimer = 0;
+
+      // Antes do cano final: câmera travada à esquerda de dryFinishStartX
+      engine.marioX = dryStart - 48;
+      engine.marioY = 160;
+      engine.camera.centerOn(engine.marioX, waterLevel.width * 16, (engine as any).getActiveCameraBounds());
+      assert.ok(engine.camera.x + GameEngine.NES_WIDTH <= dryStart);
+
+      // Entra no cano de saída e emerge na outra tela (superfície)
+      engine.warpTarget = surfaceWarp!;
+      engine.marioX = surfaceWarp!.from.x + 4;
+      engine.marioY = surfaceWarp!.from.y + 8;
+      (engine as any).finishPipeWarp();
+      assert.equal(engine.marioState, 'pipe_exiting');
+      assert.equal(engine.pipeExitDir, 'up');
+      assert.ok(engine.marioX >= dryStart);
+      assert.ok(engine.camera.x >= dryStart);
+      assert.ok(engine.warpScreenFadeTimer > 0);
+    }
+
+    // 3. Editor possui pincel 'pipe_surface_exit' ('Cano Superfície (Fim)') e sprites horizontais
+    const editorSrc = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'),
+      'utf8'
+    );
+    assert.ok(editorSrc.includes("id: 'pipe_surface_exit'"));
+    assert.ok(editorSrc.includes("label: 'Cano Superfície (Fim)'"));
+    assert.ok(editorSrc.includes('placeSurfaceExitPipeInLevel'));
+    assert.ok(editorSrc.includes("pipe_horiz_top"));
+
+    // 4. Colocar Cano Superfície (Fim) em fase aquática em branco cria saída próxima à bandeira, dryFinishStartX e remapeia ID ao importar
+    const customWater = createBlankCustomLevel('AGUA EDITOR', 'underwater', 90);
+    customWater.id = 'custom-water-test';
+    const placed = placeSurfaceExitPipeInLevel(customWater, 58, 12, 2);
+    assert.equal(placed, true);
+    assert.equal(customWater.tiles[11][58]?.type, 'pipe_warp_top_left');
+    assert.equal(customWater.tiles[11][59]?.type, 'pipe_warp_top_right');
+    assert.ok(customWater.dryFinishStartX !== undefined && customWater.dryFinishStartX > 59 * 16);
+    assert.ok(customWater.flagX < 999999 && customWater.flagX > customWater.dryFinishStartX!);
+    assert.equal(customWater.pipeWarps?.length, 1);
+    assert.equal(customWater.pipeWarps?.[0].toLevel, customWater.id);
+    assert.ok(customWater.pipeWarps![0].toPos.x >= customWater.dryFinishStartX!);
+    assert.ok(customWater.pipeWarps![0].toPos.x < customWater.flagX);
+
+    // Exporta e reimporta: novo ID gerado remapeia auto-warp para continuar funcionando
+    const exportedJson = serializeLevelToFileJson(customWater);
+    const reimported = parseImportedLevelFile(exportedJson);
+    assert.notEqual(reimported.id, customWater.id);
+    assert.equal(reimported.pipeWarps?.length, 1);
+    assert.equal(reimported.pipeWarps?.[0].toLevel, reimported.id);
+
+    // Apagar boca do cano remove warp órfão automaticamente
+    reimported.tiles[11][58] = null;
+    pruneSurfaceExitPipeWarps(reimported);
+    assert.equal(reimported.pipeWarps, undefined);
+
+    // 5. UpdatesModal registra correção R1.19.1KI.7
+    assert.ok(GAME_UPDATES.some(u => u.version === 'R1.19.1KI.7' || u.uid === 'R1.19.1KI.7'));
+  });
+
+  await test('Suporte Smartphone PWA, ícones e overlay D-Pad touchscreen (Left, Right, Jump, Duck)', () => {
+    const touchSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/TouchControls.tsx'), 'utf8');
+    const gameCanvasSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/GameCanvas.tsx'), 'utf8');
+    const viteCfgSrc = fs.readFileSync(path.resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+    const indexHtmlSrc = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8');
+    const mainSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/main.tsx'), 'utf8');
+
+    // Overlay D-Pad com posicionamento absoluto sobre o canvas e handlers de toque completos
+    assert.ok(touchSrc.includes("variant?: 'canvas-overlay' | 'docked'"));
+    assert.ok(touchSrc.includes('absolute inset-0'));
+    assert.ok(touchSrc.includes('onTouchStart'));
+    assert.ok(touchSrc.includes('onTouchMove'));
+    assert.ok(touchSrc.includes('onTouchEnd'));
+    assert.ok(touchSrc.includes('onTouchCancel'));
+    assert.ok(touchSrc.includes('data-direction="left"'));
+    assert.ok(touchSrc.includes('data-direction="right"'));
+    assert.ok(touchSrc.includes('data-direction="down"'));
+    assert.ok(touchSrc.includes("onControlChange('left', nextLeft)"));
+    assert.ok(touchSrc.includes("onControlChange('right', nextRight)"));
+    assert.ok(touchSrc.includes("onControlChange('down', nextDown)"));
+    assert.ok(touchSrc.includes("onControlChange('jump', nextJump)"));
+    assert.ok(touchSrc.includes('safe-area-inset'));
+    assert.ok(gameCanvasSrc.includes('variant="canvas-overlay"'));
+    assert.ok(gameCanvasSrc.includes('min-h-[100dvh]'));
+
+    // PWA configurado com vite-plugin-pwa, registro SW, banner offline, botão de instalação e ícones no /public
+    assert.ok(viteCfgSrc.includes('VitePWA('));
+    assert.ok(viteCfgSrc.includes('navigateFallbackDenylist'));
+    assert.ok(mainSrc.includes('registerSW({immediate: true})'));
+    assert.ok(indexHtmlSrc.includes('apple-touch-icon.png'));
+    assert.ok(gameCanvasSrc.includes('<PWAInstallButton'));
+    assert.ok(gameCanvasSrc.includes('<OfflineIndicator'));
+
+    for (const iconFile of [
+      'public/icon.svg',
+      'public/pwa-192x192.png',
+      'public/pwa-512x512.png',
+      'public/pwa-maskable-512x512.png',
+      'public/apple-touch-icon.png',
+    ]) {
+      const fullPath = path.resolve(process.cwd(), iconFile);
+      assert.ok(fs.existsSync(fullPath), `Ícone PWA ausente: ${iconFile}`);
+      assert.ok(fs.statSync(fullPath).size > 100, `Ícone PWA inválido/vazio: ${iconFile}`);
+    }
+  });
+
+  await test('Correção R1.19.1BM.7 — Portas exclusivas de Mansões Fantasmas para outros mapas e saída "fora da mansão"', () => {
+    // 1. Exclusividade de tema: recusar colocação fora de ghost_house e limpar portas órfãs/proibidas
+    for (const nonGhostTheme of ['overworld', 'underground', 'underwater', 'castle'] as const) {
+      const lvl = createBlankCustomLevel(`TEMA-${nonGhostTheme}`, nonGhostTheme, 80);
+      assert.equal(placeGhostDoorInLevel(lvl, 20, 12, { mode: 'outside_exit' }), false);
+      assert.equal(placeGhostDoorInLevel(lvl, 20, 12, { mode: 'map', toLevel: 'secret-vault' }), false);
+
+      // Mesmo que alguém injete tiles/warps de porta manualmente, a sanitização remove tudo fora de ghost_house
+      lvl.tiles[11][20] = { type: 'ghost_door_top', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      lvl.tiles[12][20] = { type: 'ghost_door_bottom', content: 'none', bumpOffset: 0, bumpVel: 0 };
+      lvl.pipeWarps = [
+        { from: { x: 20 * 16, y: 11 * 16, width: 16, height: 32 }, toLevel: 'secret-vault', toPos: { x: 48, y: 160 }, type: 'door' },
+      ];
+      const sanitized = sanitizeCustomLevelEntities(lvl).level;
+      assert.equal(isGhostDoorTile(sanitized.tiles[11][20]?.type), false);
+      assert.equal(isGhostDoorTile(sanitized.tiles[12][20]?.type), false);
+      assert.equal(sanitized.pipeWarps, undefined);
+
+      // Em runtime, GameEngine.checkPipeWarp ignora warps do tipo 'door' se o tema não for ghost_house
+      lvl.pipeWarps = [
+        { from: { x: 20 * 16, y: 11 * 16, width: 16, height: 32 }, toLevel: 'secret-vault', toPos: { x: 48, y: 160 }, type: 'door' },
+      ];
+      const guardEngine = createFreshEngine();
+      guardEngine.loadLevel(lvl, false, false, false);
+      guardEngine.intermissionTimer = 0;
+      guardEngine.marioX = 20 * 16;
+      guardEngine.marioY = 12 * 16;
+      guardEngine.marioGrounded = true;
+      guardEngine.controls.up = true;
+      guardEngine.update(0.016);
+      assert.notEqual(guardEngine.marioState, 'pipe_entering');
+    }
+
+    // 2. Mansões Fantasmas oficiais (World 1-3 e W-4 do Modo World) possuem porta de saída para "fora da mansão"
+    for (const ghostLevel of [createWorldGhostHouse(), createSmwWikiWorldStage('wiki-4-mansao')]) {
+      assert.equal(ghostLevel.theme, 'ghost_house');
+      assert.ok(ghostLevel.dryFinishStartX !== undefined && ghostLevel.dryFinishStartX > 160 * 16);
+      const exitWarp = ghostLevel.pipeWarps?.find(w => w.type === 'door' && isGhostOutsideExitDoorWarp(ghostLevel, w));
+      assert.ok(exitWarp, `Falta warp de saída fora da mansão em ${ghostLevel.id}`);
+      assert.ok(exitWarp!.toPos.x >= ghostLevel.dryFinishStartX!);
+      assert.ok(exitWarp!.toPos.x < ghostLevel.flagX);
+
+      const engine = createFreshEngine();
+      engine.loadLevel(ghostLevel, false, false, false);
+      engine.intermissionTimer = 0;
+      const dryStart = ghostLevel.dryFinishStartX!;
+
+      // Enquanto estiver dentro da mansão, a câmera não vaza para a área externa
+      engine.marioX = dryStart - 80;
+      engine.camera.centerOn(engine.marioX, ghostLevel.width * 16, (engine as any).getActiveCameraBounds());
+      assert.ok(engine.camera.x + GameEngine.NES_WIDTH <= dryStart);
+
+      // Posicionar na porta e pressionar Cima aciona a transição 'door' para fora da mansão
+      engine.marioX = exitWarp!.from.x;
+      engine.marioY = exitWarp!.from.y + 16;
+      engine.marioGrounded = true;
+      engine.controls.up = true;
+      engine.controls.down = false;
+      engine.update(0.016);
+      assert.equal(engine.marioState, 'pipe_entering');
+      assert.equal((engine as any).warpDir, 'door');
+
+      engine.controls.up = false;
+      for (let i = 0; i < 30 && engine.marioState === 'pipe_entering'; i++) {
+        engine.update(0.016);
+      }
+
+      assert.notEqual(engine.marioState, 'pipe_entering');
+      assert.equal(engine.level.id, ghostLevel.id);
+      assert.ok(engine.marioX >= dryStart);
+      assert.ok(engine.camera.x >= dryStart);
+      assert.ok(engine.warpScreenFadeTimer > 0);
+    }
+
+    // 3. Editor: colocar Porta Fora da Mansão (Fim) e Porta Para Outro Mapa, importar/exportar e transição real entre mapas customizados
+    const customGhost = createBlankCustomLevel('MANSAO EDITOR', 'ghost_house', 90);
+    customGhost.id = 'custom-ghost-src';
+    assert.equal(placeGhostDoorInLevel(customGhost, 45, 12, { mode: 'outside_exit' }), true);
+    assert.equal(customGhost.tiles[11][45]?.type, 'ghost_door_top');
+    assert.equal(customGhost.tiles[12][45]?.type, 'ghost_door_bottom');
+    assert.ok(customGhost.dryFinishStartX !== undefined && customGhost.dryFinishStartX > 45 * 16);
+    assert.ok(customGhost.flagX > customGhost.dryFinishStartX! && customGhost.flagX < 999999);
+    assert.equal(customGhost.pipeWarps?.length, 1);
+    assert.equal(customGhost.pipeWarps?.[0].type, 'door');
+    assert.equal(customGhost.pipeWarps?.[0].toLevel, customGhost.id);
+
+    // Exportação/importação JSON remapeia ID e mantém auto-warp funcional
+    const reimportedGhost = parseImportedLevelFile(serializeLevelToFileJson(customGhost));
+    assert.notEqual(reimportedGhost.id, customGhost.id);
+    assert.equal(reimportedGhost.pipeWarps?.length, 1);
+    assert.equal(reimportedGhost.pipeWarps?.[0].type, 'door');
+    assert.equal(reimportedGhost.pipeWarps?.[0].toLevel, reimportedGhost.id);
+
+    // Apagar a porta remove o warp órfão automaticamente
+    reimportedGhost.tiles[11][45] = null;
+    pruneGhostDoorWarps(reimportedGhost);
+    assert.equal(reimportedGhost.pipeWarps, undefined);
+
+    // Porta para acessar outro mapa customizado registrado
+    const targetCustomMap = createBlankCustomLevel('MAPA DESTINO', 'overworld', 60);
+    targetCustomMap.id = 'custom-target-map';
+    const customGhostToMap = createBlankCustomLevel('MANSAO WARP', 'ghost_house', 70);
+    customGhostToMap.id = 'custom-ghost-warp';
+    assert.equal(placeGhostDoorInLevel(customGhostToMap, 18, 12, { mode: 'map', toLevel: targetCustomMap.id }), true);
+    assert.equal(customGhostToMap.pipeWarps?.[0].type, 'door');
+    assert.equal(customGhostToMap.pipeWarps?.[0].toLevel, targetCustomMap.id);
+
+    const mapSwapEngine = createFreshEngine();
+    mapSwapEngine.registerCustomLevels([customGhostToMap, targetCustomMap]);
+    mapSwapEngine.loadLevel(customGhostToMap, false, false, false);
+    mapSwapEngine.intermissionTimer = 0;
+    mapSwapEngine.marioX = 18 * 16;
+    mapSwapEngine.marioY = 12 * 16;
+    mapSwapEngine.marioGrounded = true;
+    mapSwapEngine.controls.up = true;
+    mapSwapEngine.update(0.016);
+    assert.equal(mapSwapEngine.marioState, 'pipe_entering');
+    mapSwapEngine.controls.up = false;
+    for (let i = 0; i < 30 && mapSwapEngine.marioState === 'pipe_entering'; i++) {
+      mapSwapEngine.update(0.016);
+    }
+    assert.notEqual(mapSwapEngine.marioState, 'pipe_entering');
+    assert.equal(mapSwapEngine.level.id, targetCustomMap.id);
+
+    // 4. Editor e UpdatesModal contêm os pincéis exclusivos e a nota R1.19.1BM.7
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    assert.ok(editorSrc.includes("id: 'ghost_door_outside'"));
+    assert.ok(editorSrc.includes("id: 'ghost_door_map'"));
+    assert.ok(editorSrc.includes("requiresTheme: 'ghost_house'"));
+    assert.ok(editorSrc.includes('Só Mansão'));
+    assert.ok(GAME_UPDATES.some(u => u.version === 'R1.19.1BM.7' || u.uid === 'R1.19.1BM.7'));
+  });
+
+  await test('R1.19.1BM.7: Editor de Fases Lunar Magic (Warp Pipes ↓/→, Moedas W, Midway Gate, Colunas +Col/-Col, Presets, Header e Ferramentas)', () => {
+    // 1. Canos Warp genéricos (↓ e →) conectam mapas customizados e chegam com segurança em solo ou boca de cano
+    const destLevel = createBlankCustomLevel('DESTINO LM', 'underground', 60);
+    destLevel.id = 'lm-dest-map';
+    const srcLevel = createBlankCustomLevel('ORIGEM LM', 'overworld', 80);
+    srcLevel.id = 'lm-src-map';
+    srcLevel.musicTrack = 'bonus';
+    srcLevel.useBonusBackdrop = true;
+    srcLevel.bgColor = '#0c1438';
+    srcLevel.enemySpeedMultiplier = 1.4;
+    srcLevel.timeLimit = 420;
+
+    assert.equal(
+      placeWarpPipeInLevel(srcLevel, 16, 12, { dir: 'down', height: 2, toLevel: destLevel.id, toPos: { x: 48, y: 192 } }),
+      true
+    );
+    assert.equal(srcLevel.tiles[11][16]?.type, 'pipe_warp_top_left');
+    assert.equal(srcLevel.tiles[11][17]?.type, 'pipe_warp_top_right');
+    assert.equal(
+      placeWarpPipeInLevel(srcLevel, 24, 12, { dir: 'right', height: 2, toLevel: 'secret-vault', toPos: { x: 32, y: 176 } }),
+      true
+    );
+    assert.equal(srcLevel.tiles[11][24]?.type, 'pipe_horiz_top');
+    assert.equal(srcLevel.tiles[12][24]?.type, 'pipe_horiz_bottom');
+    assert.equal(srcLevel.pipeWarps?.length, 2);
+
+    // Transição real no GameEngine pelo Cano Warp ↓ para outro mapa sem boca de cano no destino -> pouso limpo sem ficar preso em pipe_exiting
+    const lmEngine = createFreshEngine();
+    lmEngine.registerCustomLevels([srcLevel, destLevel]);
+    lmEngine.loadLevel(srcLevel, false, false, false);
+    lmEngine.intermissionTimer = 0;
+    lmEngine.marioX = 16 * 16 + 4;
+    lmEngine.marioY = 11 * 16 - 16;
+    lmEngine.marioGrounded = true;
+    lmEngine.controls.down = true;
+    lmEngine.update(0.016);
+    assert.equal(lmEngine.marioState, 'pipe_entering');
+    lmEngine.controls.down = false;
+    for (let i = 0; i < 45 && lmEngine.marioState === 'pipe_entering'; i++) {
+      lmEngine.update(0.016);
+    }
+    assert.equal(lmEngine.level.id, destLevel.id);
+    assert.notEqual(lmEngine.marioState, 'pipe_exiting');
+    assert.ok(lmEngine.warpScreenFadeTimer > 0);
+
+    // Remover os tiles do cano genérico poda o warp órfão automaticamente
+    srcLevel.tiles[11][16] = null;
+    srcLevel.tiles[11][24] = null;
+    pruneKeyCavePipeWarps(srcLevel);
+    assert.equal(srcLevel.pipeWarps, undefined);
+
+    // 2. Moedas W (máximo 4 por fase) e Midway Checkpoint (visible: true + ativação in-game)
+    assert.equal(placeWCoinInLevel(srcLevel, 10, 8), true);
+    assert.equal(placeWCoinInLevel(srcLevel, 20, 8), true);
+    assert.equal(placeWCoinInLevel(srcLevel, 30, 8), true);
+    assert.equal(placeWCoinInLevel(srcLevel, 40, 8), true);
+    assert.equal(placeWCoinInLevel(srcLevel, 50, 8), false, 'Não deve exceder 4 Moedas W na mesma fase');
+    assert.equal(srcLevel.wCoins?.length, 4);
+
+    assert.equal(placeMidwayCheckpointInLevel(srcLevel, 35, 12), true);
+    assert.equal(srcLevel.checkpoints?.length, 1);
+    assert.equal(srcLevel.checkpoints?.[0].visible, true);
+
+    const cpEngine = createFreshEngine();
+    cpEngine.loadLevel(srcLevel, false, false, false);
+    cpEngine.intermissionTimer = 0;
+    cpEngine.marioX = srcLevel.checkpoints![0].x + 2;
+    cpEngine.marioY = srcLevel.checkpoints![0].respawnPos.y;
+    cpEngine.update(0.016);
+    assert.equal(cpEngine.activatedCheckpointIndices.has(0), true);
+
+    // 3. Round-trip JSON preserva música, Layer 2 bonus backdrop, bgColor, enemySpeedMultiplier, wCoins e checkpoints visíveis
+    const exportedJson = serializeLevelToFileJson(srcLevel);
+    const reimported = parseImportedLevelFile(exportedJson);
+    assert.equal(reimported.musicTrack, 'bonus');
+    assert.equal(reimported.useBonusBackdrop, true);
+    assert.equal(reimported.bgColor, '#0c1438');
+    assert.equal(reimported.enemySpeedMultiplier, 1.4);
+    assert.equal(reimported.timeLimit, 420);
+    assert.equal(reimported.wCoins?.length, 4);
+    assert.equal(reimported.checkpoints?.[0]?.visible, true);
+
+    // 4. Inserção e remoção de colunas (+Col / -Col) deslocam tiles, moedas, flagX e checkpoints
+    const widthBefore = reimported.width;
+    const flagBefore = reimported.flagX;
+    const cpXBefore = reimported.checkpoints![0].x;
+    insertLevelColumnAt(reimported, 15);
+    assert.equal(reimported.width, widthBefore + 1);
+    assert.equal(reimported.flagX, flagBefore + 16);
+    assert.equal(reimported.checkpoints![0].x, cpXBefore + 16);
+    deleteLevelColumnAt(reimported, 15);
+    assert.equal(reimported.width, widthBefore);
+    assert.equal(reimported.flagX, flagBefore);
+    assert.equal(reimported.checkpoints![0].x, cpXBefore);
+
+    // 5. Presets de terreno aplicam blocos e estruturas características corretamente
+    const presetLevel = createBlankCustomLevel('PRESET', 'castle', 60);
+    applyTerrainPresetToLevel(presetLevel, 'castle_lava');
+    assert.ok(presetLevel.tiles.some(r => r.some(t => t?.type === 'lava')));
+    assert.ok(presetLevel.tiles.some(r => r.some(t => t?.type === 'axe')));
+    applyTerrainPresetToLevel(presetLevel, 'hills_pits');
+    assert.ok(presetLevel.tiles.some(r => r.some(t => t?.type === 'question')));
+
+    // 6. Verificação estrutural das ferramentas Lunar Magic na UI do LevelEditorModal e nota no UpdatesModal
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    for (const token of [
+      'applyRectBrush',
+      'applyFloodFillAtCell',
+      'pickBrushAtCell',
+      'copyRegionToClipboard',
+      'pasteClipboardAtCell',
+      'showScreenGuides',
+      'showSpritesLayer',
+      'showExitsOverlay',
+      'showHeaderPanel',
+      'showExitsPanel',
+      'minimapCanvasRef',
+      'insertLevelColumnAt',
+      'deleteLevelColumnAt',
+      'applyTerrainPresetToLevel',
+      "id: 'pipe_warp_map'",
+      "id: 'pipe_warp_horiz'",
+      "id: 'w_coin'",
+      "id: 'midway_checkpoint'",
+      "id: 'tile_bonus_block'",
+      "id: 'tile_castle_crenel'",
+      "id: 'tile_castle_window'",
+      "id: 'switch_yellow'",
+      "id: 'switch_blue'",
+    ]) {
+      assert.ok(editorSrc.includes(token), `Token Lunar Magic ausente em LevelEditorModal: ${token}`);
+    }
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.1BM.7-lunar-magic'));
   });
 }
 

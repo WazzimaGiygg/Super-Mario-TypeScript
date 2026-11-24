@@ -67,6 +67,8 @@ export type TileType =
   | 'axe'
   | 'ghost_floor'
   | 'ghost_brick'
+  | 'ghost_door_top'
+  | 'ghost_door_bottom'
   | 'exclam_yellow'
   | 'exclam_green'
   | 'exclam_red'
@@ -286,7 +288,7 @@ export interface LevelData {
     from: Rect;
     toLevel: string;
     toPos: Point;
-    type: 'down' | 'right';
+    type: 'down' | 'right' | 'door';
   }[];
   bgColor: string;
   musicTrack?: 'overworld' | 'underground' | 'underwater' | 'castle' | 'ghost_house' | 'bonus';
@@ -298,7 +300,7 @@ export interface LevelData {
   enemySpeedMultiplier?: number;
   biomeLabel?: string;
   bossName?: string;
-  checkpoints?: { x: number; respawnPos: Point }[];
+  checkpoints?: { x: number; respawnPos: Point; visible?: boolean }[];
   floatingPlatforms?: FloatingPlatformSpec[];
   isCustom?: boolean;
   singleplayerWorld?: number;

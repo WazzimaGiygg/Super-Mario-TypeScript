@@ -33,8 +33,18 @@ import {
   ArrowUp,
   ArrowDown,
   Crown,
+  Square,
+  PaintBucket,
+  Pipette,
+  ClipboardPaste,
+  SlidersHorizontal,
+  ArrowRightLeft,
+  Columns,
+  Eye,
+  Music,
+  Milestone,
 } from 'lucide-react';
-import { CarryableKind, EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
+import { BlockTile, CarryableKind, EnemyType, ItemContent, LevelData, TileType } from '../game/types.ts';
 import {
   EDITOR_MAX_CARRYABLES,
   EDITOR_MAX_COINS,
@@ -45,6 +55,9 @@ import {
   EDITOR_MAX_TOTAL_ENTITIES,
   EDITOR_MAX_YOSHIS,
   KEY_CAVE_PIPE_TARGET,
+  STAGE_W_COINS_COUNT,
+  TerrainPresetId,
+  applyTerrainPresetToLevel,
   cloneLevelData,
   createBlankCustomLevel,
   createSecretVault,
@@ -53,11 +66,21 @@ import {
   createWorld1_4,
   createWorld2_2,
   createWorldGhostHouse,
+  deleteLevelColumnAt,
   getCustomLevelEntityCounts,
   getExportLevelFilename,
+  insertLevelColumnAt,
   isCastleStageForYoshi,
+  isGhostOutsideExitDoorWarp,
+  isSurfaceExitPipeWarp,
   parseImportedLevelFile,
+  placeGhostDoorInLevel,
   placeKeyCavePipeInLevel,
+  placeMidwayCheckpointInLevel,
+  placeSurfaceExitPipeInLevel,
+  placeWCoinInLevel,
+  placeWarpPipeInLevel,
+  pruneGhostDoorWarps,
   pruneKeyCavePipeWarps,
   sanitizeCustomLevelEntities,
   serializeLevelToFileJson,
@@ -95,12 +118,27 @@ type EditorBrushKind =
   | { kind: 'carryable'; carryKind: CarryableKind }
   | { kind: 'keyhole' }
   | { kind: 'coin' }
+  | { kind: 'w_coin' }
+  | { kind: 'checkpoint' }
   | { kind: 'tile'; tileType: TileType; content?: ItemContent; invisible?: boolean }
   | { kind: 'pipe'; height: 2 | 3 | 4; withPiranha?: boolean }
   | { kind: 'pipe_key_cave'; height: 2 | 3 | 4 }
+  | { kind: 'pipe_surface_exit'; height: 2 | 3 | 4 }
+  | { kind: 'pipe_warp_map'; dir: 'down' | 'right'; height: 2 | 3 | 4 }
+  | { kind: 'ghost_door'; mode: 'outside_exit' | 'map' }
   | { kind: 'flagpole_goal' }
   | { kind: 'floating_platform'; axis: 'horizontal' | 'vertical' | 'bob' }
   | { kind: 'enemy'; enemyType: EnemyType };
+
+type EditorToolMode = 'pencil' | 'rect' | 'fill' | 'eyedropper' | 'copy' | 'paste';
+
+interface RegionClipboard {
+  width: number;
+  height: number;
+  tiles: (BlockTile | null)[][];
+  coins: { dx: number; dy: number }[];
+  enemies: { type: EnemyType; dx: number; dy: number }[];
+}
 
 type PaletteTab = 'blocks' | 'items' | 'enemies' | 'special';
 
@@ -110,7 +148,18 @@ interface PaletteOption {
   brush: EditorBrushKind;
   tab: PaletteTab;
   preview: () => HTMLCanvasElement | null;
+  requiresTheme?: LevelData['theme'];
 }
+
+const SMW_PALETTE_SWATCHES: { label: string; color: string }[] = [
+  { label: 'Dia SMW', color: '#5c94fc' },
+  { label: 'Noite Estrelada', color: '#0c1438' },
+  { label: 'Pôr-do-Sol', color: '#c85840' },
+  { label: 'Caverna', color: '#000000' },
+  { label: 'Abismo Marinho', color: '#1840b8' },
+  { label: 'Castelo', color: '#140406' },
+  { label: 'Mansão', color: '#120822' },
+];
 
 const SpriteIcon: React.FC<{ getCanvas: () => HTMLCanvasElement | null; size?: number }> = ({
   getCanvas,
@@ -181,7 +230,7 @@ const hasValidStageGoal = (level: LevelData): boolean => {
       if (hasPole) return true;
     }
   }
-  if ((level.pipeWarps || []).some(pw => pw.toLevel === KEY_CAVE_PIPE_TARGET)) {
+  if ((level.pipeWarps || []).some(pw => pw.toLevel === KEY_CAVE_PIPE_TARGET || pw.type === 'door')) {
     return true;
   }
   return false;
@@ -215,9 +264,132 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     cctx.drawImage(atlas.itemKey, 10, 10, 13, 13);
     return c;
   }, [atlas]);
+  const surfaceExitPipePreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.pipeTopLeft, 0, 4, 16, 16);
+    cctx.drawImage(atlas.pipeTopRight, 8, 4, 16, 16);
+    cctx.fillStyle = '#38bdf8';
+    cctx.fillRect(9, 1, 6, 6);
+    cctx.fillStyle = '#ffffff';
+    cctx.fillRect(11, 2, 2, 4);
+    cctx.fillRect(10, 3, 4, 1);
+    return c;
+  }, [atlas]);
+  const ghostDoorOutsidePreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.ghostDoorTop, 4, 0, 12, 12);
+    cctx.drawImage(atlas.ghostDoorBottom, 4, 12, 12, 12);
+    cctx.fillStyle = '#10b981';
+    cctx.fillRect(15, 2, 8, 8);
+    cctx.fillStyle = '#ffffff';
+    cctx.fillRect(18, 4, 3, 2);
+    cctx.fillRect(19, 3, 2, 4);
+    return c;
+  }, [atlas]);
+  const ghostDoorMapPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.ghostDoorTop, 4, 0, 12, 12);
+    cctx.drawImage(atlas.ghostDoorBottom, 4, 12, 12, 12);
+    cctx.fillStyle = '#9333ea';
+    cctx.fillRect(15, 2, 8, 8);
+    cctx.fillStyle = '#fde047';
+    cctx.fillRect(17, 4, 4, 1);
+    cctx.fillRect(17, 7, 4, 1);
+    return c;
+  }, [atlas]);
+  const warpPipeMapPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.pipeTopLeft, 0, 4, 16, 16);
+    cctx.drawImage(atlas.pipeTopRight, 8, 4, 16, 16);
+    cctx.fillStyle = '#a855f7';
+    cctx.fillRect(8, 0, 8, 7);
+    cctx.fillStyle = '#fde047';
+    cctx.fillRect(10, 2, 4, 3);
+    return c;
+  }, [atlas]);
+  const warpPipeHorizPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.pipeHorizTop, 0, 2, 16, 12);
+    cctx.drawImage(atlas.pipeHorizBottom, 0, 12, 16, 12);
+    cctx.fillStyle = '#a855f7';
+    cctx.fillRect(15, 7, 8, 8);
+    cctx.fillStyle = '#fde047';
+    cctx.fillRect(17, 10, 4, 2);
+    return c;
+  }, [atlas]);
+  const wCoinPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.fillStyle = '#f8d838';
+    cctx.beginPath();
+    cctx.arc(12, 12, 9, 0, Math.PI * 2);
+    cctx.fill();
+    cctx.strokeStyle = '#92400e';
+    cctx.lineWidth = 2;
+    cctx.stroke();
+    cctx.fillStyle = '#78350f';
+    cctx.font = 'bold 11px monospace';
+    cctx.textAlign = 'center';
+    cctx.fillText('W', 12, 16);
+    return c;
+  }, []);
+  const midwayPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.fillStyle = '#dce4f2';
+    cctx.fillRect(4, 3, 3, 19);
+    cctx.fillRect(17, 3, 3, 19);
+    cctx.fillStyle = '#f8d838';
+    cctx.fillRect(3, 1, 5, 3);
+    cctx.fillRect(16, 1, 5, 3);
+    cctx.fillStyle = '#ffffff';
+    cctx.fillRect(6, 11, 12, 3);
+    cctx.fillStyle = '#ef4444';
+    cctx.fillRect(8, 12, 8, 1);
+    return c;
+  }, []);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPaintedCellRef = useRef<string | null>(null);
@@ -225,20 +397,39 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const strokeSnapshotRef = useRef<LevelData | null>(null);
   const strokeCommittedRef = useRef(false);
   const nameUndoArmedRef = useRef(true);
+  const rectDragStartRef = useRef<{ tx: number; ty: number } | null>(null);
 
   const undoStacksRef = useRef<Map<string, LevelData[]>>(new Map());
   const redoStacksRef = useRef<Map<string, LevelData[]>>(new Map());
   const [historyRevision, setHistoryRevision] = useState(0);
   const [internalCampaignIds, setInternalCampaignIds] = useState<string[]>([]);
   const [showCampaignPanel, setShowCampaignPanel] = useState(false);
+  const [showHeaderPanel, setShowHeaderPanel] = useState(false);
+  const [showExitsPanel, setShowExitsPanel] = useState(false);
+  const [terrainPreset, setTerrainPreset] = useState<TerrainPresetId>('flat');
   const [pendingCampaignStart, setPendingCampaignStart] = useState(false);
+
+  const [toolMode, setToolMode] = useState<EditorToolMode>('pencil');
+  const [rectSelection, setRectSelection] = useState<{
+    startTx: number;
+    startTy: number;
+    endTx: number;
+    endTy: number;
+    erase: boolean;
+  } | null>(null);
+  const [regionClipboard, setRegionClipboard] = useState<RegionClipboard | null>(null);
 
   const [selectedBrushId, setSelectedBrushId] = useState<string>('tile_brick');
   const [questionContent, setQuestionContent] = useState<ItemContent>('coin');
   const [invisibleBlock, setInvisibleBlock] = useState(false);
+  const [doorTargetMapId, setDoorTargetMapId] = useState<string>('secret-vault');
+  const [warpPipeTargetMapId, setWarpPipeTargetMapId] = useState<string>('secret-vault');
   const [activeTab, setActiveTab] = useState<PaletteTab>('blocks');
   const [cellSize, setCellSize] = useState<16 | 24 | 32>(24);
   const [showGrid, setShowGrid] = useState(true);
+  const [showScreenGuides, setShowScreenGuides] = useState(true);
+  const [showSpritesLayer, setShowSpritesLayer] = useState(true);
+  const [showExitsOverlay, setShowExitsOverlay] = useState(true);
   const [hoverCell, setHoverCell] = useState<{ tx: number; ty: number } | null>(null);
   const [statusNotice, setStatusNotice] = useState<string>('');
   const [statusError, setStatusError] = useState<string>('');
@@ -355,23 +546,30 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     notify('Refeito (Ctrl+Y)');
   }, [currentLevel, customLevels, onUpdateCustomLevels, notify]);
 
-  // Keyboard shortcuts: Ctrl+Z / Cmd+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z (Redo) — R1.16.FH.4
+  // Keyboard shortcuts: Ctrl+Z / Cmd+Z (Undo), Ctrl+Y / Cmd+Shift+Z (Redo), Escape (Pencil) — R1.16.FH.4
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
       const target = e.target as HTMLElement | null;
       const inputType = target?.tagName === 'INPUT' ? (target as HTMLInputElement).type.toLowerCase() : '';
       const isTextEntry = Boolean(
         target &&
           ((target.tagName === 'INPUT' &&
-            !['button', 'submit', 'reset', 'checkbox', 'radio', 'range'].includes(inputType)) ||
+            !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color'].includes(inputType)) ||
             target.tagName === 'TEXTAREA' ||
             target.tagName === 'SELECT' ||
             target.isContentEditable)
       );
       if (isTextEntry) return;
 
+      if (e.key === 'Escape' && toolMode !== 'pencil') {
+        e.preventDefault();
+        setToolMode('pencil');
+        setRectSelection(null);
+        return;
+      }
+
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
       const lower = e.key.toLowerCase();
       if (lower === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -385,7 +583,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isOpen, handleUndo, handleRedo]);
+  }, [isOpen, toolMode, handleUndo, handleRedo]);
 
   const updateCurrentLevel = useCallback(
     (updater: (draft: LevelData) => LevelData, options?: { recordUndo?: boolean }) => {
@@ -468,6 +666,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.castleBrick,
       },
       {
+        id: 'tile_castle_crenel',
+        label: 'Ameia Castelo',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'castle_crenel' },
+        preview: () => atlas.castleCrenel,
+      },
+      {
+        id: 'tile_castle_window',
+        label: 'Janela Castelo',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'castle_window' },
+        preview: () => atlas.castleWindow,
+      },
+      {
         id: 'tile_bridge',
         label: 'Ponte Boss',
         tab: 'blocks',
@@ -496,6 +708,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.tileGhostBrick,
       },
       {
+        id: 'tile_pipe_horiz_top',
+        label: 'Cano Horiz. Cima',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'pipe_horiz_top' },
+        preview: () => atlas.pipeHorizTop,
+      },
+      {
+        id: 'tile_pipe_horiz_bottom',
+        label: 'Cano Horiz. Baixo',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'pipe_horiz_bottom' },
+        preview: () => atlas.pipeHorizBottom,
+      },
+      {
         id: 'plat_horiz',
         label: 'Plat. Flut. Horiz.',
         tab: 'blocks',
@@ -507,6 +733,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         label: 'Plat. Flut. Vert.',
         tab: 'blocks',
         brush: { kind: 'floating_platform', axis: 'vertical' },
+        preview: () => atlas.tileBridge,
+      },
+      {
+        id: 'plat_bob',
+        label: 'Plat. Flut. Oscil.',
+        tab: 'blocks',
+        brush: { kind: 'floating_platform', axis: 'bob' },
         preview: () => atlas.tileBridge,
       },
 
@@ -586,11 +819,25 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.tileQuestionEmpty,
       },
       {
+        id: 'tile_bonus_block',
+        label: 'Bloco Bônus SMW',
+        tab: 'items',
+        brush: { kind: 'tile', tileType: 'bonus_block' },
+        preview: () => atlas.tileExclamYellowActive || atlas.tileQuestionEmpty,
+      },
+      {
         id: 'coin',
         label: 'Moeda Solta',
         tab: 'items',
         brush: { kind: 'coin' },
         preview: () => atlas.itemCoinFrames[0] || null,
+      },
+      {
+        id: 'w_coin',
+        label: 'Moeda W (Dragão)',
+        tab: 'items',
+        brush: { kind: 'w_coin' },
+        preview: () => wCoinPreview || atlas.itemCoinFrames[0] || null,
       },
       {
         id: 'pipe_2',
@@ -614,11 +861,48 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.piranha1,
       },
       {
+        id: 'pipe_warp_map',
+        label: 'Cano Warp ↓ (Mapa)',
+        tab: 'items',
+        brush: { kind: 'pipe_warp_map', dir: 'down', height: 2 },
+        preview: () => warpPipeMapPreview || atlas.pipeTopLeft,
+      },
+      {
+        id: 'pipe_warp_horiz',
+        label: 'Cano Warp → (Lateral)',
+        tab: 'items',
+        brush: { kind: 'pipe_warp_map', dir: 'right', height: 2 },
+        preview: () => warpPipeHorizPreview || atlas.pipeHorizTop,
+      },
+      {
         id: 'pipe_key_cave',
         label: 'Cano Caverna Chave',
         tab: 'items',
         brush: { kind: 'pipe_key_cave', height: 2 },
         preview: () => keyCavePipePreview || atlas.pipeTopLeft,
+      },
+      {
+        id: 'pipe_surface_exit',
+        label: 'Cano Superfície (Fim)',
+        tab: 'items',
+        brush: { kind: 'pipe_surface_exit', height: 2 },
+        preview: () => surfaceExitPipePreview || atlas.pipeTopLeft,
+      },
+      {
+        id: 'ghost_door_outside',
+        label: 'Porta Fora da Mansão (Fim)',
+        tab: 'items',
+        brush: { kind: 'ghost_door', mode: 'outside_exit' },
+        preview: () => ghostDoorOutsidePreview || atlas.ghostDoorTop,
+        requiresTheme: 'ghost_house',
+      },
+      {
+        id: 'ghost_door_map',
+        label: 'Porta: Outro Mapa',
+        tab: 'items',
+        brush: { kind: 'ghost_door', mode: 'map' },
+        preview: () => ghostDoorMapPreview || atlas.ghostDoorTop,
+        requiresTheme: 'ghost_house',
       },
 
       // Enemies
@@ -765,6 +1049,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.itemPSwitchCyan,
       },
       {
+        id: 'midway_checkpoint',
+        label: 'Checkpoint SMW (Fita)',
+        tab: 'special',
+        brush: { kind: 'checkpoint' },
+        preview: () => midwayPreview || atlas.flagTriangle,
+      },
+      {
         id: 'flagpole_goal',
         label: 'Poste Pontos SMW',
         tab: 'special',
@@ -779,6 +1070,41 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => atlas.tileAxeFrames[0] || null,
       },
       {
+        id: 'switch_yellow',
+        label: 'Switch Amarelo',
+        tab: 'special',
+        brush: { kind: 'tile', tileType: 'yellow_switch' },
+        preview: () => atlas.tileYellowSwitch,
+      },
+      {
+        id: 'switch_green',
+        label: 'Switch Verde',
+        tab: 'special',
+        brush: { kind: 'tile', tileType: 'green_switch' },
+        preview: () => atlas.tileGreenSwitch,
+      },
+      {
+        id: 'switch_red',
+        label: 'Switch Vermelho',
+        tab: 'special',
+        brush: { kind: 'tile', tileType: 'red_switch' },
+        preview: () => atlas.tileRedSwitch,
+      },
+      {
+        id: 'switch_pink',
+        label: 'Switch Rosa',
+        tab: 'special',
+        brush: { kind: 'tile', tileType: 'pink_switch' },
+        preview: () => atlas.tilePinkSwitch,
+      },
+      {
+        id: 'switch_blue',
+        label: 'Switch Azul',
+        tab: 'special',
+        brush: { kind: 'tile', tileType: 'blue_switch' },
+        preview: () => atlas.tileBlueSwitch,
+      },
+      {
         id: 'erase',
         label: 'Borracha',
         tab: 'special',
@@ -786,7 +1112,19 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         preview: () => null,
       },
     ],
-    [atlas, keyCavePipePreview, questionContent, invisibleBlock]
+    [
+      atlas,
+      keyCavePipePreview,
+      surfaceExitPipePreview,
+      ghostDoorOutsidePreview,
+      ghostDoorMapPreview,
+      warpPipeMapPreview,
+      warpPipeHorizPreview,
+      wCoinPreview,
+      midwayPreview,
+      questionContent,
+      invisibleBlock,
+    ]
   );
 
   const activeOption = useMemo(
@@ -812,6 +1150,12 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         const hasCoin = currentLevel.coins.some(
           c => c.x >= cellMinX && c.x < cellMaxX && c.y >= cellMinY && c.y < cellMaxY
         );
+        const hasWCoin = (currentLevel.wCoins || []).some(
+          wc => cellMaxX > wc.x && cellMinX < wc.x + 18 && cellMaxY > wc.y && cellMinY < wc.y + 18
+        );
+        const hasCheckpoint = (currentLevel.checkpoints || []).some(
+          cp => cellMaxX > cp.x - 4 && cellMinX < cp.x + 20 && cellMaxY > cp.respawnPos.y - 16 && cellMinY < cp.respawnPos.y + 16
+        );
         const hasEnemy = currentLevel.enemies.some(
           e => e.x >= cellMinX - 4 && e.x < cellMaxX + 4 && e.y >= cellMinY - 12 && e.y < cellMaxY
         );
@@ -827,7 +1171,18 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         const hasKeyhole = (currentLevel.keyholes || []).some(
           k => cellMaxX > k.x && cellMinX < k.x + 16 && cellMaxY > k.y && cellMinY < k.y + 24
         );
-        if (!hasTile && !hasCoin && !hasEnemy && !hasPlatform && !hasYoshi && !hasCarryable && !hasKeyhole) return;
+        if (!hasTile && !hasCoin && !hasWCoin && !hasCheckpoint && !hasEnemy && !hasPlatform && !hasYoshi && !hasCarryable && !hasKeyhole) return;
+      }
+
+      if (brush.kind === 'w_coin') {
+        const wx = tx * 16 - 2;
+        const wy = ty * 16 - 2;
+        const currentW = currentLevel.wCoins || [];
+        const remaining = currentW.filter(c => !(Math.abs(c.x - wx) < 16 && Math.abs(c.y - wy) < 16)).length;
+        if (remaining >= STAGE_W_COINS_COUNT) {
+          notifyError(`Cada fase comporta no máximo ${STAGE_W_COINS_COUNT} Moedas W!`);
+          return;
+        }
       }
 
       if (brush.kind === 'yoshi') {
@@ -932,7 +1287,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         }
       }
 
-      if (brush.kind === 'pipe_key_cave') {
+      if (brush.kind === 'pipe_key_cave' || brush.kind === 'pipe_surface_exit') {
         if (tx + 1 >= currentLevel.width) return;
         const bottomY = Math.min(12, Math.max(3, ty));
         const topY = Math.max(2, bottomY - brush.height + 1);
@@ -943,9 +1298,35 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           currentLevel.tiles[topY]?.[tx + 1]?.type === 'pipe_warp_top_right' &&
           (currentLevel.pipeWarps || []).some(
             pw =>
-              pw.toLevel === KEY_CAVE_PIPE_TARGET &&
+              (brush.kind === 'pipe_key_cave'
+                ? pw.toLevel === KEY_CAVE_PIPE_TARGET
+                : isSurfaceExitPipeWarp(currentLevel, pw)) &&
               pw.from.x === expectedFromX &&
               pw.from.y === expectedFromY
+          );
+        if (alreadyPlaced) return;
+      }
+
+      if (brush.kind === 'ghost_door') {
+        if (currentLevel.theme !== 'ghost_house') {
+          notifyError('Portas são exclusivas de Mansões Fantasmas!');
+          return;
+        }
+        const bottomY = Math.min(12, Math.max(2, ty));
+        const topY = bottomY - 1;
+        const expectedFromX = tx * 16;
+        const expectedFromY = topY * 16;
+        const expectedToLevel =
+          brush.mode === 'outside_exit' ? currentLevel.id : doorTargetMapId;
+        const alreadyPlaced =
+          currentLevel.tiles[topY]?.[tx]?.type === 'ghost_door_top' &&
+          currentLevel.tiles[bottomY]?.[tx]?.type === 'ghost_door_bottom' &&
+          (currentLevel.pipeWarps || []).some(
+            pw =>
+              pw.type === 'door' &&
+              pw.from.x === expectedFromX &&
+              pw.from.y === expectedFromY &&
+              pw.toLevel === expectedToLevel
           );
         if (alreadyPlaced) return;
       }
@@ -1015,6 +1396,18 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           draft.coins = draft.coins.filter(
             c => !(c.x >= cellMinX && c.x < cellMaxX && c.y >= cellMinY && c.y < cellMaxY)
           );
+          if (draft.wCoins) {
+            draft.wCoins = draft.wCoins.filter(
+              wc => !(cellMaxX > wc.x && cellMinX < wc.x + 18 && cellMaxY > wc.y && cellMinY < wc.y + 18)
+            );
+            if (draft.wCoins.length === 0) draft.wCoins = undefined;
+          }
+          if (draft.checkpoints) {
+            draft.checkpoints = draft.checkpoints.filter(
+              cp => !(cellMaxX > cp.x - 4 && cellMinX < cp.x + 20 && cellMaxY > cp.respawnPos.y - 16 && cellMinY < cp.respawnPos.y + 16)
+            );
+            if (draft.checkpoints.length === 0) draft.checkpoints = undefined;
+          }
           draft.enemies = draft.enemies.filter(
             e => !(e.x >= cellMinX - 4 && e.x < cellMaxX + 4 && e.y >= cellMinY - 12 && e.y < cellMaxY)
           );
@@ -1113,6 +1506,16 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           return draft;
         }
 
+        if (brush.kind === 'w_coin') {
+          placeWCoinInLevel(draft, tx, ty);
+          return draft;
+        }
+
+        if (brush.kind === 'checkpoint') {
+          placeMidwayCheckpointInLevel(draft, tx, ty);
+          return draft;
+        }
+
         if (brush.kind === 'tile') {
           draft.tiles[ty][tx] = {
             type: brush.tileType,
@@ -1144,6 +1547,55 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
         if (brush.kind === 'pipe_key_cave') {
           placeKeyCavePipeInLevel(draft, tx, ty, brush.height);
+          return draft;
+        }
+
+        if (brush.kind === 'pipe_surface_exit') {
+          placeSurfaceExitPipeInLevel(draft, tx, ty, brush.height);
+          return draft;
+        }
+
+        if (brush.kind === 'pipe_warp_map') {
+          const targetCustom = customLevels.find(
+            l => l.id === warpPipeTargetMapId && l.id !== draft.id
+          );
+          const fallbackId = targetCustom ? targetCustom.id : warpPipeTargetMapId || 'secret-vault';
+          const targetPos = targetCustom
+            ? { ...targetCustom.marioStart }
+            : fallbackId === 'smw-wiki-1-secret'
+            ? { x: 2 * 16 + 8, y: 4 * 16 }
+            : { x: 48, y: 192 };
+          placeWarpPipeInLevel(draft, tx, ty, {
+            dir: brush.dir,
+            height: brush.height,
+            toLevel: fallbackId,
+            toPos: targetPos,
+          });
+          return draft;
+        }
+
+        if (brush.kind === 'ghost_door') {
+          if (draft.theme !== 'ghost_house') {
+            return draft;
+          }
+          if (brush.mode === 'outside_exit') {
+            placeGhostDoorInLevel(draft, tx, ty, { mode: 'outside_exit' });
+          } else {
+            const targetCustom = customLevels.find(
+              l => l.id === doorTargetMapId && l.id !== draft.id
+            );
+            const fallbackId = targetCustom ? targetCustom.id : doorTargetMapId || 'secret-vault';
+            const targetPos = targetCustom
+              ? { ...targetCustom.marioStart }
+              : fallbackId === 'smw-wiki-1-secret'
+              ? { x: 2 * 16 + 8, y: 4 * 16 }
+              : { x: 48, y: 192 };
+            placeGhostDoorInLevel(draft, tx, ty, {
+              mode: 'map',
+              toLevel: fallbackId,
+              toPos: targetPos,
+            });
+          }
           return draft;
         }
 
@@ -1247,7 +1699,292 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         return draft;
       }, { recordUndo: true });
     },
-    [currentLevel, activeOption, updateCurrentLevel, notifyError]
+    [currentLevel, activeOption, updateCurrentLevel, notifyError, customLevels, doorTargetMapId, warpPipeTargetMapId]
+  );
+
+  // Lunar Magic Tool 1: Box Fill / Rectangular Erase
+  const applyRectBrush = useCallback(
+    (startTx: number, startTy: number, endTx: number, endTy: number, forceErase: boolean) => {
+      if (!currentLevel) return;
+      const minX = Math.max(0, Math.min(startTx, endTx));
+      const maxX = Math.min(currentLevel.width - 1, Math.max(startTx, endTx));
+      const minY = Math.max(0, Math.min(startTy, endTy));
+      const maxY = Math.min(currentLevel.height - 1, Math.max(startTy, endTy));
+      const brush: EditorBrushKind = forceErase ? { kind: 'erase' } : activeOption.brush;
+
+      if (brush.kind !== 'erase' && brush.kind !== 'tile' && brush.kind !== 'coin') {
+        applyBrushAtCell(endTx, endTy, forceErase);
+        return;
+      }
+
+      updateCurrentLevel(draft => {
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            const cMinX = x * 16;
+            const cMaxX = (x + 1) * 16;
+            const cMinY = y * 16;
+            const cMaxY = (y + 1) * 16;
+            if (brush.kind === 'erase') {
+              draft.tiles[y][x] = null;
+              draft.coins = draft.coins.filter(
+                c => !(c.x >= cMinX && c.x < cMaxX && c.y >= cMinY && c.y < cMaxY)
+              );
+              draft.enemies = draft.enemies.filter(
+                e => !(e.x >= cMinX - 4 && e.x < cMaxX + 4 && e.y >= cMinY - 12 && e.y < cMaxY)
+              );
+              if (draft.wCoins) {
+                draft.wCoins = draft.wCoins.filter(
+                  wc => !(cMaxX > wc.x && cMinX < wc.x + 18 && cMaxY > wc.y && cMinY < wc.y + 18)
+                );
+              }
+              if (draft.checkpoints) {
+                draft.checkpoints = draft.checkpoints.filter(
+                  cp => !(cMaxX > cp.x - 4 && cMinX < cp.x + 20 && cMaxY > cp.respawnPos.y - 16 && cMinY < cp.respawnPos.y + 16)
+                );
+              }
+            } else if (brush.kind === 'coin') {
+              if (draft.coins.length >= EDITOR_MAX_COINS) continue;
+              draft.tiles[y][x] = null;
+              const exists = draft.coins.some(
+                c => Math.floor(c.x / 16) === x && Math.floor(c.y / 16) === y
+              );
+              if (!exists) {
+                draft.coins.push({ x: x * 16 + 8, y: y * 16 });
+              }
+            } else if (brush.kind === 'tile') {
+              draft.tiles[y][x] = {
+                type: brush.tileType,
+                content:
+                  brush.tileType === 'question'
+                    ? brush.content || 'coin'
+                    : brush.tileType === 'exclam_yellow'
+                    ? brush.content || 'mushroom'
+                    : brush.tileType === 'exclam_green'
+                    ? brush.content || 'feather'
+                    : brush.tileType === 'exclam_red'
+                    ? brush.content || 'fireflower'
+                    : brush.tileType === 'exclam_pink'
+                    ? brush.content || 'femboy'
+                    : brush.tileType === 'exclam_blue'
+                    ? brush.content || 'leaf'
+                    : 'none',
+                bumpOffset: 0,
+                bumpVel: 0,
+                invisible: brush.invisible ? true : undefined,
+              };
+            }
+          }
+        }
+        if (draft.wCoins && draft.wCoins.length === 0) draft.wCoins = undefined;
+        if (draft.checkpoints && draft.checkpoints.length === 0) draft.checkpoints = undefined;
+        pruneKeyCavePipeWarps(draft);
+        return draft;
+      }, { recordUndo: true });
+    },
+    [currentLevel, activeOption, applyBrushAtCell, updateCurrentLevel]
+  );
+
+  // Lunar Magic Tool 2: Flood Fill (Balde de Tinta)
+  const applyFloodFillAtCell = useCallback(
+    (startTx: number, startTy: number, forceErase: boolean) => {
+      if (!currentLevel) return;
+      const brush: EditorBrushKind = forceErase ? { kind: 'erase' } : activeOption.brush;
+      if (brush.kind !== 'erase' && brush.kind !== 'tile') {
+        applyBrushAtCell(startTx, startTy, forceErase);
+        return;
+      }
+      const originTile = currentLevel.tiles[startTy]?.[startTx] ?? null;
+      const originKey = originTile ? `${originTile.type}:${originTile.invisible ? 1 : 0}` : 'EMPTY';
+      const targetKey =
+        brush.kind === 'erase' ? 'EMPTY' : `${brush.tileType}:${brush.invisible ? 1 : 0}`;
+      if (originKey === targetKey) return;
+
+      updateCurrentLevel(draft => {
+        const visited = new Set<string>();
+        const queue: [number, number][] = [[startTx, startTy]];
+        let filled = 0;
+        const maxCells = 600;
+        while (queue.length > 0 && filled < maxCells) {
+          const [cx, cy] = queue.shift()!;
+          if (cx < 0 || cx >= draft.width || cy < 0 || cy >= draft.height) continue;
+          const k = `${cx},${cy}`;
+          if (visited.has(k)) continue;
+          visited.add(k);
+          const cell = draft.tiles[cy]?.[cx] ?? null;
+          const cellKey = cell ? `${cell.type}:${cell.invisible ? 1 : 0}` : 'EMPTY';
+          if (cellKey !== originKey) continue;
+
+          if (brush.kind === 'erase') {
+            draft.tiles[cy][cx] = null;
+          } else {
+            draft.tiles[cy][cx] = {
+              type: brush.tileType,
+              content:
+                brush.tileType === 'question'
+                  ? brush.content || 'coin'
+                  : brush.tileType === 'exclam_yellow'
+                  ? brush.content || 'mushroom'
+                  : brush.tileType === 'exclam_green'
+                  ? brush.content || 'feather'
+                  : brush.tileType === 'exclam_red'
+                  ? brush.content || 'fireflower'
+                  : brush.tileType === 'exclam_pink'
+                  ? brush.content || 'femboy'
+                  : brush.tileType === 'exclam_blue'
+                  ? brush.content || 'leaf'
+                  : 'none',
+              bumpOffset: 0,
+              bumpVel: 0,
+              invisible: brush.invisible ? true : undefined,
+            };
+          }
+          filled++;
+          queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+        }
+        pruneKeyCavePipeWarps(draft);
+        return draft;
+      }, { recordUndo: true });
+    },
+    [currentLevel, activeOption, applyBrushAtCell, updateCurrentLevel]
+  );
+
+  // Lunar Magic Tool 3: Eyedropper (Alt+Click or Pipette tool)
+  const pickBrushAtCell = useCallback(
+    (tx: number, ty: number) => {
+      if (!currentLevel) return;
+      const cellMinX = tx * 16;
+      const cellMaxX = (tx + 1) * 16;
+      const cellMinY = ty * 16;
+      const cellMaxY = (ty + 1) * 16;
+
+      const enemy = currentLevel.enemies.find(
+        e => e.x >= cellMinX - 4 && e.x < cellMaxX + 4 && e.y >= cellMinY - 12 && e.y < cellMaxY
+      );
+      if (enemy) {
+        const match = paletteOptions.find(
+          o => o.brush.kind === 'enemy' && o.brush.enemyType === enemy.type
+        );
+        if (match) {
+          setSelectedBrushId(match.id);
+          setActiveTab(match.tab);
+          setToolMode('pencil');
+          notify(`Conta-gotas: ${match.label}`);
+          return;
+        }
+      }
+      const coin = currentLevel.coins.find(
+        c => c.x >= cellMinX && c.x < cellMaxX && c.y >= cellMinY && c.y < cellMaxY
+      );
+      if (coin) {
+        setSelectedBrushId('coin');
+        setActiveTab('items');
+        setToolMode('pencil');
+        notify('Conta-gotas: Moeda Solta');
+        return;
+      }
+      const tile = currentLevel.tiles[ty]?.[tx];
+      if (tile) {
+        if (tile.type === 'question') {
+          setQuestionContent(tile.content || 'coin');
+          setInvisibleBlock(Boolean(tile.invisible));
+          setSelectedBrushId('tile_question');
+          setActiveTab('items');
+          setToolMode('pencil');
+          notify('Conta-gotas: Bloco ?');
+          return;
+        }
+        const tileMatch = paletteOptions.find(
+          o => o.brush.kind === 'tile' && o.brush.tileType === tile.type
+        );
+        if (tileMatch) {
+          setInvisibleBlock(Boolean(tile.invisible));
+          setSelectedBrushId(tileMatch.id);
+          setActiveTab(tileMatch.tab);
+          setToolMode('pencil');
+          notify(`Conta-gotas: ${tileMatch.label}`);
+          return;
+        }
+      }
+      notify('Célula vazia.');
+    },
+    [currentLevel, paletteOptions, notify]
+  );
+
+  // Lunar Magic Tool 4: Copy & Paste Region
+  const copyRegionToClipboard = useCallback(
+    (startTx: number, startTy: number, endTx: number, endTy: number) => {
+      if (!currentLevel) return;
+      const minX = Math.max(0, Math.min(startTx, endTx));
+      const maxX = Math.min(currentLevel.width - 1, Math.max(startTx, endTx));
+      const minY = Math.max(0, Math.min(startTy, endTy));
+      const maxY = Math.min(currentLevel.height - 1, Math.max(startTy, endTy));
+      const width = maxX - minX + 1;
+      const height = maxY - minY + 1;
+      const tiles: (BlockTile | null)[][] = [];
+      for (let dy = 0; dy < height; dy++) {
+        const row: (BlockTile | null)[] = [];
+        for (let dx = 0; dx < width; dx++) {
+          const src = currentLevel.tiles[minY + dy]?.[minX + dx];
+          row.push(src ? { ...src } : null);
+        }
+        tiles.push(row);
+      }
+      const coins = currentLevel.coins
+        .filter(c => {
+          const ctxTx = Math.floor(c.x / 16);
+          const ctxTy = Math.floor(c.y / 16);
+          return ctxTx >= minX && ctxTx <= maxX && ctxTy >= minY && ctxTy <= maxY;
+        })
+        .map(c => ({ dx: Math.floor(c.x / 16) - minX, dy: Math.floor(c.y / 16) - minY }));
+      const enemies = currentLevel.enemies
+        .filter(e => {
+          const etx = Math.floor(e.x / 16);
+          const ety = Math.floor(e.y / 16);
+          return etx >= minX && etx <= maxX && ety >= minY && ety <= maxY;
+        })
+        .map(e => ({ type: e.type, dx: Math.floor(e.x / 16) - minX, dy: Math.floor(e.y / 16) - minY }));
+
+      setRegionClipboard({ width, height, tiles, coins, enemies });
+      setToolMode('paste');
+      notify(`Região ${width}x${height} copiada! Clique para colar.`);
+    },
+    [currentLevel, notify]
+  );
+
+  const pasteClipboardAtCell = useCallback(
+    (tx: number, ty: number) => {
+      if (!currentLevel || !regionClipboard) return;
+      updateCurrentLevel(draft => {
+        for (let dy = 0; dy < regionClipboard.height; dy++) {
+          const targetY = ty + dy;
+          if (targetY < 0 || targetY >= draft.height) continue;
+          for (let dx = 0; dx < regionClipboard.width; dx++) {
+            const targetX = tx + dx;
+            if (targetX < 0 || targetX >= draft.width) continue;
+            const srcTile = regionClipboard.tiles[dy][dx];
+            draft.tiles[targetY][targetX] = srcTile ? { ...srcTile } : null;
+          }
+        }
+        regionClipboard.coins.forEach(c => {
+          const cx = tx + c.dx;
+          const cy = ty + c.dy;
+          if (cx >= 0 && cx < draft.width && cy >= 0 && cy < draft.height && draft.coins.length < EDITOR_MAX_COINS) {
+            draft.coins.push({ x: cx * 16 + 8, y: cy * 16 });
+          }
+        });
+        regionClipboard.enemies.forEach(e => {
+          const ex = tx + e.dx;
+          const ey = ty + e.dy;
+          if (ex >= 0 && ex < draft.width && ey >= 0 && ey < draft.height && draft.enemies.length < EDITOR_MAX_ENEMIES) {
+            draft.enemies.push({ type: e.type, x: ex * 16, y: ey * 16 });
+          }
+        });
+        pruneKeyCavePipeWarps(draft);
+        return draft;
+      }, { recordUndo: true });
+      notify(`Carimbo ${regionClipboard.width}x${regionClipboard.height} colado!`);
+    },
+    [currentLevel, regionClipboard, updateCurrentLevel, notify]
   );
 
   // Release transient interaction state & canvas backing store when closing editor
@@ -1258,6 +1995,8 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       dragEraseModeRef.current = false;
       strokeSnapshotRef.current = null;
       strokeCommittedRef.current = false;
+      rectDragStartRef.current = null;
+      setRectSelection(null);
       setHoverCell(null);
       if (canvasRef.current) {
         canvasRef.current.width = 0;
@@ -1403,13 +2142,33 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           case 'pipe_body_right':
             sprite = atlas.pipeBodyRight;
             break;
+          case 'pipe_horiz_top':
+            sprite = atlas.pipeHorizTop;
+            break;
+          case 'pipe_horiz_bottom':
+            sprite = atlas.pipeHorizBottom;
+            break;
           case 'castle_brick':
           case 'castle_stone':
-          case 'castle_crenel':
             sprite = atlas.castleBrick;
+            break;
+          case 'castle_crenel':
+            sprite = atlas.castleCrenel;
+            break;
+          case 'castle_window':
+            sprite = atlas.castleWindow;
+            break;
+          case 'bonus_block':
+            sprite = atlas.tileExclamYellowActive || atlas.tileQuestionEmpty;
             break;
           case 'castle_door':
             sprite = atlas.castleDoor;
+            break;
+          case 'ghost_door_top':
+            sprite = atlas.ghostDoorTop;
+            break;
+          case 'ghost_door_bottom':
+            sprite = atlas.ghostDoorBottom;
             break;
           case 'pole':
             sprite = atlas.flagPoleBody;
@@ -1456,7 +2215,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               : block.content === '1up'
               ? atlas.itemMushroom1Up
               : atlas.itemCoinFrames[0];
-            if (itemSprite) {
+          if (itemSprite) {
             const badgeSize = Math.max(8, Math.round(cellSize * 0.55));
             ctx.drawImage(
               itemSprite,
@@ -1467,26 +2226,109 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             );
           }
         }
-        if (
-          block.type === 'pipe_warp_top_left' &&
-          (currentLevel.pipeWarps || []).some(
-            pw =>
-              pw.toLevel === KEY_CAVE_PIPE_TARGET &&
-              Math.floor(pw.from.x / 16) === tx &&
-              Math.floor((pw.from.y + pw.from.height) / 16) === ty
-          )
-        ) {
-          ctx.strokeStyle = '#fbbf24';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(dx + 1, dy + 1, cellSize * 2 - 2, cellSize - 2);
-          const keyBadge = Math.max(10, Math.round(cellSize * 0.72));
-          ctx.drawImage(
-            atlas.itemKey,
-            dx + cellSize - keyBadge / 2,
-            dy + Math.round((cellSize - keyBadge) / 2),
-            keyBadge,
-            keyBadge
-          );
+        if (showExitsOverlay) {
+          if (
+            block.type === 'pipe_warp_top_left' &&
+            (currentLevel.pipeWarps || []).some(
+              pw =>
+                pw.toLevel === KEY_CAVE_PIPE_TARGET &&
+                Math.floor(pw.from.x / 16) === tx &&
+                Math.floor((pw.from.y + pw.from.height) / 16) === ty
+            )
+          ) {
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(dx + 1, dy + 1, cellSize * 2 - 2, cellSize - 2);
+            const keyBadge = Math.max(10, Math.round(cellSize * 0.72));
+            ctx.drawImage(
+              atlas.itemKey,
+              dx + cellSize - keyBadge / 2,
+              dy + Math.round((cellSize - keyBadge) / 2),
+              keyBadge,
+              keyBadge
+            );
+          } else if (
+            block.type === 'pipe_warp_top_left' &&
+            (currentLevel.pipeWarps || []).some(
+              pw =>
+                isSurfaceExitPipeWarp(currentLevel, pw) &&
+                Math.floor(pw.from.x / 16) === tx &&
+                Math.floor((pw.from.y + pw.from.height) / 16) === ty
+            )
+          ) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(dx + 1, dy + 1, cellSize * 2 - 2, cellSize - 2);
+            ctx.fillStyle = '#0284c7';
+            const badgeSize = Math.max(10, Math.round(cellSize * 0.56));
+            const bx = dx + cellSize - badgeSize / 2;
+            const by = dy + Math.round((cellSize - badgeSize) / 2);
+            ctx.fillRect(bx, by, badgeSize, badgeSize);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bx + Math.round(badgeSize * 0.4), by + 2, Math.max(2, Math.round(badgeSize * 0.2)), badgeSize - 4);
+            ctx.fillRect(bx + 2, by + Math.round(badgeSize * 0.35), badgeSize - 4, Math.max(2, Math.round(badgeSize * 0.2)));
+          } else if (
+            block.type === 'pipe_warp_top_left' &&
+            (currentLevel.pipeWarps || []).some(
+              pw =>
+                pw.type === 'down' &&
+                pw.toLevel !== KEY_CAVE_PIPE_TARGET &&
+                !isSurfaceExitPipeWarp(currentLevel, pw) &&
+                Math.floor(pw.from.x / 16) === tx &&
+                Math.floor((pw.from.y + pw.from.height) / 16) === ty
+            )
+          ) {
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(dx + 1, dy + 1, cellSize * 2 - 2, cellSize - 2);
+            ctx.fillStyle = '#7e22ce';
+            ctx.fillRect(dx + cellSize - 7, dy + 2, 14, 10);
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 8px monospace';
+            ctx.fillText('W', dx + cellSize - 3, dy + 10);
+          } else if (
+            block.type === 'pipe_horiz_top' &&
+            (currentLevel.pipeWarps || []).some(
+              pw =>
+                pw.type === 'right' &&
+                Math.floor((pw.from.x + pw.from.width) / 16) === tx &&
+                Math.floor(pw.from.y / 16) === ty
+            )
+          ) {
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(dx + 1, dy + 1, cellSize - 2, cellSize * 2 - 2);
+            ctx.fillStyle = '#7e22ce';
+            ctx.fillRect(dx + 2, dy + 2, 12, 10);
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 8px monospace';
+            ctx.fillText('→', dx + 4, dy + 10);
+          } else if (block.type === 'ghost_door_top') {
+            const matchingDoorWarp = (currentLevel.pipeWarps || []).find(
+              pw =>
+                pw.type === 'door' &&
+                Math.floor(pw.from.x / 16) === tx &&
+                Math.floor(pw.from.y / 16) === ty
+            );
+            if (matchingDoorWarp) {
+              const isOutsideExit = isGhostOutsideExitDoorWarp(currentLevel, matchingDoorWarp);
+              ctx.strokeStyle = isOutsideExit ? '#10b981' : '#c084fc';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(dx + 1, dy + 1, cellSize - 2, cellSize * 2 - 2);
+              const badgeSize = Math.max(8, Math.round(cellSize * 0.45));
+              const bx = dx + cellSize - badgeSize - 1;
+              const by = dy + 1;
+              ctx.fillStyle = isOutsideExit ? '#059669' : '#7e22ce';
+              ctx.fillRect(bx, by, badgeSize, badgeSize);
+              ctx.fillStyle = isOutsideExit ? '#ffffff' : '#fde047';
+              ctx.fillRect(
+                bx + Math.max(1, Math.floor(badgeSize * 0.25)),
+                by + Math.max(1, Math.floor(badgeSize * 0.25)),
+                Math.max(2, Math.ceil(badgeSize * 0.5)),
+                Math.max(2, Math.ceil(badgeSize * 0.5))
+              );
+            }
+          }
         }
         ctx.restore();
       }
@@ -1539,125 +2381,163 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
     }
 
-    // Draw standalone coins
+    // Draw standalone coins, W-Coins, Checkpoints & Sprites Layer
     const scale = cellSize / 16;
-    currentLevel.coins.forEach(c => {
-      const cx = (c.x - 8) * scale - offsetX;
-      if (cx < -cellSize || cx > drawW + cellSize) return;
-      const cy = c.y * scale;
-      ctx.drawImage(atlas.itemCoinFrames[0], cx, cy, cellSize, cellSize);
-    });
+    if (showSpritesLayer) {
+      currentLevel.coins.forEach(c => {
+        const cx = (c.x - 8) * scale - offsetX;
+        if (cx < -cellSize || cx > drawW + cellSize) return;
+        const cy = c.y * scale;
+        ctx.drawImage(atlas.itemCoinFrames[0], cx, cy, cellSize, cellSize);
+      });
 
-    // Draw floating platforms preview
-    (currentLevel.floatingPlatforms || []).forEach(fp => {
-      const px = fp.x * scale - offsetX;
-      const pw = fp.width * scale;
-      if (px + pw < -cellSize || px > drawW + cellSize) return;
-      const py = fp.y * scale;
-      const ph = (fp.height ?? 10) * scale;
-      ctx.save();
-      ctx.fillStyle = '#483068';
-      ctx.fillRect(px, py, pw, ph);
-      ctx.fillStyle = '#9070c8';
-      ctx.fillRect(px, py, pw, Math.max(2, Math.round(2 * scale)));
-      ctx.strokeStyle = '#c4b5fd';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
-      ctx.fillStyle = '#e9d5ff';
-      ctx.font = `${Math.max(8, Math.round(9 * scale))}px monospace`;
-      ctx.fillText(fp.axis === 'horizontal' ? '↔' : fp.axis === 'vertical' ? '↕' : '~', px + 4, py + ph - 2);
-      ctx.restore();
-    });
+      (currentLevel.wCoins || []).forEach(wc => {
+        const wx = wc.x * scale - offsetX;
+        if (wx < -cellSize * 2 || wx > drawW + cellSize * 2) return;
+        const wy = wc.y * scale;
+        ctx.save();
+        ctx.fillStyle = '#f8d838';
+        ctx.beginPath();
+        ctx.arc(wx + cellSize * 0.56, wy + cellSize * 0.56, cellSize * 0.48, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#78350f';
+        ctx.font = `bold ${Math.max(9, Math.round(10 * scale))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('W', wx + cellSize * 0.56, wy + cellSize * 0.78);
+        ctx.restore();
+      });
 
-    // Draw enemies
-    currentLevel.enemies.forEach(e => {
-      const drawX = (e.type === 'piranha' ? e.x - 4 : e.x) * scale - offsetX;
-      if (drawX < -cellSize * 2 || drawX > drawW + cellSize * 2) return;
-      const ey = e.y * scale;
-      let sprite: HTMLCanvasElement = atlas.goombaWalk1;
-      let w = 16;
-      let h = 16;
+      (currentLevel.checkpoints || []).forEach(cp => {
+        if (!cp.visible) return;
+        const cx = cp.x * scale - offsetX;
+        if (cx < -cellSize * 2 || cx > drawW + cellSize * 2) return;
+        const cy = (cp.respawnPos.y + 16) * scale;
+        const h = cellSize * 2.1;
+        ctx.save();
+        ctx.fillStyle = '#dce4f2';
+        ctx.fillRect(cx, cy - h, Math.max(2, Math.round(3 * scale)), h);
+        ctx.fillRect(cx + cellSize * 0.85, cy - h, Math.max(2, Math.round(3 * scale)), h);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx + 2, cy - cellSize * 0.9, cellSize * 0.85, Math.max(3, Math.round(3 * scale)));
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(cx + 3, cy - cellSize * 0.85, cellSize * 0.75, Math.max(1, Math.round(scale)));
+        ctx.restore();
+      });
 
-      switch (e.type) {
-        case 'koopa':
-          sprite = atlas.koopaWalk1;
-          h = 24;
-          break;
-        case 'red_koopa':
-          sprite = atlas.redKoopaWalk1;
-          h = 24;
-          break;
-        case 'paratroopa':
-          sprite = atlas.paratroopa1;
-          h = 24;
-          break;
-        case 'hammer_bro':
-          sprite = atlas.hammerBroWalk1;
-          h = 24;
-          break;
-        case 'piranha':
-          sprite = atlas.piranha1;
-          break;
-        case 'blooper':
-          sprite = atlas.blooper1;
-          break;
-        case 'cheep_cheep':
-          sprite = atlas.cheepCheep1;
-          break;
-        case 'fast_cheep':
-          sprite = atlas.fastCheep1;
-          break;
-        case 'bullet_bill':
-          sprite = atlas.bulletBill;
-          break;
-        case 'lava_bubble':
-          sprite = atlas.lavaBubble1;
-          break;
-        case 'boo':
-          sprite = atlas.booChase;
-          break;
-        case 'dry_bones':
-          sprite = atlas.dryBonesWalk1;
-          h = 24;
-          break;
-        case 'bowser':
-          sprite = atlas.bowser1;
-          w = 24;
-          h = 24;
-          break;
-      }
+      // Draw floating platforms preview
+      (currentLevel.floatingPlatforms || []).forEach(fp => {
+        const px = fp.x * scale - offsetX;
+        const pw = fp.width * scale;
+        if (px + pw < -cellSize || px > drawW + cellSize) return;
+        const py = fp.y * scale;
+        const ph = (fp.height ?? 10) * scale;
+        ctx.save();
+        ctx.fillStyle = '#483068';
+        ctx.fillRect(px, py, pw, ph);
+        ctx.fillStyle = '#9070c8';
+        ctx.fillRect(px, py, pw, Math.max(2, Math.round(2 * scale)));
+        ctx.strokeStyle = '#c4b5fd';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+        ctx.fillStyle = '#e9d5ff';
+        ctx.font = `${Math.max(8, Math.round(9 * scale))}px monospace`;
+        ctx.fillText(fp.axis === 'horizontal' ? '↔' : fp.axis === 'vertical' ? '↕' : '~', px + 4, py + ph - 2);
+        ctx.restore();
+      });
 
-      ctx.drawImage(sprite, drawX, ey, w * scale, h * scale);
-    });
+      // Draw enemies
+      currentLevel.enemies.forEach(e => {
+        const drawX = (e.type === 'piranha' ? e.x - 4 : e.x) * scale - offsetX;
+        if (drawX < -cellSize * 2 || drawX > drawW + cellSize * 2) return;
+        const ey = e.y * scale;
+        let sprite: HTMLCanvasElement = atlas.goombaWalk1;
+        let w = 16;
+        let h = 16;
 
-    // Draw Keyholes & Carryables (Key, Blue P-Switch, Cyan P-Switch)
-    (currentLevel.keyholes || []).forEach(kh => {
-      const kx = kh.x * scale - offsetX;
-      if (kx < -cellSize * 2 || kx > drawW + cellSize * 2) return;
-      const ky = kh.y * scale;
-      ctx.drawImage(atlas.itemKeyhole, kx, ky, 16 * scale, 24 * scale);
-    });
+        switch (e.type) {
+          case 'koopa':
+            sprite = atlas.koopaWalk1;
+            h = 24;
+            break;
+          case 'red_koopa':
+            sprite = atlas.redKoopaWalk1;
+            h = 24;
+            break;
+          case 'paratroopa':
+            sprite = atlas.paratroopa1;
+            h = 24;
+            break;
+          case 'hammer_bro':
+            sprite = atlas.hammerBroWalk1;
+            h = 24;
+            break;
+          case 'piranha':
+            sprite = atlas.piranha1;
+            break;
+          case 'blooper':
+            sprite = atlas.blooper1;
+            break;
+          case 'cheep_cheep':
+            sprite = atlas.cheepCheep1;
+            break;
+          case 'fast_cheep':
+            sprite = atlas.fastCheep1;
+            break;
+          case 'bullet_bill':
+            sprite = atlas.bulletBill;
+            break;
+          case 'lava_bubble':
+            sprite = atlas.lavaBubble1;
+            break;
+          case 'boo':
+            sprite = atlas.booChase;
+            break;
+          case 'dry_bones':
+            sprite = atlas.dryBonesWalk1;
+            h = 24;
+            break;
+          case 'bowser':
+            sprite = atlas.bowser1;
+            w = 24;
+            h = 24;
+            break;
+        }
 
-    (currentLevel.carryables || []).forEach(c => {
-      const cx = c.x * scale - offsetX;
-      if (cx < -cellSize * 2 || cx > drawW + cellSize * 2) return;
-      const cy = c.y * scale;
-      const sprite =
-        c.kind === 'key'
-          ? atlas.itemKey
-          : c.kind === 'p_switch_blue'
-          ? atlas.itemPSwitchBlue
-          : atlas.itemPSwitchCyan;
-      ctx.drawImage(sprite, cx, cy, cellSize, cellSize);
-    });
+        ctx.drawImage(sprite, drawX, ey, w * scale, h * scale);
+      });
 
-    // Draw Yoshis placed in non-castle editor stages
-    (currentLevel.yoshis || []).forEach(yPos => {
-      const yx = yPos.x * scale - offsetX;
-      if (yx < -cellSize * 2 || yx > drawW + cellSize * 2) return;
-      const yy = yPos.y * scale;
-      ctx.drawImage(atlas.yoshiIdle, yx, yy, 20 * scale, 20 * scale);
-    });
+      // Draw Keyholes & Carryables (Key, Blue P-Switch, Cyan P-Switch)
+      (currentLevel.keyholes || []).forEach(kh => {
+        const kx = kh.x * scale - offsetX;
+        if (kx < -cellSize * 2 || kx > drawW + cellSize * 2) return;
+        const ky = kh.y * scale;
+        ctx.drawImage(atlas.itemKeyhole, kx, ky, 16 * scale, 24 * scale);
+      });
+
+      (currentLevel.carryables || []).forEach(c => {
+        const cx = c.x * scale - offsetX;
+        if (cx < -cellSize * 2 || cx > drawW + cellSize * 2) return;
+        const cy = c.y * scale;
+        const sprite =
+          c.kind === 'key'
+            ? atlas.itemKey
+            : c.kind === 'p_switch_blue'
+            ? atlas.itemPSwitchBlue
+            : atlas.itemPSwitchCyan;
+        ctx.drawImage(sprite, cx, cy, cellSize, cellSize);
+      });
+
+      // Draw Yoshis placed in non-castle editor stages
+      (currentLevel.yoshis || []).forEach(yPos => {
+        const yx = yPos.x * scale - offsetX;
+        if (yx < -cellSize * 2 || yx > drawW + cellSize * 2) return;
+        const yy = yPos.y * scale;
+        ctx.drawImage(atlas.yoshiIdle, yx, yy, 20 * scale, 20 * scale);
+      });
+    }
 
     // Draw Mario Spawn point marker
     const mx = currentLevel.marioStart.x * scale - offsetX;
@@ -1686,15 +2566,112 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
       ctx.stroke();
     }
-  }, [isOpen, currentLevel, cellSize, showGrid, atlas]);
+
+    // Lunar Magic signature Screen Boundaries (blue vertical dividers every 16 tiles / 256px)
+    if (showScreenGuides) {
+      ctx.save();
+      const firstScreen = Math.max(0, Math.floor(startTx / 16));
+      const lastScreen = Math.ceil(endTx / 16);
+      for (let scr = firstScreen; scr <= lastScreen; scr++) {
+        const col = scr * 16;
+        if (col > currentLevel.width) break;
+        const sx = col * cellSize - offsetX + 0.5;
+        if (sx < -2 || sx > drawW + 2) continue;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.72)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, totalH);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(12, 74, 110, 0.88)';
+        ctx.fillRect(sx + 2, 2, 26, 13);
+        ctx.fillStyle = '#bae6fd';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`T${String(scr).padStart(2, '0')}`, sx + 5, 11);
+      }
+      ctx.restore();
+    }
+
+    // Highlight Screen Exit isolation zone (dryFinishStartX)
+    if (showExitsOverlay && currentLevel.dryFinishStartX !== undefined) {
+      const splitX = currentLevel.dryFinishStartX * scale - offsetX;
+      if (splitX >= 0 && splitX <= drawW) {
+        ctx.save();
+        ctx.strokeStyle = '#10b981';
+        ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(splitX, 0);
+        ctx.lineTo(splitX, totalH);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(6, 78, 59, 0.9)';
+        ctx.fillRect(splitX + 3, 18, 64, 13);
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText('SAÍDA TELA', splitX + 6, 27);
+        ctx.restore();
+      }
+    }
+  }, [isOpen, currentLevel, cellSize, showGrid, showScreenGuides, showSpritesLayer, showExitsOverlay, atlas]);
+
+  // Draw Lunar Magic interactive Minimap Strip showing full stage & viewport box
+  const drawMinimapCanvas = useCallback(() => {
+    const mini = minimapCanvasRef.current;
+    if (!isOpen || !mini || !currentLevel) return;
+    const ctx = mini.getContext('2d');
+    if (!ctx) return;
+    const w = mini.width;
+    const h = mini.height;
+    ctx.fillStyle = currentLevel.bgColor || THEME_BG_COLORS[currentLevel.theme] || '#5c94fc';
+    ctx.fillRect(0, 0, w, h);
+
+    const colW = w / Math.max(1, currentLevel.width);
+    const rowH = h / Math.max(1, currentLevel.height);
+    for (let ty = 0; ty < currentLevel.height; ty++) {
+      for (let tx = 0; tx < currentLevel.width; tx++) {
+        const tile = currentLevel.tiles[ty]?.[tx];
+        if (!tile) continue;
+        ctx.fillStyle =
+          tile.type === 'lava'
+            ? '#ef4444'
+            : tile.type.startsWith('pipe')
+            ? '#22c55e'
+            : tile.type.startsWith('ghost_door')
+            ? '#c084fc'
+            : tile.type === 'question' || tile.type.startsWith('exclam')
+            ? '#facc15'
+            : '#d6d3d1';
+        ctx.fillRect(tx * colW, ty * rowH, Math.max(1, colW + 0.3), Math.max(1, rowH + 0.3));
+      }
+    }
+    ctx.fillStyle = '#34d399';
+    ctx.fillRect((currentLevel.marioStart.x / 16) * colW, (currentLevel.marioStart.y / 16) * rowH, Math.max(3, colW), Math.max(3, rowH));
+    if (currentLevel.flagX > 0 && currentLevel.flagX < currentLevel.width * 16) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect((currentLevel.flagX / 16) * colW, 2, 2, h - 4);
+    }
+    const scrollEl = scrollContainerRef.current;
+    if (scrollEl && scrollEl.scrollWidth > 0) {
+      const vx = (scrollEl.scrollLeft / scrollEl.scrollWidth) * w;
+      const vw = Math.max(8, (scrollEl.clientWidth / scrollEl.scrollWidth) * w);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(vx + 0.5, 0.5, Math.min(w - vx - 1, vw), h - 1);
+    }
+  }, [isOpen, currentLevel]);
 
   // Render the level editor canvas whenever modal opens or level/zoom/grid updates (hover is CSS overlay — R1.16.1IZ.4)
   useEffect(() => {
     drawEditorCanvas();
+    drawMinimapCanvas();
     if (!isOpen) return;
-    const rafId = requestAnimationFrame(() => drawEditorCanvas());
+    const rafId = requestAnimationFrame(() => {
+      drawEditorCanvas();
+      drawMinimapCanvas();
+    });
     return () => cancelAnimationFrame(rafId);
-  }, [isOpen, currentLevel, cellSize, showGrid, atlas]);
+  }, [isOpen, currentLevel, cellSize, showGrid, showScreenGuides, showSpritesLayer, showExitsOverlay, atlas, drawEditorCanvas, drawMinimapCanvas]);
 
   // Redraw viewport slice smoothly on horizontal scroll or container resize
   useEffect(() => {
@@ -1707,6 +2684,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       rafId = requestAnimationFrame(() => {
         rafId = null;
         drawEditorCanvas();
+        drawMinimapCanvas();
       });
     };
     scrollEl.addEventListener('scroll', scheduleDraw, { passive: true });
@@ -1720,7 +2698,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       resizeObserver?.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [isOpen, drawEditorCanvas]);
+  }, [isOpen, drawEditorCanvas, drawMinimapCanvas]);
 
   const getCellFromPointer = (clientX: number, clientY: number) => {
     const wrapper = canvasWrapperRef.current;
@@ -1739,8 +2717,40 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     e.preventDefault();
     const cell = getCellFromPointer(e.clientX, e.clientY);
     if (!cell || !currentLevel) return;
+    const isRightErase = e.button === 2;
+
+    if (e.altKey || toolMode === 'eyedropper') {
+      pickBrushAtCell(cell.tx, cell.ty);
+      return;
+    }
+    if (toolMode === 'fill') {
+      applyFloodFillAtCell(cell.tx, cell.ty, isRightErase);
+      return;
+    }
+    if (toolMode === 'paste') {
+      if (regionClipboard) {
+        pasteClipboardAtCell(cell.tx, cell.ty);
+      } else {
+        notifyError('Nenhuma região copiada! Use Copiar primeiro.');
+      }
+      return;
+    }
+    if (toolMode === 'rect' || toolMode === 'copy') {
+      isDrawingRef.current = true;
+      dragEraseModeRef.current = isRightErase;
+      rectDragStartRef.current = cell;
+      setRectSelection({
+        startTx: cell.tx,
+        startTy: cell.ty,
+        endTx: cell.tx,
+        endTy: cell.ty,
+        erase: isRightErase,
+      });
+      return;
+    }
+
     isDrawingRef.current = true;
-    dragEraseModeRef.current = e.button === 2;
+    dragEraseModeRef.current = isRightErase;
     strokeSnapshotRef.current = cloneLevelData(currentLevel);
     strokeCommittedRef.current = false;
     const cellKey = `${cell.tx},${cell.ty},${dragEraseModeRef.current}`;
@@ -1752,6 +2762,16 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     const cell = getCellFromPointer(e.clientX, e.clientY);
     setHoverCell(cell);
     if (!isDrawingRef.current || !cell) return;
+    if ((toolMode === 'rect' || toolMode === 'copy') && rectDragStartRef.current) {
+      setRectSelection({
+        startTx: rectDragStartRef.current.tx,
+        startTy: rectDragStartRef.current.ty,
+        endTx: cell.tx,
+        endTy: cell.ty,
+        erase: dragEraseModeRef.current,
+      });
+      return;
+    }
     const cellKey = `${cell.tx},${cell.ty},${dragEraseModeRef.current}`;
     if (lastPaintedCellRef.current !== cellKey) {
       lastPaintedCellRef.current = cellKey;
@@ -1760,11 +2780,41 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   const handlePointerUp = () => {
+    if (isDrawingRef.current && (toolMode === 'rect' || toolMode === 'copy') && rectSelection) {
+      if (toolMode === 'copy') {
+        copyRegionToClipboard(
+          rectSelection.startTx,
+          rectSelection.startTy,
+          rectSelection.endTx,
+          rectSelection.endTy
+        );
+      } else {
+        applyRectBrush(
+          rectSelection.startTx,
+          rectSelection.startTy,
+          rectSelection.endTx,
+          rectSelection.endTy,
+          rectSelection.erase
+        );
+      }
+    }
     isDrawingRef.current = false;
     lastPaintedCellRef.current = null;
     dragEraseModeRef.current = false;
     strokeSnapshotRef.current = null;
     strokeCommittedRef.current = false;
+    rectDragStartRef.current = null;
+    setRectSelection(null);
+  };
+
+  const handleMinimapJump = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const mini = minimapCanvasRef.current;
+    const scrollEl = scrollContainerRef.current;
+    if (!mini || !scrollEl) return;
+    const rect = mini.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    scrollEl.scrollLeft = Math.max(0, frac * scrollEl.scrollWidth - scrollEl.clientWidth / 2);
   };
 
   const handleNewBlankLevel = () => {
@@ -1847,9 +2897,14 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       }
     }
     const { level: sanitized, truncated } = sanitizeCustomLevelEntities(base);
+    const copyId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const remappedWarps = sanitized.pipeWarps?.map(pw =>
+      pw.toLevel === sanitized.id ? { ...pw, toLevel: copyId } : pw
+    );
     const copy: LevelData = {
       ...sanitized,
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: copyId,
+      pipeWarps: remappedWarps,
       name: isWorldStage ? base.name.slice(0, 16) : `EDIT ${base.name}`.slice(0, 16),
       biomeLabel: isWorldStage ? base.biomeLabel : 'FASE EDITADA',
       isCustom: true,
@@ -1864,10 +2919,20 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
   const handleThemeChange = (theme: LevelData['theme']) => {
     const hadYoshis = (currentLevel?.yoshis?.length ?? 0) > 0;
+    const hadGhostDoors = Boolean(
+      currentLevel &&
+        (currentLevel.tiles.some(row =>
+          row.some(t => t?.type === 'ghost_door_top' || t?.type === 'ghost_door_bottom')
+        ) ||
+          (currentLevel.pipeWarps || []).some(pw => pw.type === 'door'))
+    );
     updateCurrentLevel(
       draft => {
         draft.theme = theme;
         draft.bgColor = THEME_BG_COLORS[theme];
+        if (theme !== 'ghost_house') {
+          pruneGhostDoorWarps(draft);
+        }
         if (theme === 'castle') {
           draft.yoshis = undefined;
           const hasAxe = draft.tiles.some(row => row.some(t => t?.type === 'axe'));
@@ -1883,8 +2948,13 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       },
       { recordUndo: true }
     );
+    if (theme !== 'ghost_house' && (selectedBrushId === 'ghost_door_outside' || selectedBrushId === 'ghost_door_map')) {
+      setSelectedBrushId('tile_brick');
+    }
     if (theme === 'castle' && hadYoshis) {
       notify('Yoshi removido: ele não pode entrar dentro de castelos!');
+    } else if (theme !== 'ghost_house' && hadGhostDoors) {
+      notify('Portas removidas: elas são exclusivas de Mansões Fantasmas!');
     }
   };
 
@@ -2130,6 +3200,32 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setShowHeaderPanel(v => !v)}
+              title="Configurações Lunar Magic: Música, Paleta de Céu, Tempo, Velocidade e Colunas"
+              className={`px-3 py-2 rounded-lg border font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition ${
+                showHeaderPanel
+                  ? 'bg-sky-950/90 border-sky-400 text-sky-200'
+                  : 'bg-stone-800 hover:bg-stone-700 border-stone-600 text-stone-300'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-sky-400" />
+              <span>HEADER</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExitsPanel(v => !v)}
+              title="Inspetor de Saídas de Tela, Canos Warp e Portas"
+              className={`px-3 py-2 rounded-lg border font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition ${
+                showExitsPanel || (currentLevel.pipeWarps?.length ?? 0) > 0
+                  ? 'bg-purple-950/90 border-purple-400 text-purple-200'
+                  : 'bg-stone-800 hover:bg-stone-700 border-stone-600 text-stone-300'
+              }`}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-purple-400" />
+              <span>SAÍDAS ({currentLevel.pipeWarps?.length ?? 0})</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowCampaignPanel(v => !v)}
               title="Montar campanha personalizada em sequência com suas fases editadas"
               className={`px-3 py-2 rounded-lg border font-['Press_Start_2P',monospace] text-[9px] sm:text-[10px] flex items-center gap-1.5 cursor-pointer transition ${
@@ -2336,6 +3432,392 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           </div>
         </div>
 
+        {/* Lunar Magic Level Header, Music, Palette, Presets & Column Shifting Panel */}
+        {showHeaderPanel && (
+          <div className="bg-stone-950/90 border border-sky-500/50 rounded-lg p-2.5 shrink-0 flex flex-col gap-2 text-xs font-mono">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Music className="w-4 h-4 text-sky-400" />
+                <span className="font-['Press_Start_2P',monospace] text-[10px] text-sky-300">
+                  HEADER DA FASE & PALETA (LUNAR MAGIC)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const col = hoverCell?.tx ?? Math.floor(currentLevel.width / 2);
+                    updateCurrentLevel(
+                      draft => {
+                        insertLevelColumnAt(draft, col);
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                    notify(`Coluna inserida em X=${col} (objetos deslocados)!`);
+                  }}
+                  title="Insere 1 coluna na posição do cursor (ou centro) deslocando blocos, canos, inimigos e bandeira"
+                  className="px-2 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-200 cursor-pointer"
+                >
+                  +Col
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentLevel.width <= 40) {
+                      notifyError('Largura mínima da fase é 40 colunas.');
+                      return;
+                    }
+                    const col = hoverCell?.tx ?? Math.floor(currentLevel.width / 2);
+                    updateCurrentLevel(
+                      draft => {
+                        deleteLevelColumnAt(draft, col);
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                    notify(`Coluna X=${col} removida!`);
+                  }}
+                  title="Remove 1 coluna na posição do cursor (ou centro) puxando o restante da fase"
+                  className="px-2 py-1 rounded bg-red-950/90 hover:bg-red-900 border border-red-500/60 text-red-200 cursor-pointer"
+                >
+                  -Col
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 text-stone-300">
+                <span className="text-stone-400">Música:</span>
+                <select
+                  value={currentLevel.musicTrack || 'auto'}
+                  onChange={e => {
+                    const val = e.target.value;
+                    updateCurrentLevel(
+                      draft => {
+                        draft.musicTrack = val === 'auto' ? undefined : (val as LevelData['musicTrack']);
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-sky-200"
+                >
+                  <option value="auto">Automática (por tema)</option>
+                  <option value="overworld">Superfície (SMW/SMB)</option>
+                  <option value="underground">Caverna Subterrânea</option>
+                  <option value="underwater">Fundo do Mar</option>
+                  <option value="ghost_house">Mansão Fantasma</option>
+                  <option value="castle">Castelo do Bowser</option>
+                  <option value="bonus">Sala Bônus / Palácio</option>
+                </select>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-stone-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(currentLevel.useBonusBackdrop)}
+                  onChange={e =>
+                    updateCurrentLevel(
+                      draft => {
+                        draft.useBonusBackdrop = e.target.checked || undefined;
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    )
+                  }
+                  className="accent-sky-400"
+                />
+                <span>Fundo Layer 2 Bônus</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-stone-300">
+                <span className="text-stone-400">Tempo (s):</span>
+                <input
+                  type="number"
+                  min={60}
+                  max={999}
+                  value={currentLevel.timeLimit}
+                  onChange={e => {
+                    const next = Math.max(60, Math.min(999, Number(e.target.value) || 300));
+                    updateCurrentLevel(
+                      draft => {
+                        draft.timeLimit = next;
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-amber-300"
+                />
+              </label>
+
+              <label className="flex items-center gap-1.5 text-stone-300">
+                <span className="text-stone-400">Vel. Inimigos:</span>
+                <select
+                  value={String(currentLevel.enemySpeedMultiplier ?? 1)}
+                  onChange={e => {
+                    const mult = Number(e.target.value);
+                    updateCurrentLevel(
+                      draft => {
+                        draft.enemySpeedMultiplier = mult === 1 ? undefined : mult;
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-amber-200"
+                >
+                  <option value="0.7">0.7x (Lento)</option>
+                  <option value="0.85">0.85x</option>
+                  <option value="1">1.0x (Normal)</option>
+                  <option value="1.2">1.2x</option>
+                  <option value="1.4">1.4x (Rápido)</option>
+                  <option value="1.7">1.7x (Turbo)</option>
+                  <option value="2">2.0x (Caos)</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-stone-800/80">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-stone-400">Paleta Céu:</span>
+                <input
+                  type="color"
+                  value={currentLevel.bgColor || THEME_BG_COLORS[currentLevel.theme] || '#5c94fc'}
+                  onChange={e => {
+                    const color = e.target.value;
+                    updateCurrentLevel(
+                      draft => {
+                        draft.bgColor = color;
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  className="w-7 h-6 rounded border border-stone-600 bg-transparent cursor-pointer"
+                />
+                {SMW_PALETTE_SWATCHES.map(sw => (
+                  <button
+                    key={sw.color}
+                    type="button"
+                    title={sw.label}
+                    onClick={() =>
+                      updateCurrentLevel(
+                        draft => {
+                          draft.bgColor = sw.color;
+                          return draft;
+                        },
+                        { recordUndo: true }
+                      )
+                    }
+                    className={`w-5 h-5 rounded border cursor-pointer ${
+                      currentLevel.bgColor?.toLowerCase() === sw.color.toLowerCase()
+                        ? 'border-white ring-1 ring-amber-400'
+                        : 'border-stone-600'
+                    }`}
+                    style={{ backgroundColor: sw.color }}
+                  />
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-stone-400">Preset Terreno:</span>
+                <select
+                  value={terrainPreset}
+                  onChange={e => setTerrainPreset(e.target.value as TerrainPresetId)}
+                  className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-200"
+                >
+                  <option value="flat">Planície Clássica</option>
+                  <option value="hills_pits">Colinas & Abismos</option>
+                  <option value="underwater_tunnels">Túneis Subaquáticos</option>
+                  <option value="ghost_maze">Salão / Labirinto Fantasma</option>
+                  <option value="castle_lava">Castelo com Lava & Ponte</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateCurrentLevel(
+                      draft => {
+                        applyTerrainPresetToLevel(draft, terrainPreset);
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                    notify('Preset de terreno aplicado!');
+                  }}
+                  className="px-2.5 py-1 rounded bg-sky-900/90 hover:bg-sky-800 border border-sky-500/60 text-sky-100 cursor-pointer"
+                >
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lunar Magic Screen Exits & Warps Inspector Panel */}
+        {showExitsPanel && (
+          <div className="bg-stone-950/90 border border-purple-500/50 rounded-lg p-2.5 shrink-0 flex flex-col gap-2 text-xs font-mono">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-purple-400" />
+                <span className="font-['Press_Start_2P',monospace] text-[10px] text-purple-300">
+                  SAÍDAS DE TELA & WARPS ({currentLevel.pipeWarps?.length ?? 0})
+                </span>
+              </div>
+              <span className="text-[11px] text-stone-400">
+                Canos Warp ↓/→ e Portas • Clique em "Ir" para pular direto à tela
+              </span>
+            </div>
+
+            {!currentLevel.pipeWarps || currentLevel.pipeWarps.length === 0 ? (
+              <div className="text-[11px] text-stone-400 px-2 py-1.5 rounded bg-stone-900/70 border border-stone-800">
+                Nenhuma saída configurada. Na aba <strong className="text-amber-300">Itens & Canos</strong>, use{' '}
+                <strong className="text-purple-300">Cano Warp ↓</strong>, <strong className="text-purple-300">Cano Warp →</strong> ou{' '}
+                <strong className="text-purple-300">Porta</strong>.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+                {currentLevel.pipeWarps.map((pw, idx) => {
+                  const srcTx = Math.floor(pw.from.x / 16);
+                  const srcTy = Math.floor(pw.from.y / 16);
+                  const destTx = Math.round(pw.toPos.x / 16);
+                  const destTy = Math.round(pw.toPos.y / 16);
+                  const kindLabel =
+                    pw.type === 'door' ? 'Porta ↑' : pw.type === 'right' ? 'Cano →' : 'Cano ↓';
+                  return (
+                    <div
+                      key={`${idx}-${pw.from.x}-${pw.from.y}`}
+                      className="flex flex-wrap items-center gap-2 px-2 py-1 rounded bg-stone-900/90 border border-stone-700 text-[11px]"
+                    >
+                      <span className="px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200 font-bold">
+                        #{idx + 1} {kindLabel}
+                      </span>
+                      <span className="text-stone-400">
+                        Origem ({srcTx}, {srcTy}) • Tela T{String(Math.floor(srcTx / 16)).padStart(2, '0')}
+                      </span>
+                      <label className="flex items-center gap-1 text-stone-300">
+                        <span>Destino:</span>
+                        <select
+                          value={pw.toLevel}
+                          onChange={e => {
+                            const nextTarget = e.target.value;
+                            updateCurrentLevel(
+                              draft => {
+                                const w = draft.pipeWarps?.[idx];
+                                if (w) w.toLevel = nextTarget;
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            );
+                          }}
+                          className="bg-stone-950 border border-stone-700 rounded px-1.5 py-0.5 text-purple-200 max-w-[165px]"
+                        >
+                          <option value={currentLevel.id}>Esta mesma fase ({currentLevel.name})</option>
+                          {customLevels
+                            .filter(l => l.id !== currentLevel.id)
+                            .map(l => (
+                              <option key={l.id} value={l.id}>
+                                {l.name}
+                              </option>
+                            ))}
+                          <option value="secret-vault">Cofre Secreto</option>
+                          <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
+                          <option value="world-1-1">Mundo 1-1</option>
+                          <option value="world-1-2">Mundo 1-2</option>
+                          <option value="world-2-2">Mundo 2-2</option>
+                          <option value="world-ghost">Mansão de Fantasmas</option>
+                          <option value="world-1-4">Mundo 1-4</option>
+                          {WORLD_STAGE_JSON_REGISTRY.map(entry => (
+                            <option key={entry.key} value={entry.key}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-1 text-stone-300">
+                        <span>X:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={240}
+                          value={destTx}
+                          onChange={e => {
+                            const nx = Math.max(0, Number(e.target.value) || 0) * 16;
+                            updateCurrentLevel(
+                              draft => {
+                                const w = draft.pipeWarps?.[idx];
+                                if (w) w.toPos.x = nx;
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            );
+                          }}
+                          className="w-12 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200"
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 text-stone-300">
+                        <span>Y:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={14}
+                          value={destTy}
+                          onChange={e => {
+                            const ny = Math.max(0, Math.min(14, Number(e.target.value) || 0)) * 16;
+                            updateCurrentLevel(
+                              draft => {
+                                const w = draft.pipeWarps?.[idx];
+                                if (w) w.toPos.y = ny;
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            );
+                          }}
+                          className="w-12 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200"
+                        />
+                      </label>
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const scrollEl = scrollContainerRef.current;
+                            if (!scrollEl) return;
+                            scrollEl.scrollTo({
+                              left: Math.max(0, srcTx * cellSize - scrollEl.clientWidth / 2),
+                              behavior: 'smooth',
+                            });
+                          }}
+                          className="px-2 py-0.5 rounded bg-sky-950 hover:bg-sky-900 border border-sky-500/60 text-sky-200 cursor-pointer"
+                        >
+                          Ir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCurrentLevel(
+                              draft => {
+                                if (draft.pipeWarps) {
+                                  draft.pipeWarps = draft.pipeWarps.filter((_, i) => i !== idx);
+                                }
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            )
+                          }
+                          className="px-2 py-0.5 rounded bg-red-950 hover:bg-red-900 border border-red-500/60 text-red-200 cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Custom Multi-Map Campaign Builder Panel (R1.16.1B0.4) */}
         {showCampaignPanel && (
           <div className="bg-stone-950/90 border border-amber-500/50 rounded-lg p-2.5 shrink-0 flex flex-col gap-2 text-xs">
@@ -2482,6 +3964,95 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+            {/* Lunar Magic Paint Modes */}
+            <div className="flex items-center gap-1 bg-stone-950/70 border border-stone-700/80 rounded-lg p-0.5">
+              <button
+                type="button"
+                onClick={() => setToolMode('pencil')}
+                title="Pincel (1x1)"
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer ${
+                  toolMode === 'pencil'
+                    ? 'bg-amber-500/25 text-amber-200 border border-amber-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Pincel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolMode('rect')}
+                title="Retângulo (Arraste para preencher ou apagar em área)"
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer ${
+                  toolMode === 'rect'
+                    ? 'bg-amber-500/25 text-amber-200 border border-amber-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <Square className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Retângulo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolMode('fill')}
+                title="Balde de Tinta (Flood Fill)"
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer ${
+                  toolMode === 'fill'
+                    ? 'bg-amber-500/25 text-amber-200 border border-amber-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <PaintBucket className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Balde</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolMode('eyedropper')}
+                title="Conta-gotas (ou Alt+Clique no mapa)"
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer ${
+                  toolMode === 'eyedropper'
+                    ? 'bg-amber-500/25 text-amber-200 border border-amber-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <Pipette className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Pegar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolMode('copy')}
+                title="Copiar Região (Arraste para capturar carimbo)"
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer ${
+                  toolMode === 'copy'
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Copiar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolMode('paste')}
+                disabled={!regionClipboard}
+                title={
+                  regionClipboard
+                    ? `Colar Carimbo (${regionClipboard.width}x${regionClipboard.height})`
+                    : 'Copie uma região primeiro'
+                }
+                className={`px-2 py-1 rounded flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  toolMode === 'paste'
+                    ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-400/60'
+                    : 'text-stone-300 hover:bg-stone-800'
+                }`}
+              >
+                <ClipboardPaste className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">
+                  {regionClipboard ? `Colar ${regionClipboard.width}x${regionClipboard.height}` : 'Colar'}
+                </span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={handleUndo}
@@ -2490,7 +4061,6 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               className="px-2 py-1.5 rounded border bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed border-stone-700 text-stone-200 flex items-center gap-1 cursor-pointer"
             >
               <Undo2 className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">Desfazer</span>
             </button>
             <button
               type="button"
@@ -2500,31 +4070,68 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               className="px-2 py-1.5 rounded border bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed border-stone-700 text-stone-200 flex items-center gap-1 cursor-pointer"
             >
               <Redo2 className="w-3.5 h-3.5 text-sky-300" />
-              <span className="hidden sm:inline">Refazer</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedBrushId('mario_start')}
-              className={`px-2.5 py-1.5 rounded border flex items-center gap-1 cursor-pointer ${
+              className={`px-2 py-1.5 rounded border flex items-center gap-1 cursor-pointer ${
                 selectedBrushId === 'mario_start'
                   ? 'bg-emerald-950 border-emerald-400 text-emerald-300'
                   : 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              Início
+              <span className="hidden sm:inline">Início</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedBrushId('erase')}
-              className={`px-2.5 py-1.5 rounded border flex items-center gap-1 cursor-pointer ${
+              className={`px-2 py-1.5 rounded border flex items-center gap-1 cursor-pointer ${
                 selectedBrushId === 'erase'
                   ? 'bg-red-950 border-red-400 text-red-300'
                   : 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700'
               }`}
             >
               <Eraser className="w-3.5 h-3.5" />
-              Apagar
+              <span className="hidden sm:inline">Apagar</span>
+            </button>
+
+            {/* Layer Visibility Toggles */}
+            <button
+              type="button"
+              onClick={() => setShowScreenGuides(v => !v)}
+              title="Divisões de Tela Lunar Magic (T00, T01...)"
+              className={`p-1.5 rounded border cursor-pointer ${
+                showScreenGuides
+                  ? 'bg-sky-950 border-sky-400/70 text-sky-300'
+                  : 'bg-stone-900 border-stone-700 text-stone-500'
+              }`}
+            >
+              <Columns className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSpritesLayer(v => !v)}
+              title="Mostrar/ocultar camada de Sprites (inimigos, moedas, plataformas)"
+              className={`p-1.5 rounded border cursor-pointer ${
+                showSpritesLayer
+                  ? 'bg-emerald-950 border-emerald-400/70 text-emerald-300'
+                  : 'bg-stone-900 border-stone-700 text-stone-500'
+              }`}
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExitsOverlay(v => !v)}
+              title="Mostrar/ocultar marcadores de Saídas e Warps"
+              className={`p-1.5 rounded border cursor-pointer ${
+                showExitsOverlay
+                  ? 'bg-purple-950 border-purple-400/70 text-purple-300'
+                  : 'bg-stone-900 border-stone-700 text-stone-500'
+              }`}
+            >
+              <Milestone className="w-4 h-4" />
             </button>
             <button
               type="button"
@@ -2587,6 +4194,87 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               <EyeOff className="w-3.5 h-3.5 text-amber-400" />
               Bloco Invisível (Tijolo / ?)
             </label>
+            {activeTab === 'items' &&
+              (selectedBrushId === 'pipe_warp_map' || selectedBrushId === 'pipe_warp_horiz') && (
+                <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                  <span className="text-purple-300">Destino do Cano Warp:</span>
+                  <select
+                    value={warpPipeTargetMapId}
+                    onChange={e => setWarpPipeTargetMapId(e.target.value)}
+                    className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200"
+                  >
+                    <option value={currentLevel.id}>Esta mesma fase ({currentLevel.name})</option>
+                    {customLevels.filter(l => l.id !== currentLevel.id).length > 0 && (
+                      <optgroup label="Meus Mapas do Editor">
+                        {customLevels
+                          .filter(l => l.id !== currentLevel.id)
+                          .map(l => (
+                            <option key={l.id} value={l.id}>
+                              {l.name} ({l.theme})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Sub-Áreas & Mapas Clássicos">
+                      <option value="secret-vault">Cofre Secreto (Bônus)</option>
+                      <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
+                      <option value="world-1-1">Mundo 1-1</option>
+                      <option value="world-1-2">Mundo 1-2 (Caverna)</option>
+                      <option value="world-2-2">Mundo 2-2 (Água)</option>
+                      <option value="world-ghost">Mansão de Fantasmas</option>
+                      <option value="world-1-4">Mundo 1-4 (Castelo)</option>
+                    </optgroup>
+                    <optgroup label="Fases do Modo World">
+                      {WORLD_STAGE_JSON_REGISTRY.map(entry => (
+                        <option key={entry.key} value={entry.key}>
+                          {entry.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+              )}
+            {activeTab === 'items' && currentLevel.theme === 'ghost_house' && (
+              <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                <span className="text-purple-300">Destino da Porta (Outro Mapa):</span>
+                <select
+                  value={doorTargetMapId}
+                  onChange={e => {
+                    setDoorTargetMapId(e.target.value);
+                    setSelectedBrushId('ghost_door_map');
+                  }}
+                  className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200"
+                >
+                  {customLevels.filter(l => l.id !== currentLevel.id).length > 0 && (
+                    <optgroup label="Meus Mapas do Editor">
+                      {customLevels
+                        .filter(l => l.id !== currentLevel.id)
+                        .map(l => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} ({l.theme === 'ghost_house' ? 'Mansão' : l.theme})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Sub-Áreas & Mapas Clássicos">
+                    <option value="secret-vault">Cofre Secreto (Bônus)</option>
+                    <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
+                    <option value="world-1-1">Mundo 1-1</option>
+                    <option value="world-1-2">Mundo 1-2 (Caverna)</option>
+                    <option value="world-2-2">Mundo 2-2 (Água)</option>
+                    <option value="world-ghost">Mansão de Fantasmas</option>
+                    <option value="world-1-4">Mundo 1-4 (Castelo)</option>
+                  </optgroup>
+                  <optgroup label="Fases do Modo World">
+                    {WORLD_STAGE_JSON_REGISTRY.map(entry => (
+                      <option key={entry.key} value={entry.key}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -2594,15 +4282,31 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1 shrink-0">
           {visiblePalette.map(opt => {
             const isSelected = selectedBrushId === opt.id;
+            const isThemeLocked = Boolean(opt.requiresTheme && currentLevel.theme !== opt.requiresTheme);
             return (
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setSelectedBrushId(opt.id)}
-                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-mono flex items-center gap-2 transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50'
-                    : 'bg-stone-800/90 hover:bg-stone-700 border-stone-700 text-stone-300'
+                title={
+                  isThemeLocked
+                    ? 'Exclusiva do tema Mansão Fantasma'
+                    : opt.requiresTheme === 'ghost_house'
+                    ? 'Exclusiva de Mansões Fantasmas — acione com Cima (↑) na frente da porta'
+                    : opt.label
+                }
+                onClick={() => {
+                  if (isThemeLocked) {
+                    notifyError('Portas são exclusivas de Mansões Fantasmas! Selecione o tema Mansão Fantasma.');
+                    return;
+                  }
+                  setSelectedBrushId(opt.id);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-mono flex items-center gap-2 transition ${
+                  isThemeLocked
+                    ? 'bg-stone-900/60 border-stone-800 text-stone-500 opacity-55 cursor-not-allowed'
+                    : isSelected
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 ring-1 ring-amber-400/50 cursor-pointer'
+                    : 'bg-stone-800/90 hover:bg-stone-700 border-stone-700 text-stone-300 cursor-pointer'
                 }`}
               >
                 {opt.id === 'erase' ? (
@@ -2611,6 +4315,11 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                   <SpriteIcon getCanvas={opt.preview} size={22} />
                 )}
                 <span>{opt.label}</span>
+                {isThemeLocked && (
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-purple-950/80 border border-purple-700/50 text-purple-300">
+                    Só Mansão
+                  </span>
+                )}
               </button>
             );
           })}
@@ -2643,7 +4352,37 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 className="absolute top-0 left-0 block cursor-crosshair touch-none"
                 style={{ imageRendering: 'pixelated' }}
               />
-              {hoverCell && (
+              {rectSelection && (
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute border-2 border-dashed ${
+                    toolMode === 'copy'
+                      ? 'border-cyan-400 bg-cyan-400/15'
+                      : rectSelection.erase
+                      ? 'border-red-400 bg-red-500/20'
+                      : 'border-amber-300 bg-amber-400/20'
+                  }`}
+                  style={{
+                    left: Math.min(rectSelection.startTx, rectSelection.endTx) * cellSize,
+                    top: Math.min(rectSelection.startTy, rectSelection.endTy) * cellSize,
+                    width: (Math.abs(rectSelection.endTx - rectSelection.startTx) + 1) * cellSize,
+                    height: (Math.abs(rectSelection.endTy - rectSelection.startTy) + 1) * cellSize,
+                  }}
+                />
+              )}
+              {hoverCell && toolMode === 'paste' && regionClipboard && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute border-2 border-dashed border-cyan-400 bg-cyan-400/15"
+                  style={{
+                    left: hoverCell.tx * cellSize,
+                    top: hoverCell.ty * cellSize,
+                    width: Math.min(currentLevel.width - hoverCell.tx, regionClipboard.width) * cellSize,
+                    height: Math.min(currentLevel.height - hoverCell.ty, regionClipboard.height) * cellSize,
+                  }}
+                />
+              )}
+              {hoverCell && !rectSelection && !(toolMode === 'paste' && regionClipboard) && (
                 <div
                   aria-hidden="true"
                   className={`pointer-events-none absolute border-2 ${
@@ -2658,6 +4397,23 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 />
               )}
             </div>
+          </div>
+
+          {/* Lunar Magic Interactive Minimap Strip */}
+          <div className="flex items-center gap-2 px-2 py-1 rounded bg-stone-950 border border-stone-800 shrink-0">
+            <span className="text-[10px] font-mono text-sky-300 font-bold shrink-0">MINIMAPA</span>
+            <canvas
+              ref={minimapCanvasRef}
+              width={600}
+              height={26}
+              onPointerDown={handleMinimapJump}
+              onPointerMove={e => {
+                if (e.buttons === 1) handleMinimapJump(e);
+              }}
+              title="Clique ou arraste no minimapa para navegar pela fase"
+              className="w-full h-[26px] rounded border border-stone-700 cursor-pointer touch-none"
+              style={{ imageRendering: 'pixelated' }}
+            />
           </div>
 
           {/* Navigation Footer */}

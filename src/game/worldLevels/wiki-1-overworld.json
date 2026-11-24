@@ -1,13 +1,12 @@
 {
   "format": "smb-custom-level",
   "version": 1,
-  "exportedAt": "2026-11-24T00:16:17.764Z",
+  "exportedAt": "2026-11-23T13:33:34.235Z",
   "level": {
-    "id": "custom-1795479193042-lkku",
+    "id": "smw-wiki-1",
     "name": "W-1",
     "theme": "overworld",
-    "biomeLabel": "WIKIWORLDWEB · YOSHI'S ISLAND (W-1)",
-    "width": 220,
+    "width": 168,
     "height": 15,
     "tiles": [
       [
@@ -34,63 +33,6 @@
         null,
         null,
         null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -261,63 +203,6 @@
         null,
         null,
         null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -465,71 +350,6 @@
         null
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_warp_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_warp_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -702,76 +522,9 @@
         null,
         null,
         null,
-        null,
-        null,
         null
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -944,96 +697,9 @@
         null,
         null,
         null,
-        null,
-        null,
         null
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -1206,136 +872,9 @@
         null,
         null,
         null,
-        null,
-        null,
         null
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -1421,12 +960,77 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "pole",
           "content": "none",
@@ -1448,95 +1052,9 @@
         null,
         null,
         null,
-        null,
-        null,
         null
       ],
       [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -1659,14 +1177,46 @@
         },
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "pole",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
         null,
         null,
         null,
@@ -1710,6 +1260,12 @@
         null,
         null,
         null,
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -1734,10 +1290,19 @@
         null,
         null,
         null,
+        {
+          "type": "exclam_yellow",
+          "content": "mushroom",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
-        null,
-        null,
-        null,
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -1852,6 +1417,45 @@
         null,
         null,
         null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        {
+          "type": "castle_crenel",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
         null,
         null,
         null,
@@ -1886,6 +1490,237 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pole",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
         null,
         null,
         null,
@@ -1908,110 +1743,36 @@
         null,
         null,
         {
-          "type": "pole",
+          "type": "brick",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
         {
-          "type": "castle_crenel",
-          "content": "none",
+          "type": "question",
+          "content": "coin",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
         {
-          "type": "castle_crenel",
+          "type": "brick",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
         {
-          "type": "castle_crenel",
+          "type": "question",
+          "content": "coin",
+          "bumpOffset": 0,
+          "bumpVel": 0,
+          "coinsLeft": 5
+        },
+        {
+          "type": "brick",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -2051,212 +1812,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pole",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "castle_brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -2289,8 +1844,7 @@
           "type": "question",
           "content": "coin",
           "bumpOffset": 0,
-          "bumpVel": 0,
-          "invisible": true
+          "bumpVel": 0
         },
         null,
         null,
@@ -2355,88 +1909,6 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0,
-          "invisible": true
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0,
-          "invisible": true
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0,
-          "invisible": true
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0,
-          "invisible": true
-        },
         null,
         null,
         null,
@@ -2464,6 +1936,9 @@
         },
         null,
         null,
+        null,
+        null,
+        null,
         {
           "type": "castle_brick",
           "content": "none",
@@ -2494,12 +1969,12 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -2516,173 +1991,15 @@
         null,
         null,
         null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
         null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
         null,
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "brick",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
-        null,
-        null,
-        {
-          "type": "pipe_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
@@ -2757,6 +2074,34 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         {
           "type": "ground",
           "content": "none",
@@ -2799,88 +2144,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        {
-          "type": "question",
-          "content": "coin",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "question",
-          "content": "coin",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "exclam_pink",
-          "content": "femboy",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        {
-          "type": "exclam_pink",
-          "content": "femboy",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        {
-          "type": "question",
-          "content": "coin",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "question",
-          "content": "coin",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
@@ -2924,24 +2187,6 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_top_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_top_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
@@ -2956,6 +2201,9 @@
         },
         null,
         null,
+        null,
+        null,
+        null,
         {
           "type": "castle_brick",
           "content": "none",
@@ -2986,12 +2234,12 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3023,6 +2271,112 @@
         null,
         null,
         null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_warp_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_warp_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3039,6 +2393,133 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_top_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_top_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3076,244 +2557,6 @@
         null,
         null,
         null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
@@ -3326,6 +2569,9 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
+        null,
+        null,
+        null,
         null,
         null,
         {
@@ -3358,12 +2604,12 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -3395,6 +2641,125 @@
         null,
         null,
         null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "pipe_body_left",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "pipe_body_right",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -3438,60 +2803,6 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
@@ -3573,58 +2884,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
@@ -3668,24 +2927,6 @@
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "pipe_body_left",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "pipe_body_right",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
         null,
         null,
@@ -3700,6 +2941,9 @@
         },
         null,
         null,
+        null,
+        null,
+        null,
         {
           "type": "castle_brick",
           "content": "none",
@@ -3730,12 +2974,12 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
+        {
+          "type": "castle_brick",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
         null,
         null,
         null,
@@ -4001,24 +3245,9 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
         {
           "type": "ground",
           "content": "none",
@@ -4286,223 +3515,8 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
         null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
         null,
         null,
         null,
@@ -4537,26 +3551,110 @@
           "bumpVel": 0
         },
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
+          "type": "ground",
+          "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
+          "type": "ground",
+          "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
+          "type": "ground",
+          "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
+          "bumpOffset": 0,
+          "bumpVel": 0
+        },
+        {
+          "type": "ground",
+          "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -4669,30 +3767,6 @@
           "bumpVel": 0
         },
         {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
           "type": "ground",
           "content": "none",
           "bumpOffset": 0,
@@ -4749,168 +3823,6 @@
         {
           "type": "ground",
           "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "exclam_yellow",
-          "content": "mushroom",
           "bumpOffset": 0,
           "bumpVel": 0
         },
@@ -5288,24 +4200,9 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
+        null,
+        null,
+        null,
         {
           "type": "ground",
           "content": "none",
@@ -5770,43 +4667,6 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
@@ -5915,187 +4775,12 @@
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        null,
-        null,
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
           "bumpOffset": 0,
           "bumpVel": 0
         },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        {
-          "type": "ground",
-          "content": "none",
-          "bumpOffset": 0,
-          "bumpVel": 0
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
         {
           "type": "ground",
           "content": "none",
@@ -6214,29 +4899,69 @@
     ],
     "enemies": [
       {
+        "type": "koopa",
+        "x": 224,
+        "y": 184
+      },
+      {
         "type": "red_koopa",
-        "x": 1056,
+        "x": 400,
+        "y": 152
+      },
+      {
+        "type": "piranha",
+        "x": 648,
+        "y": 160
+      },
+      {
+        "type": "red_koopa",
+        "x": 784,
+        "y": 152
+      },
+      {
+        "type": "koopa",
+        "x": 912,
+        "y": 184
+      },
+      {
+        "type": "paratroopa",
+        "x": 992,
+        "y": 144
+      },
+      {
+        "type": "koopa",
+        "x": 1216,
         "y": 184
       },
       {
         "type": "red_koopa",
-        "x": 1040,
-        "y": 184
+        "x": 1280,
+        "y": 104
       },
       {
         "type": "koopa",
-        "x": 2816,
+        "x": 1344,
         "y": 184
       },
       {
-        "type": "koopa",
-        "x": 3056,
-        "y": 184
+        "type": "red_koopa",
+        "x": 1648,
+        "y": 152
       },
       {
-        "type": "koopa",
-        "x": 2016,
-        "y": 184
+        "type": "red_koopa",
+        "x": 1808,
+        "y": 136
+      },
+      {
+        "type": "piranha",
+        "x": 1960,
+        "y": 160
+      },
+      {
+        "type": "paratroopa",
+        "x": 2048,
+        "y": 144
       },
       {
         "type": "koopa",
@@ -6245,72 +4970,98 @@
       },
       {
         "type": "koopa",
-        "x": 1648,
-        "y": 152
-      },
-      {
-        "type": "koopa",
-        "x": 1408,
-        "y": 184
-      },
-      {
-        "type": "koopa",
-        "x": 1248,
+        "x": 2224,
         "y": 184
       }
     ],
     "coins": [
       {
-        "x": 72,
-        "y": 64
+        "x": 184,
+        "y": 176
       },
       {
-        "x": 56,
-        "y": 64
-      },
-      {
-        "x": 40,
-        "y": 64
-      },
-      {
-        "x": 24,
-        "y": 64
-      },
-      {
-        "x": 8,
-        "y": 64
-      },
-      {
-        "x": 232,
-        "y": 64
-      },
-      {
-        "x": 248,
-        "y": 64
-      },
-      {
-        "x": 264,
-        "y": 64
-      },
-      {
-        "x": 280,
-        "y": 64
-      },
-      {
-        "x": 216,
+        "x": 276,
         "y": 80
       },
       {
-        "x": 200,
-        "y": 96
+        "x": 292,
+        "y": 80
       },
       {
-        "x": 184,
+        "x": 308,
+        "y": 80
+      },
+      {
+        "x": 580,
         "y": 112
       },
       {
-        "x": 168,
-        "y": 128
+        "x": 596,
+        "y": 112
+      },
+      {
+        "x": 612,
+        "y": 112
+      },
+      {
+        "x": 628,
+        "y": 112
+      },
+      {
+        "x": 692,
+        "y": 160
+      },
+      {
+        "x": 708,
+        "y": 144
+      },
+      {
+        "x": 724,
+        "y": 160
+      },
+      {
+        "x": 1204,
+        "y": 96
+      },
+      {
+        "x": 1236,
+        "y": 96
+      },
+      {
+        "x": 1300,
+        "y": 96
+      },
+      {
+        "x": 1348,
+        "y": 96
+      },
+      {
+        "x": 1780,
+        "y": 80
+      },
+      {
+        "x": 1796,
+        "y": 64
+      },
+      {
+        "x": 1812,
+        "y": 64
+      },
+      {
+        "x": 2180,
+        "y": 160
+      },
+      {
+        "x": 2196,
+        "y": 144
+      },
+      {
+        "x": 2212,
+        "y": 144
+      },
+      {
+        "x": 2228,
+        "y": 160
       }
     ],
     "wCoins": [
@@ -6331,18 +5082,47 @@
         "y": 80
       }
     ],
+    "marioStart": {
+      "x": 32,
+      "y": 192
+    },
+    "flagX": 2416,
+    "castleX": 2512,
+    "bgColor": "#5c94fc",
+    "timeLimit": 400,
+    "biomeLabel": "WIKIWORLDWEB · YOSHI'S ISLAND (W-1)",
+    "checkpoints": [
+      {
+        "x": 1056,
+        "respawnPos": {
+          "x": 1056,
+          "y": 192
+        }
+      }
+    ],
+    "floatingPlatforms": [
+      {
+        "x": 1504,
+        "y": 176,
+        "width": 48,
+        "axis": "horizontal",
+        "range": 16,
+        "speed": 0.032,
+        "phase": 0
+      }
+    ],
     "carryables": [
       {
         "kind": "p_switch_blue",
-        "x": 0,
+        "x": 464,
         "y": 192
       }
     ],
     "pipeWarps": [
       {
         "from": {
-          "x": 304,
-          "y": 16,
+          "x": 528,
+          "y": 160,
           "width": 32,
           "height": 16
         },
@@ -6354,26 +5134,9 @@
         "type": "down"
       }
     ],
-    "checkpoints": [
-      {
-        "x": 1056,
-        "respawnPos": {
-          "x": 1056,
-          "y": 192
-        }
-      }
-    ],
     "smwNodeId": "wiki-1-overworld",
     "smwWorldName": "Ilha WikiWorldWeb",
     "isFinalCastle": false,
-    "marioStart": {
-      "x": 624,
-      "y": 144
-    },
-    "flagX": 3216,
-    "castleX": 3296,
-    "bgColor": "#5c94fc",
-    "timeLimit": 400,
     "isCustom": true
   }
 }

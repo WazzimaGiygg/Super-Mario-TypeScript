@@ -37,7 +37,7 @@ import {
 } from './types.ts';
 import { SpriteAtlas, NES_COLORS } from './sprites.ts';
 import { SoundEngine } from './audio.ts';
-import { ParticleSystem } from './particles.ts';
+import { ParticleSystem, type EnemyDefeatKind } from './particles.ts';
 import { EnemySpawnManager } from './enemySpawnManager.ts';
 import { CameraSystem } from './camera.ts';
 import {
@@ -57,7 +57,11 @@ import {
   stripNonSmwPowerUpBoxes,
   isCastleStageForYoshi,
 } from './levels.ts';
-import { createSmwWikiWorldStage, createSmwWiki1SecretRoom } from './smwWorldMap.ts';
+import {
+  createSmwWikiWorldStage,
+  createSmwWiki1SecretRoom,
+  WORLD_STAGE_JSON_REGISTRY,
+} from './smwWorldMap.ts';
 import { getTopScore, updateTopScore, saveNewScore, getLastPlayerName } from './scoreboard.ts';
 import {
   AchievementManager,
@@ -156,10 +160,12 @@ export class GameEngine {
   // Pipe Warp State & Authentic In-Pipe Visual Clipping
   public warpTimer: number = 0;
   public warpTarget: { toLevel: string; toPos: Point; returnPos?: Point } | null = null;
-  public warpDir: 'down' | 'right' = 'down';
+  public warpDir: 'down' | 'right' | 'door' = 'down';
   public pipeExitDir: 'up' | 'down' | 'right' = 'up';
   public pipeClipLipY: number | null = null;
   public pipeClipLipX: number | null = null;
+  public warpScreenFadeTimer: number = 0;
+  private doorWarpCooldown: number = 0;
 
   // Flagpole / SMW Points Goal Gate & Stage Clear State
   public poleSlideY: number = 0;
@@ -342,10 +348,21 @@ export class GameEngine {
   public isEditorImmortality: boolean = false;
   private customLevelTemplate: LevelData | null = null;
   private customSubAreaOrigin: { levelTemplate: LevelData; returnPos: Point } | null = null;
+  private customLevelRegistry: Map<string, LevelData> = new Map();
+  private isWarpMapSwapActive: boolean = false;
   public customCampaignLevels: LevelData[] = [];
   public customCampaignIndex: number = 0;
   private keyCavePipeLipKeys: Set<string> = new Set();
   private ceilingTileColumns: boolean[] = [];
+
+  public registerCustomLevels(levels: LevelData[]) {
+    this.customLevelRegistry.clear();
+    for (const lvl of levels) {
+      if (lvl && typeof lvl.id === 'string' && lvl.id) {
+        this.customLevelRegistry.set(lvl.id, cloneLevelData(lvl));
+      }
+    }
+  }
 
   // Achievement Tracking System
   public achievementManager: AchievementManager = new AchievementManager();
@@ -430,12 +447,14 @@ export class GameEngine {
     if (resolvedLevel.isCustom) {
       if (!isRespawn) {
         const sanitized = sanitizeCustomLevelEntities(resolvedLevel).level;
-        this.customLevelTemplate = cloneLevelData(sanitized);
+        if (!this.isWarpMapSwapActive) {
+          this.customLevelTemplate = cloneLevelData(sanitized);
+        }
         resolvedLevel = cloneLevelData(sanitized);
       } else if (this.customLevelTemplate) {
         resolvedLevel = cloneLevelData(this.customLevelTemplate);
       }
-    } else if (!isRespawn && !isSubAreaLevel) {
+    } else if (!isRespawn && !isSubAreaLevel && !this.isWarpMapSwapActive) {
       this.customLevelTemplate = null;
       this.customSubAreaOrigin = null;
       this.customCampaignLevels = [];
@@ -516,6 +535,8 @@ export class GameEngine {
     this.pipeExitDir = 'up';
     this.pipeClipLipY = null;
     this.pipeClipLipX = null;
+    this.warpScreenFadeTimer = 0;
+    this.doorWarpCooldown = 0;
     this.bridgeCollapseQueue = [];
     this.bridgeCollapseTimer = 0;
     this.castleToodleActive = false;
@@ -566,10 +587,11 @@ export class GameEngine {
       this.activatedCheckpointIndices.clear();
       this.marioX = resolvedLevel.marioStart.x;
       this.marioY = resolvedLevel.marioStart.y - (this.getMarioHeight() - 16);
+      const bounds = this.getActiveCameraBounds();
       if (resolvedLevel.isCustom && resolvedLevel.marioStart.x > 160) {
-        this.camera.centerOn(resolvedLevel.marioStart.x, levelWidthPx);
+        this.camera.centerOn(resolvedLevel.marioStart.x, levelWidthPx, bounds);
       } else {
-        this.camera.snapTo(0, levelWidthPx);
+        this.camera.snapTo(0, levelWidthPx, bounds);
       }
     } else {
       // Respawn after death: strip power-ups (always return as Small Mario)
@@ -579,11 +601,11 @@ export class GameEngine {
       if (this.activeCheckpoint) {
         this.marioX = this.activeCheckpoint.x;
         this.marioY = this.activeCheckpoint.y;
-        this.camera.centerOn(this.activeCheckpoint.x, levelWidthPx);
+        this.camera.centerOn(this.activeCheckpoint.x, levelWidthPx, this.getActiveCameraBounds());
       } else {
         this.marioX = newLevel.marioStart.x;
         this.marioY = newLevel.marioStart.y;
-        this.camera.snapTo(0, levelWidthPx);
+        this.camera.snapTo(0, levelWidthPx, this.getActiveCameraBounds());
       }
     }
 
@@ -838,7 +860,10 @@ export class GameEngine {
     }
 
     if (this.level.theme === 'ghost_house') {
-      const mansionEnd = Math.max(200, this.level.width * 16 - 240);
+      const mansionEnd = Math.min(
+        this.level.dryFinishStartX ?? this.level.width * 16,
+        Math.max(200, this.level.width * 16 - 240)
+      );
       for (let x = 48; x < mansionEnd; x += 140) {
         this.sceneries.push({ type: 'ghost_window', x, y: 44 });
         this.sceneries.push({ type: 'ghost_chandelier', x: x + 68, y: 32 });
@@ -847,10 +872,23 @@ export class GameEngine {
         }
         this.sceneries.push({ type: 'ghost_mist', x: x + 16, y: 196 });
       }
-      return;
     }
 
-    if (this.level.theme !== 'overworld') return;
+    if (this.level.theme !== 'overworld') {
+      if (this.level.dryFinishStartX !== undefined) {
+        this.sceneries.push({
+          type: 'cloud_med',
+          x: this.level.dryFinishStartX + 48,
+          y: 36,
+        });
+        this.sceneries.push({
+          type: 'bush_small',
+          x: this.level.dryFinishStartX + 24,
+          y: 13 * 16,
+        });
+      }
+      return;
+    }
 
     for (let x = 0; x < this.level.width * 16; x += 180 + Math.random() * 80) {
       // Cloud
@@ -874,6 +912,18 @@ export class GameEngine {
     }
   }
 
+  private getActiveCameraBounds(): { minX?: number; maxX?: number } | undefined {
+    if (this.level.dryFinishStartX === undefined) return undefined;
+    const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
+    if (this.marioX >= this.level.dryFinishStartX) {
+      return { minX: this.level.dryFinishStartX, maxX: levelWidthPx };
+    }
+    return {
+      minX: 0,
+      maxX: Math.max(GameEngine.NES_WIDTH, this.level.dryFinishStartX),
+    };
+  }
+
   private isMarioUnderwater(): boolean {
     return (
       this.level.theme === 'underwater' &&
@@ -884,6 +934,12 @@ export class GameEngine {
   // --- GAME UPDATE LOOP ---
   public update(deltaMs: number) {
     if (this.isPaused) return;
+    if (this.warpScreenFadeTimer > 0) {
+      this.warpScreenFadeTimer--;
+    }
+    if (this.doorWarpCooldown > 0) {
+      this.doorWarpCooldown--;
+    }
 
     // R1.16.UF.4: Ignore any interactive/buffered controls until gameplay actually starts
     if (!this.isGameStarted) {
@@ -1341,10 +1397,16 @@ export class GameEngine {
       return;
     }
 
-    // 4. Pipe entering animation (sinking smoothly into pipe until fully hidden)
+    // 4. Pipe / Door entering animation
     if (this.marioState === 'pipe_entering') {
       this.warpTimer++;
-      if (this.warpDir === 'down') {
+      if (this.warpDir === 'door') {
+        this.marioVx = 0;
+        this.marioVy = 0;
+        if (this.warpTimer >= 22) {
+          this.finishPipeWarp();
+        }
+      } else if (this.warpDir === 'down') {
         this.marioVx = 0;
         this.marioY += 0.8;
         const sinkDoneY = (this.pipeClipLipY ?? this.marioY) + 2;
@@ -1792,9 +1854,9 @@ export class GameEngine {
       }
     }
 
-    // Check Pipe Warp: Down key on vertical pipe (grounded or underwater) or Right key against horizontal pipe
+    // Check Pipe / Ghost House Door Warp: Down on vertical pipe, Right on horizontal pipe, or Up on Ghost House door
     if (
-      (this.marioGrounded && (this.controls.down || this.controls.right)) ||
+      (this.marioGrounded && (this.controls.down || this.controls.right || this.controls.up)) ||
       (isUnderwater && this.controls.down)
     ) {
       if (this.checkPipeWarp()) {
@@ -2301,6 +2363,7 @@ export class GameEngine {
       if (block.coinsLeft && block.coinsLeft > 0) {
         block.coinsLeft--;
         this.spawnCoin(tx * GameEngine.TILE_SIZE, (ty - 1) * GameEngine.TILE_SIZE);
+        this.particleSystem.emitBrickBumpDust(tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE, this.level.theme);
         this.triggerScreenShake(2.4, 7);
         if (block.coinsLeft === 0) {
           block.type = 'question_empty';
@@ -2316,6 +2379,7 @@ export class GameEngine {
       } else {
         // Small Mario bumps brick
         this.sound.playBump();
+        this.particleSystem.emitBrickBumpDust(tx * GameEngine.TILE_SIZE, ty * GameEngine.TILE_SIZE, this.level.theme);
         this.triggerScreenShake(2.4, 7);
       }
     }
@@ -2697,7 +2761,8 @@ export class GameEngine {
               this.heldShellEnemyId = null;
               this.sound.playKick();
               this.triggerScreenShake(2.8, 6);
-              this.spawnEnemyDefeatParticles(other.x, other.y, other.type);
+              this.spawnEnemyDefeatParticles(other.x, other.y, other.type, false, 'shell');
+              this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, 'shell');
               this.addScore(400, other.x, other.y);
               this.recordEnemyDefeat(other.type);
               break;
@@ -3259,7 +3324,10 @@ export class GameEngine {
             }
             this.sound.playKick();
             this.triggerScreenShake(3.0, 7);
-            this.spawnEnemyDefeatParticles(other.x, other.y, other.type);
+            this.spawnEnemyDefeatParticles(other.x, other.y, other.type, false, 'shell');
+            if (otherWasMovingShell) {
+              this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, 'shell');
+            }
             const streak = e.shellKillStreak ?? 0;
             e.shellKillStreak = streak + 1;
             if (streak < GameEngine.SHELL_STREAK_SCORES.length) {
@@ -3431,7 +3499,13 @@ export class GameEngine {
       e.vy = -5;
       this.sound.playKick();
       this.triggerLargeEnemyImpactShake(e);
-      this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+      this.spawnEnemyDefeatParticles(
+        e.x,
+        e.y,
+        e.type,
+        false,
+        e.type === 'bowser' ? 'boss' : 'star'
+      );
       if (e.type === 'bowser') {
         this.addScore(5000, e.x, e.y, `${this.getBossDisplayName(e).toUpperCase()}!`);
       } else {
@@ -3463,7 +3537,7 @@ export class GameEngine {
             e.vx = 0;
             e.y += 8;
             e.height = 16;
-            this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+            this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, 'squash');
             this.awardStompCombo(e.x, e.y);
           }
           this.marioY = Math.min(this.marioY, e.y - this.getMarioHeight());
@@ -3482,7 +3556,7 @@ export class GameEngine {
           e.state = e.type === 'goomba' ? 'squashed' : 'flipped';
           e.vx = 0;
           e.vy = e.type === 'goomba' ? 0 : -4.2;
-          this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+          this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, e.type === 'goomba' ? 'squash' : 'default');
           this.awardStompCombo(e.x, e.y, e.type === 'hammer_bro' ? 5 : e.type === 'bullet_bill' ? 1 : 0);
           this.recordEnemyDefeat(e.type);
           this.triggerSpinBounce(e.x + e.width / 2, e.y, 'stomp');
@@ -3496,7 +3570,7 @@ export class GameEngine {
         this.sound.playStomp();
         this.marioVy = -6.0; // Stomp bounce
         this.triggerScreenShake(1.5, 4);
-        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, 'squash');
         this.awardStompCombo(e.x, e.y);
         this.recordEnemyDefeat(e.type);
       } else if (e.type === 'bullet_bill') {
@@ -4040,7 +4114,7 @@ export class GameEngine {
     this.stats.wCoinsTotal = this.wCoinsTotal;
     this.sound.playPowerUpEat();
     this.spawnCoinParticles(item.x + 2, item.y + 4);
-    this.spawnPowerUpSparkles(item.x + 2, item.y + 4);
+    this.spawnItemCollectParticles(item.x + 2, item.y + 4, 'w_coin');
     this.addScore(500, item.x, item.y - 4, `W ${this.wCoinsCollected}/${this.wCoinsTotal}`);
     if (this.wCoinsTotal >= 4 && this.wCoinsCollected >= 4 && !this.wCoinLifeAwardedThisStage) {
       this.wCoinLifeAwardedThisStage = true;
@@ -4055,6 +4129,7 @@ export class GameEngine {
   }
 
   private collectItem(item: Item) {
+    this.spawnItemCollectParticles(item.x, item.y, item.type);
     if (item.type === 'leaf') {
       this.transitionMarioPower('tanooki', item.x, item.y, 'TANOOKI!');
     } else if (item.type === 'feather') {
@@ -4077,6 +4152,10 @@ export class GameEngine {
       this.awardExtraLife(item.x, item.y);
       this.onMultiplayerSyncNeeded?.();
     }
+  }
+
+  public spawnItemCollectParticles(x: number, y: number, itemType: Item['type']) {
+    this.particleSystem.emitItemCollect(x, y, itemType);
   }
 
   public spawnPowerUpSparkles(x: number, y: number) {
@@ -4218,13 +4297,14 @@ export class GameEngine {
             return;
           }
           // R1.16.SW.4: Fireball-defeatable enemies (except ghosts 'boo' & skeletons 'dry_bones') turn into coins!
+          const defeatY = e.y;
           e.alive = false;
           e.state = 'flipped';
           e.vy = 0;
           const coinX = Math.round(e.x);
           const coinY = Math.max(
             24,
-            Math.min(12 * GameEngine.TILE_SIZE, Math.round(e.y + Math.max(0, e.height - 16)))
+            Math.min(12 * GameEngine.TILE_SIZE, Math.round(defeatY + Math.max(0, e.height - 16)))
           );
           e.y = GameEngine.NES_HEIGHT + 96;
           this.items.push({
@@ -4242,6 +4322,7 @@ export class GameEngine {
             emergeY: coinY,
           });
           this.sound.playCoin();
+          this.spawnEnemyDefeatParticles(e.x, defeatY, e.type, false, 'fire');
           this.spawnCoinParticles(coinX, coinY);
           if (fb.color === 'white') {
             this.spawnFemboyHeartParticle(e.x + e.width / 2, coinY);
@@ -4408,9 +4489,15 @@ export class GameEngine {
   }
 
   // Helper to spawn impact stars, debris fragments, and poof clouds when defeating an enemy
-  public spawnEnemyDefeatParticles(x: number, y: number, enemyType?: EnemyType, fromRemote: boolean = false) {
+  public spawnEnemyDefeatParticles(
+    x: number,
+    y: number,
+    enemyType?: EnemyType,
+    fromRemote: boolean = false,
+    defeatKind: EnemyDefeatKind = 'default'
+  ) {
     if (!fromRemote || this.isNearCamera(x)) {
-      this.particleSystem.emitEnemyDefeat(x, y, enemyType);
+      this.particleSystem.emitEnemyDefeat(x, y, enemyType, defeatKind);
     }
     if (!fromRemote && this.isMultiplayerConnected) {
       this.onMultiplayerWorldEvent?.('enemy_defeat', x, y);
@@ -4687,7 +4774,7 @@ export class GameEngine {
     this.marioY = safeY ?? (13 * GameEngine.TILE_SIZE - marioHeight);
 
     const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
-    this.camera.centerOn(this.marioX, levelWidthPx);
+    this.camera.centerOn(this.marioX, levelWidthPx, this.getActiveCameraBounds());
     this.cameraX = this.camera.x;
 
     this.sound.playPowerUpEat();
@@ -5122,7 +5209,7 @@ export class GameEngine {
     this.marioInvulnerableTimer = 90;
 
     const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
-    this.camera.centerOn(this.marioX, levelWidthPx);
+    this.camera.centerOn(this.marioX, levelWidthPx, this.getActiveCameraBounds());
     this.cameraX = this.camera.x;
 
     this.startLevelMusic(this.level.theme);
@@ -5203,7 +5290,7 @@ export class GameEngine {
   private updateCamera() {
     if (this.marioState !== 'dead') {
       const levelWidthPx = this.level.width * GameEngine.TILE_SIZE;
-      this.camera.follow(this.marioX, this.marioVx, levelWidthPx);
+      this.camera.follow(this.marioX, this.marioVx, levelWidthPx, this.getActiveCameraBounds());
       this.cameraX = this.camera.x;
     }
 
@@ -5225,16 +5312,53 @@ export class GameEngine {
     }
   }
 
-  // --- PIPE WARP & FLAGPOLE ---
+  private resolveWarpDestinationLevel(levelId: string): LevelData | null {
+    if (!levelId) return null;
+    if (levelId === 'secret-vault') return createSecretVault();
+    if (levelId === 'smw-wiki-1-secret') return createSmwWiki1SecretRoom();
+    if (levelId === 'world-1-1') return createWorld1_1();
+    if (levelId === 'world-1-2') return createWorld1_2();
+    if (levelId === 'world-2-2') return createWorld2_2();
+    if (levelId === 'world-ghost') return createWorldGhostHouse();
+    if (levelId === 'world-1-4') return createWorld1_4();
+
+    const worldEntry = WORLD_STAGE_JSON_REGISTRY.find(
+      entry => entry.key === levelId || entry.defaults.id === levelId
+    );
+    if (worldEntry) {
+      return createSmwWikiWorldStage(worldEntry.key);
+    }
+
+    const campaignMatch = this.customCampaignLevels.find(l => l.id === levelId);
+    if (campaignMatch) {
+      return cloneLevelData(campaignMatch);
+    }
+
+    const customMatch = this.customLevelRegistry.get(levelId);
+    if (customMatch) {
+      return cloneLevelData(customMatch);
+    }
+
+    return null;
+  }
+
+  // --- PIPE & GHOST DOOR WARP ---
   private checkPipeWarp(): boolean {
     if (!this.level.pipeWarps) return false;
     const marioBox = this.getMarioHitbox();
     const isUnderwater = this.isMarioUnderwater();
 
     for (const pw of this.level.pipeWarps) {
-      // Must press down for down pipe or right for right pipe
-      if (pw.type === 'down' && !this.controls.down) continue;
-      if (pw.type === 'right' && !this.controls.right) continue;
+      // Ghost House Doors are exclusive to Ghost Houses and activate with UP while grounded
+      if (pw.type === 'door') {
+        if (this.level.theme !== 'ghost_house') continue;
+        if (!this.marioGrounded || !this.controls.up || this.controls.down) continue;
+        if (this.doorWarpCooldown > 0) continue;
+      } else {
+        // Must press down for down pipe or right for right pipe
+        if (pw.type === 'down' && !this.controls.down) continue;
+        if (pw.type === 'right' && !this.controls.right) continue;
+      }
 
       // Underwater pipes allow a 4px vertical tolerance so swimming down onto the rim triggers reliably
       const triggerRect: Rect =
@@ -5262,28 +5386,37 @@ export class GameEngine {
         this.warpTarget = {
           toLevel: pw.toLevel,
           toPos: pw.toPos,
-          returnPos: { x: pw.from.x + 8, y: pw.from.y },
+          returnPos: { x: pw.from.x + (pw.type === 'door' ? 0 : 8), y: pw.from.y },
         };
         this.warpDir = pw.type;
         this.pipeExitDir = 'up';
 
-        // Visual clip lip & exact character alignment with pipe opening
-        if (pw.type === 'down') {
+        if (pw.type === 'door') {
+          this.pipeClipLipY = null;
+          this.pipeClipLipX = null;
+          this.marioX = pw.from.x;
+          this.marioY = pw.from.y + pw.from.height - this.getMarioHeight();
+          this.doorWarpCooldown = 28;
+          this.sound.playDoor();
+        } else if (pw.type === 'down') {
           const rimY = pw.from.y + pw.from.height;
           this.pipeClipLipY = rimY;
           this.pipeClipLipX = null;
           // Center Mario cleanly inside the 32px pipe and align feet flush with rim
           this.marioX = pw.from.x + (pw.from.width - 16) / 2;
           this.marioY = rimY - this.getMarioHeight();
+          const isWazzima = this.playerCharacter === 'wazzima';
+          this.triggerScreenShake(isWazzima ? 4.4 : 3.5, isWazzima ? 16 : 12);
+          this.sound.playPipe();
         } else {
           const rimX = pw.from.x + pw.from.width;
           this.pipeClipLipX = rimX;
           this.pipeClipLipY = null;
+          const isWazzima = this.playerCharacter === 'wazzima';
+          this.triggerScreenShake(isWazzima ? 4.4 : 3.5, isWazzima ? 16 : 12);
+          this.sound.playPipe();
         }
 
-        const isWazzima = this.playerCharacter === 'wazzima';
-        this.triggerScreenShake(isWazzima ? 4.4 : 3.5, isWazzima ? 16 : 12);
-        this.sound.playPipe();
         return true;
       }
     }
@@ -5295,12 +5428,17 @@ export class GameEngine {
 
     const targetLevelId = this.warpTarget.toLevel;
     const destPos = { ...this.warpTarget.toPos };
+    const isDoorWarp = this.warpDir === 'door';
     const returningFromSubArea =
       this.level.id === 'secret-vault' || this.level.id === 'smw-wiki-1-secret';
+    const isSameLevelWarp =
+      targetLevelId === this.level.id ||
+      targetLevelId === '__SURFACE_EXIT__' ||
+      targetLevelId === '__GHOST_OUTSIDE_EXIT__';
 
     if (targetLevelId === 'secret-vault' || targetLevelId === 'smw-wiki-1-secret') {
       const originIsCustom = Boolean(this.level.isCustom);
-      if (originIsCustom && targetLevelId === 'smw-wiki-1-secret') {
+      if (originIsCustom && (targetLevelId === 'smw-wiki-1-secret' || isDoorWarp)) {
         const savedReturnPos = this.warpTarget.returnPos
           ? { ...this.warpTarget.returnPos }
           : { ...this.level.marioStart };
@@ -5313,7 +5451,7 @@ export class GameEngine {
         targetLevelId === 'smw-wiki-1-secret'
           ? createSmwWiki1SecretRoom()
           : createSecretVault();
-      if (targetLevelId === 'smw-wiki-1-secret' && this.customSubAreaOrigin) {
+      if (this.customSubAreaOrigin) {
         subAreaLevel.smwNodeId = undefined;
         subAreaLevel.pipeWarps = (subAreaLevel.pipeWarps || []).map(pw => ({
           ...pw,
@@ -5322,62 +5460,187 @@ export class GameEngine {
           toPos: { ...this.customSubAreaOrigin!.returnPos },
         }));
       }
+      this.isWarpMapSwapActive = true;
       this.loadLevel(subAreaLevel, false, false, false);
+      this.isWarpMapSwapActive = false;
       this.marioX = destPos.x;
       this.marioY = destPos.y;
       this.marioVx = 0;
       this.marioVy = 0;
       this.marioGrounded = false;
-      this.camera.snapTo(0, this.level.width * GameEngine.TILE_SIZE);
+      this.camera.snapTo(0, this.level.width * GameEngine.TILE_SIZE, this.getActiveCameraBounds());
       this.cameraX = this.camera.x;
       this.marioState = 'falling';
       this.pipeClipLipY = null;
       this.pipeClipLipX = null;
+      if (isDoorWarp) {
+        this.warpScreenFadeTimer = 18;
+        this.doorWarpCooldown = 28;
+      }
     } else if (
-      targetLevelId === this.level.id ||
-      targetLevelId === 'world-1-1' ||
-      targetLevelId === 'world-1-2' ||
-      targetLevelId === 'world-2-2' ||
-      targetLevelId === 'wiki-1-overworld' ||
+      isSameLevelWarp ||
       (targetLevelId === 'custom-subarea-return' && Boolean(this.customSubAreaOrigin))
     ) {
       if (targetLevelId === 'custom-subarea-return' && this.customSubAreaOrigin) {
         const returnLevel = cloneLevelData(this.customSubAreaOrigin.levelTemplate);
         this.customSubAreaOrigin = null;
+        this.isWarpMapSwapActive = true;
         this.loadLevel(returnLevel, false, false, false);
-      } else if (targetLevelId === 'world-1-1') {
-        this.loadLevel(createWorld1_1(), false, false, !returningFromSubArea);
-      } else if (targetLevelId === 'wiki-1-overworld') {
-        this.loadLevel(
-          createSmwWikiWorldStage('wiki-1-overworld'),
-          false,
-          false,
-          !returningFromSubArea
-        );
-      } else if (targetLevelId === 'world-1-2' && this.level.id !== 'world-1-2') {
-        this.loadLevel(createWorld1_2(), false, false, true);
-      } else if (targetLevelId === 'world-2-2' && this.level.id !== 'world-2-2') {
-        this.loadLevel(createWorld2_2(), false, false, true);
+        this.isWarpMapSwapActive = false;
       }
 
-      const rimY = destPos.y + 16;
-      this.marioX = destPos.x;
-      this.marioY = rimY;
+      this.marioX = Math.max(0, Math.min(this.level.width * GameEngine.TILE_SIZE - 16, destPos.x));
       this.marioVx = 0;
       this.marioVy = 0;
-      this.marioGrounded = false;
-      this.camera.centerOn(this.marioX, this.level.width * GameEngine.TILE_SIZE);
-      this.cameraX = this.camera.x;
-      this.marioState = 'pipe_exiting';
-      this.pipeExitDir = 'up';
       this.warpTimer = 0;
-      this.pipeClipLipY = rimY;
       this.pipeClipLipX = null;
+
+      if (isDoorWarp) {
+        const bottomFeetY = destPos.y + 16;
+        const clampedTopY = bottomFeetY - this.getMarioHeight();
+        const belowTy = Math.floor(bottomFeetY / GameEngine.TILE_SIZE);
+        const centerTx = Math.max(
+          0,
+          Math.min(this.level.width - 1, Math.floor((this.marioX + 8) / GameEngine.TILE_SIZE))
+        );
+        const belowTile = this.level.tiles[belowTy]?.[centerTx];
+        const hasFloorBelow = Boolean(belowTile && this.isSolidTile(belowTile.type));
+        this.marioY = hasFloorBelow ? clampedTopY : destPos.y;
+        this.marioGrounded = hasFloorBelow;
+        this.marioState = hasFloorBelow ? 'idle' : 'falling';
+        this.pipeClipLipY = null;
+        this.doorWarpCooldown = 28;
+      } else {
+        const rimY = destPos.y + 16;
+        this.marioY = rimY;
+        this.marioGrounded = false;
+        this.marioState = 'pipe_exiting';
+        this.pipeExitDir = 'up';
+        this.pipeClipLipY = rimY;
+      }
+
+      this.camera.centerOn(
+        this.marioX,
+        this.level.width * GameEngine.TILE_SIZE,
+        this.getActiveCameraBounds()
+      );
+      this.cameraX = this.camera.x;
+
+      // Emulate exiting into a separate surface screen ("fora da mansão" / "em outra tela" da superfície)
+      this.warpScreenFadeTimer = 18;
+      if (
+        this.level.dryFinishStartX !== undefined &&
+        this.marioX >= this.level.dryFinishStartX &&
+        this.level.theme !== 'overworld' &&
+        this.marioStarTimer <= 0
+      ) {
+        this.sound.playMusic('overworld');
+      } else if (
+        isDoorWarp &&
+        this.level.theme === 'ghost_house' &&
+        (this.level.dryFinishStartX === undefined || this.marioX < this.level.dryFinishStartX) &&
+        this.marioStarTimer <= 0
+      ) {
+        this.sound.playMusic('ghost_house');
+      }
+    } else {
+      const nextMap = this.resolveWarpDestinationLevel(targetLevelId);
+      if (nextMap) {
+        if (!isDoorWarp && targetLevelId === 'world-1-1') {
+          this.loadLevel(nextMap, false, false, !returningFromSubArea);
+        } else {
+          this.isWarpMapSwapActive = true;
+          this.loadLevel(
+            nextMap,
+            false,
+            false,
+            !isDoorWarp && !returningFromSubArea && !nextMap.isCustom
+          );
+          this.isWarpMapSwapActive = false;
+        }
+
+        if (isDoorWarp) {
+          const spawnX =
+            Math.abs(destPos.x - 48) < 1 && Math.abs(destPos.y - 192) < 1
+              ? nextMap.marioStart.x
+              : destPos.x;
+          const spawnBaseY =
+            Math.abs(destPos.x - 48) < 1 && Math.abs(destPos.y - 192) < 1
+              ? nextMap.marioStart.y
+              : destPos.y;
+          this.marioX = Math.max(0, Math.min(this.level.width * GameEngine.TILE_SIZE - 16, spawnX));
+          const bottomFeetY = spawnBaseY + 16;
+          const belowTy = Math.floor(bottomFeetY / GameEngine.TILE_SIZE);
+          const centerTx = Math.max(
+            0,
+            Math.min(this.level.width - 1, Math.floor((this.marioX + 8) / GameEngine.TILE_SIZE))
+          );
+          const belowTile = this.level.tiles[belowTy]?.[centerTx];
+          const hasFloorBelow = Boolean(belowTile && this.isSolidTile(belowTile.type));
+          this.marioY = hasFloorBelow ? bottomFeetY - this.getMarioHeight() : spawnBaseY;
+          this.marioVx = 0;
+          this.marioVy = 0;
+          this.marioGrounded = hasFloorBelow;
+          this.marioState = hasFloorBelow ? 'idle' : 'falling';
+          this.pipeClipLipY = null;
+          this.pipeClipLipX = null;
+          this.doorWarpCooldown = 28;
+          this.warpScreenFadeTimer = 18;
+          this.camera.centerOn(
+            this.marioX,
+            this.level.width * GameEngine.TILE_SIZE,
+            this.getActiveCameraBounds()
+          );
+          this.cameraX = this.camera.x;
+        } else {
+          const destTx = Math.max(0, Math.min(this.level.width - 1, Math.floor((destPos.x + 8) / GameEngine.TILE_SIZE)));
+          const destRimTy = Math.floor((destPos.y + 16) / GameEngine.TILE_SIZE);
+          const rimTile = this.level.tiles[destRimTy]?.[destTx]?.type;
+          const isPipeArrival =
+            rimTile === 'pipe_top_left' ||
+            rimTile === 'pipe_top_right' ||
+            rimTile === 'pipe_warp_top_left' ||
+            rimTile === 'pipe_warp_top_right';
+          this.marioX = Math.max(0, Math.min(this.level.width * GameEngine.TILE_SIZE - 16, destPos.x));
+          this.marioVx = 0;
+          this.marioVy = 0;
+          this.pipeClipLipX = null;
+          if (isPipeArrival) {
+            const rimY = destPos.y + 16;
+            this.marioY = rimY;
+            this.marioGrounded = false;
+            this.marioState = 'pipe_exiting';
+            this.pipeExitDir = 'up';
+            this.warpTimer = 0;
+            this.pipeClipLipY = rimY;
+          } else {
+            const bottomFeetY = destPos.y + 16;
+            const belowTy = Math.floor(bottomFeetY / GameEngine.TILE_SIZE);
+            const belowTile = this.level.tiles[belowTy]?.[destTx];
+            const hasFloorBelow = Boolean(belowTile && this.isSolidTile(belowTile.type));
+            this.marioY = hasFloorBelow ? bottomFeetY - this.getMarioHeight() : destPos.y;
+            this.marioGrounded = hasFloorBelow;
+            this.marioState = hasFloorBelow ? 'idle' : 'falling';
+            this.pipeClipLipY = null;
+          }
+          this.camera.centerOn(
+            this.marioX,
+            this.level.width * GameEngine.TILE_SIZE,
+            this.getActiveCameraBounds()
+          );
+          this.cameraX = this.camera.x;
+          this.warpScreenFadeTimer = 18;
+        }
+      }
     }
 
     const isWazzima = this.playerCharacter === 'wazzima';
-    this.triggerScreenShake(isWazzima ? 3.2 : 2.4, 11);
-    this.sound.playPipe();
+    if (!isDoorWarp) {
+      this.triggerScreenShake(isWazzima ? 3.2 : 2.4, 11);
+      this.sound.playPipe();
+    } else {
+      this.sound.playDoor();
+    }
     this.warpTarget = null;
   }
 
@@ -5441,7 +5704,7 @@ export class GameEngine {
         e.vx = this.marioFacing === 'right' ? 2.5 : -2.5;
         this.sound.playKick();
         this.triggerScreenShake(2.5, 6);
-        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
+        this.spawnEnemyDefeatParticles(e.x, e.y, e.type, false, 'tail');
         this.addScore(200, e.x, e.y);
         this.recordEnemyDefeat(e.type);
       }
@@ -6110,12 +6373,13 @@ export class GameEngine {
       }
       const eBox: Rect = { x: e.x, y: e.y, width: e.width, height: e.height };
       if (this.rectsIntersect(tongueBox, eBox)) {
+        const defeatY = e.y;
         e.alive = false;
         e.state = 'flipped';
         e.y = GameEngine.NES_HEIGHT + 96;
         this.sound.playPowerUpEat();
-        this.spawnEnemyDefeatParticles(e.x, e.y, e.type);
-        this.addScore(200, e.x, e.y);
+        this.spawnEnemyDefeatParticles(e.x, defeatY, e.type, false, 'yoshi');
+        this.addScore(200, e.x, defeatY);
         this.recordEnemyDefeat(e.type);
       }
     });
@@ -7563,8 +7827,8 @@ export class GameEngine {
 
     const camX = this.camera.renderX;
 
-    // 1. Background Fill (Split ocean/sky smoothly at dryFinishStartX on underwater levels)
-    if (this.level.theme === 'underwater' && this.level.dryFinishStartX !== undefined) {
+    // 1. Background Fill (Split underwater/cavern vs open overworld sky at dryFinishStartX)
+    if (this.level.theme !== 'overworld' && this.level.dryFinishStartX !== undefined) {
       const splitScreenX = Math.round(this.level.dryFinishStartX - camX);
       if (splitScreenX <= 0) {
         ctx.fillStyle = '#5c94fc';
@@ -7596,7 +7860,8 @@ export class GameEngine {
     this.renderTiles(ctx);
     this.renderFloatingPlatforms(ctx);
 
-    // 4. Flagpole & Flag & SMW Castle Victory Banner
+    // 4. Midway Checkpoints, Flagpole & SMW Castle Victory Banner
+    this.renderMidwayCheckpoints(ctx);
     this.renderFlagpole(ctx);
     if (
       this.gameMode === 'smw_world_map' &&
@@ -7695,6 +7960,17 @@ export class GameEngine {
     // 13c. Keep closed blackout while waiting for multiplayer teammates immediately after Bonus Stage
     if (this.bonusStageIrisProgress >= 1) {
       ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    }
+
+    // 13d. Smooth screen transition fade when entering/exiting doors or surface warps
+    if (this.marioState === 'pipe_entering' && this.warpDir === 'door' && this.warpTimer >= 8) {
+      const fadeInAlpha = Math.min(0.95, (this.warpTimer - 8) / 14);
+      ctx.fillStyle = `rgba(0, 0, 0, ${fadeInAlpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
+    } else if (this.warpScreenFadeTimer > 0) {
+      const fadeAlpha = Math.min(1, this.warpScreenFadeTimer / 18);
+      ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha.toFixed(3)})`;
       ctx.fillRect(0, 0, GameEngine.NES_WIDTH, GameEngine.NES_HEIGHT);
     }
 
@@ -8214,16 +8490,75 @@ export class GameEngine {
     }
 
     if (this.level.theme === 'underground') {
-      this.renderUndergroundParallax(ctx, camX);
+      const dryScreenX =
+        this.level.dryFinishStartX !== undefined
+          ? Math.round(this.level.dryFinishStartX - camX)
+          : GameEngine.NES_WIDTH;
+      if (dryScreenX > 0) {
+        ctx.save();
+        if (dryScreenX < GameEngine.NES_WIDTH) {
+          ctx.beginPath();
+          ctx.rect(0, 0, dryScreenX, GameEngine.NES_HEIGHT);
+          ctx.clip();
+        }
+        this.renderUndergroundParallax(ctx, camX);
+        ctx.restore();
+      }
+      if (dryScreenX < GameEngine.NES_WIDTH) {
+        this.renderOverworldParallax(ctx, camX, Math.max(0, dryScreenX));
+        this.sceneries.forEach(s => {
+          const sx = Math.round(s.x - camX);
+          if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+          if (s.type === 'cloud_med') this.drawCloud(ctx, Math.round(s.x - camX * 0.65), s.y, 32);
+          else if (s.type === 'bush_small') this.drawBush(ctx, sx, s.y, 32);
+        });
+      }
       return;
     }
 
     if (this.level.theme === 'castle') {
-      this.renderCastleParallax(ctx, camX);
+      const dryScreenX =
+        this.level.dryFinishStartX !== undefined
+          ? Math.round(this.level.dryFinishStartX - camX)
+          : GameEngine.NES_WIDTH;
+      if (dryScreenX > 0) {
+        this.renderCastleParallax(ctx, camX);
+      }
+      if (dryScreenX < GameEngine.NES_WIDTH) {
+        this.renderOverworldParallax(ctx, camX, Math.max(0, dryScreenX));
+        this.sceneries.forEach(s => {
+          const sx = Math.round(s.x - camX);
+          if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+          if (s.type === 'cloud_med') this.drawCloud(ctx, Math.round(s.x - camX * 0.65), s.y, 32);
+          else if (s.type === 'bush_small') this.drawBush(ctx, sx, s.y, 32);
+        });
+      }
       return;
     }
 
     if (this.level.theme === 'ghost_house') {
+      const dryScreenX =
+        this.level.dryFinishStartX !== undefined
+          ? Math.round(this.level.dryFinishStartX - camX)
+          : GameEngine.NES_WIDTH;
+      if (dryScreenX < GameEngine.NES_WIDTH) {
+        this.renderOverworldParallax(ctx, camX, Math.max(0, dryScreenX));
+        this.sceneries.forEach(s => {
+          const sx = Math.round(s.x - camX);
+          if (sx < -80 || sx > GameEngine.NES_WIDTH + 80) return;
+          if (s.type === 'cloud_med') this.drawCloud(ctx, Math.round(s.x - camX * 0.65), s.y, 32);
+          else if (s.type === 'bush_small') this.drawBush(ctx, sx, s.y, 32);
+        });
+      }
+      if (dryScreenX <= 0) {
+        return;
+      }
+      ctx.save();
+      if (dryScreenX < GameEngine.NES_WIDTH) {
+        ctx.beginPath();
+        ctx.rect(0, 0, dryScreenX, GameEngine.NES_HEIGHT);
+        ctx.clip();
+      }
       this.renderGhostHouseParallax(ctx, camX);
       const flicker = Math.floor(Date.now() / 140) % 2;
       const mistShift = Math.sin(Date.now() / 900) * 6;
@@ -8286,6 +8621,7 @@ export class GameEngine {
           ctx.fillRect(Math.round(sx + 10 + mistShift), s.y - 4, 26, 6);
         }
       });
+      ctx.restore();
       return;
     }
 
@@ -8516,15 +8852,30 @@ export class GameEngine {
           case 'pipe_body_right':
             ctx.drawImage(this.atlas.pipeBodyRight, screenX, screenY);
             break;
+          case 'pipe_horiz_top':
+            ctx.drawImage(this.atlas.pipeHorizTop, screenX, screenY);
+            break;
+          case 'pipe_horiz_bottom':
+            ctx.drawImage(this.atlas.pipeHorizBottom, screenX, screenY);
+            break;
           case 'castle_brick':
           case 'castle_stone':
             ctx.drawImage(this.atlas.castleBrick, screenX, screenY);
             break;
+          case 'castle_window':
+            ctx.drawImage(this.atlas.castleWindow, screenX, screenY);
+            break;
           case 'castle_door':
             ctx.drawImage(this.atlas.castleDoor, screenX, screenY);
             break;
+          case 'ghost_door_top':
+            ctx.drawImage(this.atlas.ghostDoorTop, screenX, screenY);
+            break;
+          case 'ghost_door_bottom':
+            ctx.drawImage(this.atlas.ghostDoorBottom, screenX, screenY);
+            break;
           case 'castle_crenel':
-            ctx.drawImage(this.atlas.castleBrick, screenX, screenY);
+            ctx.drawImage(this.atlas.castleCrenel, screenX, screenY);
             break;
           case 'pole':
             ctx.drawImage(this.atlas.flagPoleBody, screenX, screenY);
@@ -8596,6 +8947,37 @@ export class GameEngine {
       }
     }
     return 13 * T;
+  }
+
+  private renderMidwayCheckpoints(ctx: CanvasRenderingContext2D) {
+    if (!this.level.checkpoints || this.level.checkpoints.length === 0) return;
+    const camX = this.camera.renderX;
+    this.level.checkpoints.forEach((cp, idx) => {
+      if (!cp.visible) return;
+      const sx = Math.round(cp.x - camX);
+      if (sx < -24 || sx > GameEngine.NES_WIDTH + 24) return;
+      const sy = Math.round(cp.respawnPos.y + 16);
+      const topY = sy - 34;
+      const activated = this.activatedCheckpointIndices.has(idx);
+
+      // Left & right SMW Midway Gate posts
+      ctx.fillStyle = '#181828';
+      ctx.fillRect(sx, topY, 4, 34);
+      ctx.fillRect(sx + 14, topY, 4, 34);
+      ctx.fillStyle = '#dce4f2';
+      ctx.fillRect(sx + 1, topY + 2, 2, 31);
+      ctx.fillRect(sx + 15, topY + 2, 2, 31);
+      ctx.fillStyle = '#f8d838';
+      ctx.fillRect(sx, topY - 2, 4, 3);
+      ctx.fillRect(sx + 14, topY - 2, 4, 3);
+
+      // Midway crossbar ribbon (rises to top when activated)
+      const tapeY = activated ? topY + 5 : sy - 14;
+      ctx.fillStyle = activated ? '#58f898' : '#ffffff';
+      ctx.fillRect(sx + 3, tapeY, 12, 3);
+      ctx.fillStyle = activated ? '#10b981' : '#e02820';
+      ctx.fillRect(sx + 5, tapeY + 1, 8, 1);
+    });
   }
 
   private renderFlagpole(ctx: CanvasRenderingContext2D) {
@@ -9810,6 +10192,18 @@ export class GameEngine {
       const footY = my + this.getMarioHeight();
       const centerX = mx + 8;
       ctx.globalAlpha = Math.max(0.15, 1 - progress * 0.8);
+      ctx.translate(centerX, footY);
+      ctx.scale(scale, scale);
+      ctx.translate(-centerX, -footY);
+    }
+
+    // Ghost House door entry shrink & fade into doorway
+    if (this.marioState === 'pipe_entering' && this.warpDir === 'door') {
+      const progress = Math.min(1, this.warpTimer / 22);
+      const scale = 1 - progress * 0.35;
+      const footY = my + this.getMarioHeight();
+      const centerX = mx + 8;
+      ctx.globalAlpha = Math.max(0.08, 1 - progress * 0.9);
       ctx.translate(centerX, footY);
       ctx.scale(scale, scale);
       ctx.translate(-centerX, -footY);

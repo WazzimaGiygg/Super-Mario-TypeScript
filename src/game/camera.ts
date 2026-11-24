@@ -43,27 +43,46 @@ export class CameraSystem {
     };
   }
 
-  /** Instantly jumps the camera to a specific world X within level bounds */
-  public snapTo(desiredX: number, levelWidthPx: number) {
-    const maxCamX = Math.max(0, levelWidthPx - this.config.viewportWidth);
-    const clamped = Math.max(0, Math.min(maxCamX, desiredX));
+  /** Instantly jumps the camera to a specific world X within level/zone bounds */
+  public snapTo(
+    desiredX: number,
+    levelWidthPx: number,
+    bounds?: { minX?: number; maxX?: number }
+  ) {
+    const boundMin = Math.max(0, bounds?.minX ?? 0);
+    const boundMax = Math.min(levelWidthPx, bounds?.maxX ?? levelWidthPx);
+    const minCamX = Math.min(boundMin, Math.max(0, boundMax - this.config.viewportWidth));
+    const maxCamX = Math.max(minCamX, boundMax - this.config.viewportWidth);
+    const clamped = Math.max(minCamX, Math.min(maxCamX, desiredX));
     this.x = clamped;
     this.targetX = clamped;
     this.renderX = Math.round(clamped);
   }
 
-  /** Instantly centers the camera on the character within level bounds */
-  public centerOn(characterX: number, levelWidthPx: number) {
+  /** Instantly centers the camera on the character within level/zone bounds */
+  public centerOn(
+    characterX: number,
+    levelWidthPx: number,
+    bounds?: { minX?: number; maxX?: number }
+  ) {
     const centerOffset = (this.config.viewportWidth - this.config.characterWidth) / 2;
-    this.snapTo(characterX - centerOffset, levelWidthPx);
+    this.snapTo(characterX - centerOffset, levelWidthPx, bounds);
   }
 
   /**
    * Smoothly follows Mario using velocity-adaptive lerping, a centered deadzone window,
    * and outer viewport boundary clamping to prevent jittering at high speeds.
    */
-  public follow(marioX: number, marioVx: number, levelWidthPx: number) {
-    const maxCamX = Math.max(0, levelWidthPx - this.config.viewportWidth);
+  public follow(
+    marioX: number,
+    marioVx: number,
+    levelWidthPx: number,
+    bounds?: { minX?: number; maxX?: number }
+  ) {
+    const boundMin = Math.max(0, bounds?.minX ?? 0);
+    const boundMax = Math.min(levelWidthPx, bounds?.maxX ?? levelWidthPx);
+    const minCamX = Math.min(boundMin, Math.max(0, boundMax - this.config.viewportWidth));
+    const maxCamX = Math.max(minCamX, boundMax - this.config.viewportWidth);
     const {
       deadzoneLeft,
       deadzoneRight,
@@ -81,7 +100,7 @@ export class CameraSystem {
       this.targetX = marioX - deadzoneLeft;
     }
 
-    this.targetX = Math.max(0, Math.min(maxCamX, this.targetX));
+    this.targetX = Math.max(minCamX, Math.min(maxCamX, this.targetX));
 
     // 2. Scale lerp stiffness smoothly with speed and proximity to outer viewport bounds
     const speedFactor = Math.min(1, Math.abs(marioVx) / 3.8);
@@ -120,8 +139,8 @@ export class CameraSystem {
       this.x = maxCamForBounds;
     }
 
-    // 5. Final level bounds clamp + integer pixel alignment for shimmer-free rendering
-    this.x = Math.max(0, Math.min(maxCamX, this.x));
+    // 5. Final zone bounds clamp + integer pixel alignment for shimmer-free rendering
+    this.x = Math.max(minCamX, Math.min(maxCamX, this.x));
     this.renderX = Math.round(this.x);
   }
 }

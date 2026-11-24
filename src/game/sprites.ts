@@ -478,6 +478,8 @@ export class SpriteAtlas {
   public pipeTopRight!: HTMLCanvasElement;
   public pipeBodyLeft!: HTMLCanvasElement;
   public pipeBodyRight!: HTMLCanvasElement;
+  public pipeHorizTop!: HTMLCanvasElement;
+  public pipeHorizBottom!: HTMLCanvasElement;
 
   // Items
   public itemMushroomSuper!: HTMLCanvasElement;
@@ -499,6 +501,8 @@ export class SpriteAtlas {
   public castleBrick!: HTMLCanvasElement;
   public castleCrenel!: HTMLCanvasElement;
   public castleDoor!: HTMLCanvasElement;
+  public ghostDoorTop!: HTMLCanvasElement;
+  public ghostDoorBottom!: HTMLCanvasElement;
   public castleWindow!: HTMLCanvasElement;
   public flagPoleTop!: HTMLCanvasElement;
   public flagPoleBody!: HTMLCanvasElement;
@@ -3298,6 +3302,33 @@ export class SpriteAtlas {
     ctxPBR.fillRect(0, 0, 3, 16);
     ctxPBR.fillRect(9, 0, 3, 16);
     this.pipeBodyRight = cPBR;
+
+    // Horizontal Pipe Top (16x16, opening faces left)
+    const [cPHT, ctxPHT] = createOffscreen(16, 16);
+    ctxPHT.fillStyle = NES_COLORS.PIPE_GREEN;
+    ctxPHT.fillRect(0, 0, 16, 16);
+    ctxPHT.fillStyle = NES_COLORS.BLACK;
+    ctxPHT.fillRect(0, 0, 16, 2); // top rim
+    ctxPHT.fillRect(0, 0, 2, 16); // left mouth
+    ctxPHT.fillRect(14, 0, 2, 16); // lip divider
+    ctxPHT.fillStyle = NES_COLORS.PIPE_LIGHT;
+    ctxPHT.fillRect(2, 4, 12, 4); // horizontal highlight
+    ctxPHT.fillStyle = NES_COLORS.PIPE_DARK;
+    ctxPHT.fillRect(2, 13, 12, 3);
+    this.pipeHorizTop = cPHT;
+
+    // Horizontal Pipe Bottom (16x16, opening faces left)
+    const [cPHB, ctxPHB] = createOffscreen(16, 16);
+    ctxPHB.fillStyle = NES_COLORS.PIPE_GREEN;
+    ctxPHB.fillRect(0, 0, 16, 16);
+    ctxPHB.fillStyle = NES_COLORS.BLACK;
+    ctxPHB.fillRect(0, 14, 16, 2); // bottom rim
+    ctxPHB.fillRect(0, 0, 2, 16); // left mouth
+    ctxPHB.fillRect(14, 0, 2, 16); // lip divider
+    ctxPHB.fillStyle = NES_COLORS.PIPE_DARK;
+    ctxPHB.fillRect(2, 0, 12, 4);
+    ctxPHB.fillRect(2, 10, 12, 4);
+    this.pipeHorizBottom = cPHB;
   }
 
   private generateItems() {
@@ -3753,6 +3784,30 @@ export class SpriteAtlas {
     ctxBrick.fillRect(11, 8, 1, 8);
     this.castleBrick = cBrick;
 
+    // Castle battlement crenel
+    const [cCrenel, ctxCrenel] = createOffscreen(16, 16);
+    ctxCrenel.fillStyle = NES_COLORS.CASTLE_BRICK;
+    ctxCrenel.fillRect(0, 8, 16, 8);
+    ctxCrenel.fillRect(1, 0, 5, 8);
+    ctxCrenel.fillRect(10, 0, 5, 8);
+    ctxCrenel.fillStyle = NES_COLORS.CASTLE_SHADOW;
+    ctxCrenel.fillRect(0, 7, 16, 1);
+    ctxCrenel.fillRect(7, 8, 1, 8);
+    this.castleCrenel = cCrenel;
+
+    // Castle arched window
+    const [cWin, ctxWin] = createOffscreen(16, 16);
+    ctxWin.fillStyle = NES_COLORS.CASTLE_BRICK;
+    ctxWin.fillRect(0, 0, 16, 16);
+    ctxWin.fillStyle = NES_COLORS.CASTLE_SHADOW;
+    ctxWin.fillRect(3, 2, 10, 12);
+    ctxWin.fillStyle = NES_COLORS.BLACK;
+    ctxWin.beginPath();
+    ctxWin.arc(8, 7, 4, Math.PI, 0);
+    ctxWin.fillRect(4, 7, 8, 6);
+    ctxWin.fill();
+    this.castleWindow = cWin;
+
     // Castle door
     const [cDoor, ctxDoor] = createOffscreen(16, 16);
     ctxDoor.fillStyle = NES_COLORS.CASTLE_BRICK;
@@ -3762,6 +3817,62 @@ export class SpriteAtlas {
     ctxDoor.arc(8, 6, 6, Math.PI, 0);
     ctxDoor.fillRect(2, 6, 12, 10);
     this.castleDoor = cDoor;
+
+    // Ghost House Haunted Door (top 16x16 + bottom 16x16)
+    const [gDoorTop, ctxGDTop] = createOffscreen(16, 16);
+    // Gothic stone/obsidian arch frame
+    ctxGDTop.fillStyle = '#1b102c';
+    ctxGDTop.fillRect(1, 0, 14, 16);
+    ctxGDTop.fillStyle = '#3c255e';
+    ctxGDTop.fillRect(2, 1, 12, 15);
+    ctxGDTop.fillStyle = '#140a1f';
+    ctxGDTop.fillRect(3, 3, 10, 13);
+    // Haunted wooden door panel
+    ctxGDTop.fillStyle = '#5c3118';
+    ctxGDTop.fillRect(4, 4, 8, 12);
+    ctxGDTop.fillStyle = '#804824';
+    ctxGDTop.fillRect(5, 5, 6, 11);
+    // Plank seams & upper glowing transom slit
+    ctxGDTop.fillStyle = '#3a1d0c';
+    ctxGDTop.fillRect(7, 5, 1, 11);
+    ctxGDTop.fillRect(10, 5, 1, 11);
+    ctxGDTop.fillStyle = '#1c0e06';
+    ctxGDTop.fillRect(5, 6, 6, 3);
+    ctxGDTop.fillStyle = '#c898ff';
+    ctxGDTop.fillRect(6, 7, 1, 1);
+    ctxGDTop.fillRect(9, 7, 1, 1);
+    // Brass arch studs
+    ctxGDTop.fillStyle = '#f8d058';
+    ctxGDTop.fillRect(2, 1, 1, 1);
+    ctxGDTop.fillRect(13, 1, 1, 1);
+    this.ghostDoorTop = gDoorTop;
+
+    const [gDoorBot, ctxGDBot] = createOffscreen(16, 16);
+    // Outer stone jamb & threshold
+    ctxGDBot.fillStyle = '#1b102c';
+    ctxGDBot.fillRect(1, 0, 14, 16);
+    ctxGDBot.fillStyle = '#3c255e';
+    ctxGDBot.fillRect(2, 0, 12, 15);
+    ctxGDBot.fillStyle = '#140a1f';
+    ctxGDBot.fillRect(3, 0, 10, 15);
+    // Wooden door lower planks
+    ctxGDBot.fillStyle = '#5c3118';
+    ctxGDBot.fillRect(4, 0, 8, 15);
+    ctxGDBot.fillStyle = '#804824';
+    ctxGDBot.fillRect(5, 0, 6, 14);
+    ctxGDBot.fillStyle = '#3a1d0c';
+    ctxGDBot.fillRect(7, 0, 1, 14);
+    ctxGDBot.fillRect(10, 0, 1, 14);
+    // Iron hinges & golden doorknob
+    ctxGDBot.fillStyle = '#261830';
+    ctxGDBot.fillRect(4, 2, 3, 2);
+    ctxGDBot.fillRect(4, 10, 3, 2);
+    ctxGDBot.fillStyle = '#fce078';
+    ctxGDBot.fillRect(10, 5, 2, 2);
+    // Stone doorstep
+    ctxGDBot.fillStyle = '#52406e';
+    ctxGDBot.fillRect(1, 14, 14, 2);
+    this.ghostDoorBottom = gDoorBot;
 
     // SMW Goal Gate Cap Top (16x16 sleek metallic dome finial with golden collar)
     const [cBall, ctxBall] = createOffscreen(16, 16);

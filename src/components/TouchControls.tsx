@@ -102,9 +102,15 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     return window.innerWidth > window.innerHeight && window.innerHeight <= 540;
   });
 
+  const [isCompactPortrait, setIsCompactPortrait] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 520 && window.innerHeight >= window.innerWidth;
+  });
+
   useEffect(() => {
     const updateOrientationLayout = () => {
       setIsCompactLandscape(window.innerWidth > window.innerHeight && window.innerHeight <= 540);
+      setIsCompactPortrait(window.innerWidth < 520 && window.innerHeight >= window.innerWidth);
     };
     window.addEventListener('resize', updateOrientationLayout);
     window.addEventListener('orientationchange', updateOrientationLayout);
@@ -585,7 +591,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const isTranslucentOverlay = isCanvasOverlay || isOverlayLandscape;
 
   const dpadSizeClass = isCanvasOverlay
-    ? isLarge
+    ? isCompactPortrait
+      ? isLarge
+        ? 'w-28 h-28'
+        : 'w-24 h-24'
+      : isLarge
       ? 'w-32 h-32 sm:w-36 sm:h-36'
       : 'w-28 h-28 sm:w-32 sm:h-32'
     : isOverlayLandscape
@@ -597,7 +607,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     : 'w-36 h-36 sm:w-40 sm:h-40';
 
   const btnSizeClass = isCanvasOverlay
-    ? isLarge
+    ? isCompactPortrait
+      ? isLarge
+        ? 'w-12 h-12 text-sm'
+        : 'w-11 h-11 text-xs'
+      : isLarge
       ? 'w-14 h-14 sm:w-16 sm:h-16 text-base'
       : 'w-12 h-12 sm:w-14 sm:h-14 text-sm'
     : isOverlayLandscape
@@ -609,7 +623,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     : 'w-15 h-15 sm:w-16 sm:h-16 text-lg';
 
   const comboBtnSizeClass = isCanvasOverlay
-    ? 'w-9 h-9 sm:w-11 sm:h-11 text-[8px]'
+    ? isCompactPortrait
+      ? 'w-8 h-8 text-[7px]'
+      : 'w-9 h-9 sm:w-11 sm:h-11 text-[8px]'
     : 'w-12 h-12 sm:w-14 sm:h-14 text-[9px]';
 
   const isJumpActive = controls.jump || pressedButtons.a || pressedButtons.combo;
@@ -621,7 +637,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     return (
       <div
         aria-label="Controles táteis transparentes na tela"
-        className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-between p-1.5 sm:p-2.5 select-none touch-none"
+        style={{
+          paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))',
+          paddingLeft: 'max(0.375rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.375rem, env(safe-area-inset-right))',
+        }}
+        className="pointer-events-none absolute inset-0 z-[15] flex flex-col justify-between sm:p-2.5 select-none touch-none"
       >
         {/* Top Ultra-Compact Transparent Quick-Actions Strip (split into corner pills so center canvas HUD stays clear) */}
         <div className="w-full flex items-center justify-between gap-1.5 opacity-80 hover:opacity-100 transition-opacity">
@@ -797,20 +819,24 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* UP */}
               <div
-                className={`pointer-events-none absolute top-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                aria-label="Direcional Cima"
+                data-direction="up"
+                className={`pointer-events-none absolute top-1 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   controls.up
-                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    ? 'bg-amber-300/80 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
                     : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
                 <ArrowUp className="w-4 h-4" />
               </div>
 
-              {/* DOWN */}
+              {/* DOWN / DUCK */}
               <div
-                className={`pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                aria-label="Direcional Agachar"
+                data-direction="down"
+                className={`pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   controls.down
-                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    ? 'bg-amber-300/80 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
                     : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
@@ -819,9 +845,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* LEFT */}
               <div
-                className={`pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                aria-label="Direcional Esquerda"
+                data-direction="left"
+                className={`pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   controls.left
-                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    ? 'bg-amber-300/80 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
                     : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
@@ -830,9 +858,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
               {/* RIGHT */}
               <div
-                className={`pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                aria-label="Direcional Direita"
+                data-direction="right"
+                className={`pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   controls.right
-                    ? 'bg-amber-300/75 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
+                    ? 'bg-amber-300/80 text-black scale-110 shadow-[0_0_10px_rgba(252,211,77,0.75)]'
                     : 'text-white/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
                 }`}
               >
@@ -947,10 +977,15 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   // --- DOCKED / LANDSCAPE GAMEPAD BAR LAYOUT ---
   return (
     <div
+      style={{
+        paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+      }}
       className={
         isOverlayLandscape
           ? 'pointer-events-none absolute inset-x-0 bottom-0 z-30 w-full select-none touch-none px-3 pb-2 pt-1 transition-all'
-          : 'w-full bg-stone-950/95 backdrop-blur-md select-none touch-none border-t border-stone-800/80 px-3 sm:px-6 py-2.5 sm:py-4 transition-all'
+          : 'w-full bg-stone-950/95 backdrop-blur-md select-none touch-none border-t border-stone-800/80 sm:px-6 py-2.5 sm:py-4 transition-all'
       }
     >
       {/* Top Mobile Quick-Actions Bar */}

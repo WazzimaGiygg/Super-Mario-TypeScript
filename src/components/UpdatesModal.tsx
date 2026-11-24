@@ -25,6 +25,41 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.19.1BM.7-lunar-magic',
+    version: 'R1.19.1BM.7',
+    label: 'Recurso · Editor Lunar Magic',
+    title: 'Editor de Fases Enriquecido com Ferramentas Estilo Lunar Magic (SMW ROM Hack)',
+    isFix: true,
+    items: [
+      'Novas ferramentas de edição em lote no Editor de Fases: Pincel, Retângulo (preenchimento/apagamento por arraste), Balde de Tinta (Flood Fill), Conta-gotas (e Alt+Clique) e Copiar/Colar Região (carimbo com blocos, moedas e inimigos).',
+      'Guias de Tela estilo Lunar Magic (divisões azuis T00, T01... a cada 16 colunas), controle de camadas (Telas, Sprites e marcadores de Saídas/Warps) e Minimapa interativo clicável/arrastável para navegar pela fase inteira.',
+      'Painel Header & Paleta: escolha livre de música da fase, fundo Layer 2 Bônus, cor de céu com paleta SMW, limite de tempo, multiplicador de velocidade dos inimigos, presets de terreno e inserção/remoção de colunas (+Col / -Col) deslocando todo o mapa.',
+      'Novos objetos SMW e Inspetor de Saídas: Canos Warp ↓/→ conectando a qualquer mapa ou tela com edição de coordenadas (X, Y), Moedas W (até 4 por fase), Checkpoint Midway Gate com fita, Bloco Bônus SMW, decorações de castelo, plataforma oscilante e os 5 Switch Palaces.',
+    ],
+  },
+  {
+    uid: 'R1.19.1BM.7',
+    version: 'R1.19.1BM.7',
+    label: 'Correção · Portas de Mansão',
+    title: 'Portas Exclusivas de Mansões Fantasmas Para Outros Mapas e Saída Para Fora da Mansão',
+    isFix: true,
+    items: [
+      'Adicionadas portas interativas (pressionar Cima) exclusivas para fases com tema Mansão Fantasma — tanto na jogabilidade quanto no Editor de Fases (aba Itens & Canos, com bloqueio nos demais temas).',
+      'As portas podem levar a outro mapa/subárea ou levar o personagem "fora da mansão" (área externa isolada com céu aberto, música de superfície e o ponto final com bandeira e castelo), incluindo as Mansões Fantasmas oficiais (World 1-3 e W-4).',
+    ],
+  },
+  {
+    uid: 'R1.19.1KI.7',
+    version: 'R1.19.1KI.7',
+    label: 'Correção · Cano Superfície & Editor',
+    title: 'Transição de Cano da Água Para Outra Tela na Superfície e Cano de Retorno à Superfície no Editor',
+    isFix: true,
+    items: [
+      'Nas fases da água (World 2-2, W-3 do Modo World, Modo Sem Fim e 7 Mundos), o cano final agora isola a tela subaquática da área seca final, realizando a transição suave "em outra tela" da superfície com céu aberto e música da superfície.',
+      'Adicionado o pincel "Cano Superfície (Fim)" na aba Itens do Editor de Fases, permitindo inserir um cano que leva o jogador de volta à superfície já próximo ao poste final da fase.',
+    ],
+  },
+  {
     uid: 'R1.19.SB.6',
     version: 'R1.19.SB.6',
     label: 'Recurso · Botão Select SMW',

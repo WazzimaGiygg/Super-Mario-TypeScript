@@ -527,6 +527,38 @@ export class SoundEngine {
     osc.stop(now + 0.35);
   }
 
+  public playDoor() {
+    this.resume();
+    if (!this.ctx || !this.sfxGain) return;
+    const now = this.ctx.currentTime;
+
+    // Creak + ethereal chime
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(140, now);
+    osc1.frequency.exponentialRampToValueAtTime(92, now + 0.14);
+    gain1.gain.setValueAtTime(0.16, now);
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(this.sfxGain);
+    osc1.start(now);
+    osc1.stop(now + 0.16);
+
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(440, now + 0.06);
+    osc2.frequency.exponentialRampToValueAtTime(660, now + 0.28);
+    gain2.gain.setValueAtTime(0.001, now);
+    gain2.gain.linearRampToValueAtTime(0.26, now + 0.07);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc2.connect(gain2);
+    gain2.connect(this.sfxGain);
+    osc2.start(now + 0.05);
+    osc2.stop(now + 0.31);
+  }
+
   public playFireball() {
     this.resume();
     if (!this.ctx || !this.sfxGain) return;
