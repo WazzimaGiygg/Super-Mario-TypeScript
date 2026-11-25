@@ -1,0 +1,97 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-02A1",
+    "hexId": "02A1",
+    "name": "EX 02A1 MINA",
+    "theme": "underground",
+    "biomeLabel": "EXEMPLO HEX 02A1 · MINA",
+    "width": 48,
+    "height": 15,
+    "entryType": "normal",
+    "marioStart": {
+      "x": 48,
+      "y": 192
+    },
+    "flagX": 608,
+    "castleX": 688,
+    "bgColor": "#000000",
+    "musicTrack": "underground",
+    "timeLimit": 310,
+    "enemies": [
+      {
+        "type": "buzzy_beetle",
+        "x": 192,
+        "y": 192
+      },
+      {
+        "type": "koopa",
+        "x": 304,
+        "y": 192
+      },
+      {
+        "type": "spiny",
+        "x": 416,
+        "y": 192
+      }
+    ],
+    "coins": [
+      {
+        "x": 184,
+        "y": 112
+      },
+      {
+        "x": 216,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 328,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 264,
+        "y": 112
+      },
+      {
+        "x": 360,
+        "y": 128
+      },
+      {
+        "x": 456,
+        "y": 96
+      }
+    ],
+    "tiles": [
+      [{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"}],
+      [{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"},{"type":"underground_brick"}],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"underground_brick"},{"type":"question","content":"coin"},{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"underground_brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"underground_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},null,null,null,{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"}],
+      [{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},null,null,null,{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"},{"type":"underground_ground"}]
+    ]
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-02B4",
+    "hexId": "02B4",
+    "name": "EX 02B4 PONTE",
+    "theme": "overworld",
+    "biomeLabel": "EXEMPLO HEX 02B4 · PONTE",
+    "width": 40,
+    "height": 15,
+    "entryType": "normal",
+    "marioStart": {
+      "x": 48,
+      "y": 192
+    },
+    "flagX": 480,
+    "castleX": 560,
+    "bgColor": "#5c94fc",
+    "musicTrack": "overworld",
+    "timeLimit": 280,
+    "enemies": [
+      {
+        "type": "goomba",
+        "x": 160,
+        "y": 192
+      },
+      {
+        "type": "koopa",
+        "x": 272,
+        "y": 192
+      }
+    ],
+    "coins": [
+      {
+        "x": 168,
+        "y": 112
+      },
+      {
+        "x": 200,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 328,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 232,
+        "y": 112
+      },
+      {
+        "x": 296,
+        "y": 128
+      },
+      {
+        "x": 360,
+        "y": 96
+      }
+    ],
+    "pipeWarps": [
+      {
+        "from": {
+          "x": 336,
+          "y": 176,
+          "width": 32,
+          "height": 16
+        },
+        "toLevel": "hex:02B5",
+        "targetHex": "02B5",
+        "toPos": {
+          "x": 48,
+          "y": 176
+        },
+        "type": "down",
+        "entryMode": "pipe",
+        "destPipeDir": "up"
+      }
+    ],
+    "tiles": [
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,null,null,null,null,null,{"type":"pipe_top_left"},{"type":"pipe_top_right"},null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},{"type":"hard_block"},null,null,null,null,null,null,null,{"type":"pipe_body_left"},{"type":"pipe_body_right"},null,null,null,null,null,null,null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}]
+    ]
+  }
+}
