@@ -842,6 +842,12 @@ export class TileMap {
           case 'pipe_horiz_bottom':
             ctx.drawImage(atlas.pipeHorizBottom, screenX, screenY);
             break;
+          case 'pipe_horiz_right_top':
+            ctx.drawImage(atlas.pipeHorizRightTop, screenX, screenY);
+            break;
+          case 'pipe_horiz_right_bottom':
+            ctx.drawImage(atlas.pipeHorizRightBottom, screenX, screenY);
+            break;
           case 'castle_brick':
           case 'castle_stone':
             ctx.drawImage(atlas.castleBrick, screenX, screenY);

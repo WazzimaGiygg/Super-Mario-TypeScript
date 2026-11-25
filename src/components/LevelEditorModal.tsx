@@ -84,17 +84,25 @@ import {
   pruneKeyCavePipeWarps,
   sanitizeCustomLevelEntities,
   serializeLevelToFileJson,
+  normalizeHexLevelCode,
+  formatHexCoord,
+  parseHexCoord,
 } from '../game/levels.ts';
 import {
   WORLD_STAGE_JSON_REGISTRY,
+  HEX_LEVEL_LIST,
   createSmwWiki1SecretRoom,
   createSmwWikiWorldStage,
   getWorldStageFilename,
+  inspectHexLevelTarget,
+  resolveHexLevelTarget,
 } from '../game/smwWorldMap.ts';
 import { SpriteAtlas } from '../game/sprites.ts';
 
 export const EDITOR_MAX_HISTORY = 35;
 const EDITOR_MAX_CANVAS_BACKING_WIDTH = 2048;
+const CORE_HEX_LEVELS = HEX_LEVEL_LIST.filter(item => !item.isExampleMap);
+const EXAMPLE_HEX_LEVELS = HEX_LEVEL_LIST.filter(item => Boolean(item.isExampleMap));
 
 interface LevelEditorModalProps {
   isOpen: boolean;
@@ -124,7 +132,7 @@ type EditorBrushKind =
   | { kind: 'pipe'; height: 2 | 3 | 4; withPiranha?: boolean }
   | { kind: 'pipe_key_cave'; height: 2 | 3 | 4 }
   | { kind: 'pipe_surface_exit'; height: 2 | 3 | 4 }
-  | { kind: 'pipe_warp_map'; dir: 'down' | 'right'; height: 2 | 3 | 4 }
+  | { kind: 'pipe_warp_map'; dir: 'down' | 'right' | 'left'; height: 2 | 3 | 4 }
   | { kind: 'ghost_door'; mode: 'outside_exit' | 'map' }
   | { kind: 'flagpole_goal' }
   | { kind: 'floating_platform'; axis: 'horizontal' | 'vertical' | 'bob' }
@@ -347,6 +355,22 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     cctx.fillRect(17, 10, 4, 2);
     return c;
   }, [atlas]);
+  const warpPipeHorizLeftPreview = useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = 24;
+    c.height = 24;
+    const cctx = c.getContext('2d');
+    if (!cctx) return null;
+    cctx.imageSmoothingEnabled = false;
+    cctx.drawImage(atlas.pipeHorizRightTop, 8, 2, 16, 12);
+    cctx.drawImage(atlas.pipeHorizRightBottom, 8, 12, 16, 12);
+    cctx.fillStyle = '#a855f7';
+    cctx.fillRect(1, 7, 8, 8);
+    cctx.fillStyle = '#fde047';
+    cctx.fillRect(3, 10, 4, 2);
+    return c;
+  }, [atlas]);
   const wCoinPreview = useMemo(() => {
     if (typeof document === 'undefined') return null;
     const c = document.createElement('canvas');
@@ -422,8 +446,15 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   const [selectedBrushId, setSelectedBrushId] = useState<string>('tile_brick');
   const [questionContent, setQuestionContent] = useState<ItemContent>('coin');
   const [invisibleBlock, setInvisibleBlock] = useState(false);
-  const [doorTargetMapId, setDoorTargetMapId] = useState<string>('secret-vault');
-  const [warpPipeTargetMapId, setWarpPipeTargetMapId] = useState<string>('secret-vault');
+  const [doorTargetMapId, setDoorTargetMapId] = useState<string>('hex:00D2');
+  const [doorTargetHex, setDoorTargetHex] = useState<string>('00D2');
+  const [warpPipeTargetMapId, setWarpPipeTargetMapId] = useState<string>('hex:00D0');
+  const [warpPipeTargetHex, setWarpPipeTargetHex] = useState<string>('00D0');
+  const [warpPipeEntryMode, setWarpPipeEntryMode] = useState<'normal' | 'pipe'>('pipe');
+  const [warpPipeDestDir, setWarpPipeDestDir] = useState<'up' | 'down' | 'left' | 'right'>('up');
+  const [warpPipeDestX, setWarpPipeDestX] = useState<number>(3);
+  const [warpPipeDestY, setWarpPipeDestY] = useState<number>(12);
+  const [hexStageLoaderInput, setHexStageLoaderInput] = useState<string>('0105');
   const [activeTab, setActiveTab] = useState<PaletteTab>('blocks');
   const [cellSize, setCellSize] = useState<16 | 24 | 32>(24);
   const [showGrid, setShowGrid] = useState(true);
@@ -709,17 +740,31 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       },
       {
         id: 'tile_pipe_horiz_top',
-        label: 'Cano Horiz. Cima',
+        label: 'Cano Horiz. Esq. Cima',
         tab: 'blocks',
         brush: { kind: 'tile', tileType: 'pipe_horiz_top' },
         preview: () => atlas.pipeHorizTop,
       },
       {
         id: 'tile_pipe_horiz_bottom',
-        label: 'Cano Horiz. Baixo',
+        label: 'Cano Horiz. Esq. Baixo',
         tab: 'blocks',
         brush: { kind: 'tile', tileType: 'pipe_horiz_bottom' },
         preview: () => atlas.pipeHorizBottom,
+      },
+      {
+        id: 'tile_pipe_horiz_right_top',
+        label: 'Cano Horiz. Dir. Cima',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'pipe_horiz_right_top' },
+        preview: () => atlas.pipeHorizRightTop,
+      },
+      {
+        id: 'tile_pipe_horiz_right_bottom',
+        label: 'Cano Horiz. Dir. Baixo',
+        tab: 'blocks',
+        brush: { kind: 'tile', tileType: 'pipe_horiz_right_bottom' },
+        preview: () => atlas.pipeHorizRightBottom,
       },
       {
         id: 'plat_horiz',
@@ -862,17 +907,24 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
       },
       {
         id: 'pipe_warp_map',
-        label: 'Cano Warp ↓ (Mapa)',
+        label: 'Cano Warp ↓ (Vertical)',
         tab: 'items',
         brush: { kind: 'pipe_warp_map', dir: 'down', height: 2 },
         preview: () => warpPipeMapPreview || atlas.pipeTopLeft,
       },
       {
         id: 'pipe_warp_horiz',
-        label: 'Cano Warp → (Lateral)',
+        label: 'Cano Warp → (Lateral Dir.)',
         tab: 'items',
         brush: { kind: 'pipe_warp_map', dir: 'right', height: 2 },
         preview: () => warpPipeHorizPreview || atlas.pipeHorizTop,
+      },
+      {
+        id: 'pipe_warp_horiz_left',
+        label: 'Cano Warp ← (Lateral Esq.)',
+        tab: 'items',
+        brush: { kind: 'pipe_warp_map', dir: 'left', height: 2 },
+        preview: () => warpPipeHorizLeftPreview || atlas.pipeHorizRightTop,
       },
       {
         id: 'pipe_key_cave',
@@ -1556,20 +1608,35 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         }
 
         if (brush.kind === 'pipe_warp_map') {
+          const isHexMode =
+            warpPipeTargetMapId === '__HEX__' || warpPipeTargetMapId.startsWith('hex:');
+          const rawHexInput = (
+            warpPipeTargetMapId.startsWith('hex:')
+              ? warpPipeTargetMapId.slice(4)
+              : warpPipeTargetHex
+          )
+            .trim()
+            .toUpperCase();
           const targetCustom = customLevels.find(
             l => l.id === warpPipeTargetMapId && l.id !== draft.id
           );
-          const fallbackId = targetCustom ? targetCustom.id : warpPipeTargetMapId || 'secret-vault';
-          const targetPos = targetCustom
-            ? { ...targetCustom.marioStart }
-            : fallbackId === 'smw-wiki-1-secret'
-            ? { x: 2 * 16 + 8, y: 4 * 16 }
-            : { x: 48, y: 192 };
+          const resolvedToLevel = isHexMode
+            ? `hex:${rawHexInput || '0105'}`
+            : targetCustom
+            ? targetCustom.id
+            : warpPipeTargetMapId || 'secret-vault';
+          const targetPos = {
+            x: Math.max(0, Math.min(240, warpPipeDestX)) * 16,
+            y: Math.max(0, Math.min(14, warpPipeDestY)) * 16,
+          };
           placeWarpPipeInLevel(draft, tx, ty, {
             dir: brush.dir,
             height: brush.height,
-            toLevel: fallbackId,
+            toLevel: resolvedToLevel,
+            ...(isHexMode ? { targetHex: rawHexInput || '0105' } : {}),
             toPos: targetPos,
+            entryMode: warpPipeEntryMode,
+            ...(warpPipeEntryMode === 'pipe' ? { destPipeDir: warpPipeDestDir } : {}),
           });
           return draft;
         }
@@ -1581,11 +1648,29 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           if (brush.mode === 'outside_exit') {
             placeGhostDoorInLevel(draft, tx, ty, { mode: 'outside_exit' });
           } else {
+            const isHexDoor =
+              doorTargetMapId === '__HEX__' || doorTargetMapId.startsWith('hex:');
+            const rawDoorHex = (
+              doorTargetMapId.startsWith('hex:')
+                ? doorTargetMapId.slice(4)
+                : doorTargetHex
+            )
+              .trim()
+              .toUpperCase();
             const targetCustom = customLevels.find(
               l => l.id === doorTargetMapId && l.id !== draft.id
             );
-            const fallbackId = targetCustom ? targetCustom.id : doorTargetMapId || 'secret-vault';
-            const targetPos = targetCustom
+            const fallbackId = isHexDoor
+              ? `hex:${rawDoorHex || '0105'}`
+              : targetCustom
+              ? targetCustom.id
+              : doorTargetMapId || 'secret-vault';
+            const targetPos = isHexDoor
+              ? {
+                  x: Math.max(0, Math.min(240, warpPipeDestX)) * 16,
+                  y: Math.max(0, Math.min(14, warpPipeDestY)) * 16,
+                }
+              : targetCustom
               ? { ...targetCustom.marioStart }
               : fallbackId === 'smw-wiki-1-secret'
               ? { x: 2 * 16 + 8, y: 4 * 16 }
@@ -1593,6 +1678,7 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             placeGhostDoorInLevel(draft, tx, ty, {
               mode: 'map',
               toLevel: fallbackId,
+              ...(isHexDoor ? { targetHex: rawDoorHex || '0105' } : {}),
               toPos: targetPos,
             });
           }
@@ -1699,7 +1785,21 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
         return draft;
       }, { recordUndo: true });
     },
-    [currentLevel, activeOption, updateCurrentLevel, notifyError, customLevels, doorTargetMapId, warpPipeTargetMapId]
+    [
+      currentLevel,
+      activeOption,
+      updateCurrentLevel,
+      notifyError,
+      customLevels,
+      doorTargetMapId,
+      doorTargetHex,
+      warpPipeTargetMapId,
+      warpPipeTargetHex,
+      warpPipeEntryMode,
+      warpPipeDestDir,
+      warpPipeDestX,
+      warpPipeDestY,
+    ]
   );
 
   // Lunar Magic Tool 1: Box Fill / Rectangular Erase
@@ -2148,6 +2248,12 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
           case 'pipe_horiz_bottom':
             sprite = atlas.pipeHorizBottom;
             break;
+          case 'pipe_horiz_right_top':
+            sprite = atlas.pipeHorizRightTop;
+            break;
+          case 'pipe_horiz_right_bottom':
+            sprite = atlas.pipeHorizRightBottom;
+            break;
           case 'castle_brick':
           case 'castle_stone':
             sprite = atlas.castleBrick;
@@ -2303,6 +2409,23 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             ctx.fillStyle = '#fde047';
             ctx.font = 'bold 8px monospace';
             ctx.fillText('→', dx + 4, dy + 10);
+          } else if (
+            block.type === 'pipe_horiz_right_top' &&
+            (currentLevel.pipeWarps || []).some(
+              pw =>
+                pw.type === 'left' &&
+                Math.floor(pw.from.x / 16) - 1 === tx &&
+                Math.floor(pw.from.y / 16) === ty
+            )
+          ) {
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(dx + 1, dy + 1, cellSize - 2, cellSize * 2 - 2);
+            ctx.fillStyle = '#7e22ce';
+            ctx.fillRect(dx + 2, dy + 2, 12, 10);
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 8px monospace';
+            ctx.fillText('←', dx + 4, dy + 10);
           } else if (block.type === 'ghost_door_top') {
             const matchingDoorWarp = (currentLevel.pipeWarps || []).find(
               pw =>
@@ -2861,9 +2984,41 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     notify('Fase removida da memória.');
   };
 
+  const handleLoadHexLevelIntoEditor = (rawHex: string) => {
+    if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
+      notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      return;
+    }
+    const resolved = resolveHexLevelTarget(rawHex);
+    const { level: sanitized } = sanitizeCustomLevelEntities(resolved.level);
+    const copyId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const remappedWarps = sanitized.pipeWarps?.map(pw =>
+      pw.toLevel === sanitized.id ? { ...pw, toLevel: copyId } : pw
+    );
+    const copy: LevelData = {
+      ...sanitized,
+      id: copyId,
+      hexId: resolved.normalizedHex ?? sanitized.hexId ?? '0105',
+      pipeWarps: remappedWarps,
+      isCustom: true,
+    };
+    onUpdateCustomLevels([...customLevels, copy], copy.id);
+    if (resolved.redirectedToOverworld) {
+      notify(
+        `Hex "${rawHex.trim().toUpperCase()}" inválido — redirecionado para Overworld W-1 (0105)!`
+      );
+    } else {
+      notify(`Fase Hex ${resolved.normalizedHex} carregada (${resolved.sourceFile})!`);
+    }
+  };
+
   const handleImportTemplate = (sourceId: string) => {
     if (customLevels.length >= EDITOR_MAX_CUSTOM_LEVELS) {
       notifyError(`Limite de ${EDITOR_MAX_CUSTOM_LEVELS} fases na memória atingido. Exclua uma antes.`);
+      return;
+    }
+    if (sourceId.startsWith('hex:')) {
+      handleLoadHexLevelIntoEditor(sourceId.slice(4));
       return;
     }
     const isWorldStage = sourceId.startsWith('world:');
@@ -3376,19 +3531,55 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
             </select>
 
             <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+              <div className="flex items-center gap-1 bg-stone-900 border border-purple-500/50 rounded px-1.5 py-0.5">
+                <span className="text-[10px] text-purple-300 font-bold">HEX:</span>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={hexStageLoaderInput}
+                  onChange={e => setHexStageLoaderInput(e.target.value.toUpperCase())}
+                  placeholder="0105"
+                  title="Digite o código hexadecimal do arquivo JSON (ex: 0105, 00C5, 00D0, 00D2)"
+                  className="w-12 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 font-mono text-[11px] text-amber-300 uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleLoadHexLevelIntoEditor(hexStageLoaderInput)}
+                  title="Procurar e abrir fase pelo código hexadecimal JSON"
+                  className="px-1.5 py-0.5 rounded bg-purple-900/90 hover:bg-purple-800 text-purple-100 text-[10px] font-bold cursor-pointer"
+                >
+                  Abrir
+                </button>
+              </div>
               <Download className="w-3.5 h-3.5 text-stone-400" />
               <select
                 value=""
                 onChange={e => {
                   if (e.target.value) handleImportTemplate(e.target.value);
                 }}
-                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 font-mono text-xs text-amber-200"
+                className="bg-stone-900 border border-stone-700 rounded px-2 py-1.5 font-mono text-xs text-amber-200 max-w-[205px]"
               >
-                <option value="">Importar Base...</option>
+                <option value="">Lista Hex / Importar Base...</option>
+                <optgroup label="Lista de Fases por Hexadecimal (JSON)">
+                  {CORE_HEX_LEVELS.map(item => (
+                    <option key={item.hexId} value={`hex:${item.hexId}`}>
+                      [{item.hexId}] {item.label}
+                    </option>
+                  ))}
+                </optgroup>
+                {EXAMPLE_HEX_LEVELS.length > 0 && (
+                  <optgroup label={`Mapas Exemplo Hex 0200–02FE (${EXAMPLE_HEX_LEVELS.length} JSONs)`}>
+                    {EXAMPLE_HEX_LEVELS.map(item => (
+                      <option key={item.hexId} value={`hex:${item.hexId}`}>
+                        [{item.hexId}] {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
                 <optgroup label="Modo World (JSON)">
                   {WORLD_STAGE_JSON_REGISTRY.map(entry => (
                     <option key={entry.key} value={`world:${entry.key}`}>
-                      {entry.label}
+                      [{entry.hexId}] {entry.label}
                     </option>
                   ))}
                 </optgroup>
@@ -3577,6 +3768,77 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                   <option value="2">2.0x (Caos)</option>
                 </select>
               </label>
+
+              <label className="flex items-center gap-1.5 text-stone-300">
+                <span className="text-stone-400">HEX Fase:</span>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={currentLevel.hexId || ''}
+                  onChange={e => {
+                    const raw = e.target.value.toUpperCase();
+                    const normalized = normalizeHexLevelCode(raw);
+                    updateCurrentLevel(
+                      draft => {
+                        draft.hexId = normalized || raw.trim() || undefined;
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  placeholder="0105"
+                  className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-purple-200 uppercase"
+                />
+              </label>
+
+              <label className="flex items-center gap-1.5 text-stone-300">
+                <span className="text-stone-400">Entrada na Fase:</span>
+                <select
+                  value={currentLevel.entryType || 'normal'}
+                  onChange={e => {
+                    const nextType = e.target.value as 'normal' | 'pipe';
+                    updateCurrentLevel(
+                      draft => {
+                        draft.entryType = nextType === 'normal' ? undefined : 'pipe';
+                        if (nextType === 'pipe' && !draft.entryPipeDir) {
+                          draft.entryPipeDir = 'up';
+                        }
+                        return draft;
+                      },
+                      { recordUndo: true }
+                    );
+                  }}
+                  className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-emerald-200"
+                >
+                  <option value="normal">Normal (Início Padrão)</option>
+                  <option value="pipe">Entrando por Cano</option>
+                </select>
+              </label>
+
+              {currentLevel.entryType === 'pipe' && (
+                <label className="flex items-center gap-1.5 text-stone-300">
+                  <span className="text-stone-400">Direção do Cano:</span>
+                  <select
+                    value={currentLevel.entryPipeDir || 'up'}
+                    onChange={e => {
+                      const nextDir = e.target.value as 'up' | 'down' | 'left' | 'right';
+                      updateCurrentLevel(
+                        draft => {
+                          draft.entryPipeDir = nextDir;
+                          return draft;
+                        },
+                        { recordUndo: true }
+                      );
+                    }}
+                    className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-amber-200"
+                  >
+                    <option value="up">Vertical ↑ (Sobe)</option>
+                    <option value="down">Vertical ↓ (Desce)</option>
+                    <option value="right">Lateral → (Horiz. Dir.)</option>
+                    <option value="left">Lateral ← (Horiz. Esq.)</option>
+                  </select>
+                </label>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-stone-800/80">
@@ -3662,57 +3924,88 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               <div className="flex items-center gap-2">
                 <ArrowRightLeft className="w-4 h-4 text-purple-400" />
                 <span className="font-['Press_Start_2P',monospace] text-[10px] text-purple-300">
-                  SAÍDAS DE TELA & WARPS ({currentLevel.pipeWarps?.length ?? 0})
+                  SAÍDAS DE TELA & WARPS HEX ({currentLevel.pipeWarps?.length ?? 0})
                 </span>
               </div>
               <span className="text-[11px] text-stone-400">
-                Canos Warp ↓/→ e Portas • Clique em "Ir" para pular direto à tela
+                Canos ↓/→/← e Portas • Destino por HEX JSON (inválido redireciona para Overworld W-1 · 0105)
               </span>
             </div>
 
             {!currentLevel.pipeWarps || currentLevel.pipeWarps.length === 0 ? (
               <div className="text-[11px] text-stone-400 px-2 py-1.5 rounded bg-stone-900/70 border border-stone-800">
                 Nenhuma saída configurada. Na aba <strong className="text-amber-300">Itens & Canos</strong>, use{' '}
-                <strong className="text-purple-300">Cano Warp ↓</strong>, <strong className="text-purple-300">Cano Warp →</strong> ou{' '}
+                <strong className="text-purple-300">Cano Warp ↓</strong>, <strong className="text-purple-300">Cano Warp →/←</strong> ou{' '}
                 <strong className="text-purple-300">Porta</strong>.
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1">
                 {currentLevel.pipeWarps.map((pw, idx) => {
                   const srcTx = Math.floor(pw.from.x / 16);
                   const srcTy = Math.floor(pw.from.y / 16);
                   const destTx = Math.round(pw.toPos.x / 16);
                   const destTy = Math.round(pw.toPos.y / 16);
                   const kindLabel =
-                    pw.type === 'door' ? 'Porta ↑' : pw.type === 'right' ? 'Cano →' : 'Cano ↓';
+                    pw.type === 'door'
+                      ? 'Porta ↑'
+                      : pw.type === 'right'
+                      ? 'Cano →'
+                      : pw.type === 'left'
+                      ? 'Cano ←'
+                      : 'Cano ↓';
+                  const effectiveHex =
+                    pw.targetHex ?? (pw.toLevel.startsWith('hex:') ? pw.toLevel.slice(4) : '');
+                  const hexLookup = effectiveHex ? inspectHexLevelTarget(effectiveHex) : null;
+                  const selectVal = pw.targetHex ? `hex:${pw.targetHex}` : pw.toLevel;
+                  const hasKnownSelectOption =
+                    selectVal === currentLevel.id ||
+                    customLevels.some(l => l.id === selectVal) ||
+                    ['secret-vault', 'smw-wiki-1-secret', 'world-1-1', 'world-1-2', 'world-2-2', 'world-ghost', 'world-1-4'].includes(selectVal) ||
+                    WORLD_STAGE_JSON_REGISTRY.some(e => e.key === selectVal) ||
+                    HEX_LEVEL_LIST.some(h => `hex:${h.hexId}` === selectVal);
+
                   return (
                     <div
                       key={`${idx}-${pw.from.x}-${pw.from.y}`}
-                      className="flex flex-wrap items-center gap-2 px-2 py-1 rounded bg-stone-900/90 border border-stone-700 text-[11px]"
+                      className="flex flex-wrap items-center gap-2 px-2 py-1.5 rounded bg-stone-900/90 border border-stone-700 text-[11px]"
                     >
                       <span className="px-1.5 py-0.5 rounded bg-purple-900/80 text-purple-200 font-bold">
                         #{idx + 1} {kindLabel}
                       </span>
                       <span className="text-stone-400">
-                        Origem ({srcTx}, {srcTy}) • Tela T{String(Math.floor(srcTx / 16)).padStart(2, '0')}
+                        Origem ({srcTx}, {srcTy}) • T{String(Math.floor(srcTx / 16)).padStart(2, '0')}
                       </span>
+
                       <label className="flex items-center gap-1 text-stone-300">
-                        <span>Destino:</span>
+                        <span>Mapa:</span>
                         <select
-                          value={pw.toLevel}
+                          value={hasKnownSelectOption ? selectVal : '__HEX__'}
                           onChange={e => {
-                            const nextTarget = e.target.value;
+                            const val = e.target.value;
                             updateCurrentLevel(
                               draft => {
                                 const w = draft.pipeWarps?.[idx];
-                                if (w) w.toLevel = nextTarget;
+                                if (!w) return draft;
+                                if (val === '__HEX__') {
+                                  const keepHex = w.targetHex || '0105';
+                                  w.targetHex = keepHex;
+                                  w.toLevel = `hex:${keepHex}`;
+                                } else if (val.startsWith('hex:')) {
+                                  const hx = val.slice(4).toUpperCase();
+                                  w.targetHex = hx;
+                                  w.toLevel = `hex:${hx}`;
+                                } else {
+                                  w.toLevel = val;
+                                  w.targetHex = undefined;
+                                }
                                 return draft;
                               },
                               { recordUndo: true }
                             );
                           }}
-                          className="bg-stone-950 border border-stone-700 rounded px-1.5 py-0.5 text-purple-200 max-w-[165px]"
+                          className="bg-stone-950 border border-stone-700 rounded px-1.5 py-0.5 text-purple-200 max-w-[175px]"
                         >
+                          <option value="__HEX__">HEX Personalizado (JSON)</option>
                           <option value={currentLevel.id}>Esta mesma fase ({currentLevel.name})</option>
                           {customLevels
                             .filter(l => l.id !== currentLevel.id)
@@ -3721,62 +4014,171 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                                 {l.name}
                               </option>
                             ))}
-                          <option value="secret-vault">Cofre Secreto</option>
-                          <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
-                          <option value="world-1-1">Mundo 1-1</option>
-                          <option value="world-1-2">Mundo 1-2</option>
-                          <option value="world-2-2">Mundo 2-2</option>
-                          <option value="world-ghost">Mansão de Fantasmas</option>
-                          <option value="world-1-4">Mundo 1-4</option>
-                          {WORLD_STAGE_JSON_REGISTRY.map(entry => (
-                            <option key={entry.key} value={entry.key}>
-                              {entry.label}
-                            </option>
-                          ))}
+                          <optgroup label="Lista Hexadecimal (JSON)">
+                            {CORE_HEX_LEVELS.map(item => (
+                              <option key={item.hexId} value={`hex:${item.hexId}`}>
+                                [{item.hexId}] {item.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {EXAMPLE_HEX_LEVELS.length > 0 && (
+                            <optgroup label={`Mapas Exemplo Hex (${EXAMPLE_HEX_LEVELS.length} JSONs)`}>
+                              {EXAMPLE_HEX_LEVELS.map(item => (
+                                <option key={item.hexId} value={`hex:${item.hexId}`}>
+                                  [{item.hexId}] {item.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="Clássicos & Sub-Áreas">
+                            <option value="secret-vault">Cofre Secreto</option>
+                            <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
+                            <option value="world-1-1">Mundo 1-1</option>
+                            <option value="world-1-2">Mundo 1-2</option>
+                            <option value="world-2-2">Mundo 2-2</option>
+                            <option value="world-ghost">Mansão de Fantasmas</option>
+                            <option value="world-1-4">Mundo 1-4</option>
+                            {WORLD_STAGE_JSON_REGISTRY.map(entry => (
+                              <option key={entry.key} value={entry.key}>
+                                {entry.label}
+                              </option>
+                            ))}
+                          </optgroup>
                         </select>
                       </label>
+
                       <label className="flex items-center gap-1 text-stone-300">
-                        <span>X:</span>
+                        <span className="text-purple-300">HEX:</span>
                         <input
-                          type="number"
-                          min={0}
-                          max={240}
-                          value={destTx}
+                          type="text"
+                          maxLength={6}
+                          value={effectiveHex}
+                          placeholder="00D0"
                           onChange={e => {
-                            const nx = Math.max(0, Number(e.target.value) || 0) * 16;
+                            const nextHex = e.target.value.toUpperCase();
                             updateCurrentLevel(
                               draft => {
                                 const w = draft.pipeWarps?.[idx];
-                                if (w) w.toPos.x = nx;
+                                if (!w) return draft;
+                                if (nextHex.trim()) {
+                                  w.targetHex = nextHex.trim();
+                                  w.toLevel = `hex:${nextHex.trim()}`;
+                                } else {
+                                  w.targetHex = undefined;
+                                  if (w.toLevel.startsWith('hex:')) {
+                                    w.toLevel = draft.id;
+                                  }
+                                }
                                 return draft;
                               },
                               { recordUndo: true }
                             );
                           }}
-                          className="w-12 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200"
+                          className="w-14 bg-stone-950 border border-purple-500/50 rounded px-1 py-0.5 text-amber-200 uppercase"
                         />
                       </label>
+
                       <label className="flex items-center gap-1 text-stone-300">
-                        <span>Y:</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={14}
-                          value={destTy}
+                        <span>Entrada:</span>
+                        <select
+                          value={
+                            pw.entryMode === 'normal'
+                              ? 'normal'
+                              : pw.entryMode === 'pipe'
+                              ? `pipe:${pw.destPipeDir || 'up'}`
+                              : 'auto'
+                          }
                           onChange={e => {
-                            const ny = Math.max(0, Math.min(14, Number(e.target.value) || 0)) * 16;
+                            const val = e.target.value;
                             updateCurrentLevel(
                               draft => {
                                 const w = draft.pipeWarps?.[idx];
-                                if (w) w.toPos.y = ny;
+                                if (!w) return draft;
+                                if (val === 'auto') {
+                                  w.entryMode = undefined;
+                                  w.destPipeDir = undefined;
+                                } else if (val === 'normal') {
+                                  w.entryMode = 'normal';
+                                  w.destPipeDir = undefined;
+                                } else {
+                                  w.entryMode = 'pipe';
+                                  w.destPipeDir = val.slice(5) as 'up' | 'down' | 'left' | 'right';
+                                }
                                 return draft;
                               },
                               { recordUndo: true }
                             );
                           }}
-                          className="w-12 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200"
+                          className="bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-emerald-200"
+                        >
+                          <option value="auto">Automática</option>
+                          <option value="normal">Normal (Pouso)</option>
+                          <option value="pipe:up">Cano Vertical ↑</option>
+                          <option value="pipe:down">Cano Vertical ↓</option>
+                          <option value="pipe:right">Cano Lateral →</option>
+                          <option value="pipe:left">Cano Lateral ←</option>
+                        </select>
+                      </label>
+
+                      <label className="flex items-center gap-1 text-stone-300">
+                        <span>Hex X:</span>
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={formatHexCoord(destTx)}
+                          onChange={e => {
+                            const parsed = parseHexCoord(e.target.value, 240);
+                            if (parsed === null) return;
+                            updateCurrentLevel(
+                              draft => {
+                                const w = draft.pipeWarps?.[idx];
+                                if (w) w.toPos.x = parsed * 16;
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            );
+                          }}
+                          title={`Tile X = ${destTx} (0x${formatHexCoord(destTx)})`}
+                          className="w-10 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200 uppercase text-center"
                         />
                       </label>
+                      <label className="flex items-center gap-1 text-stone-300">
+                        <span>Hex Y:</span>
+                        <input
+                          type="text"
+                          maxLength={3}
+                          value={formatHexCoord(destTy)}
+                          onChange={e => {
+                            const parsed = parseHexCoord(e.target.value, 14);
+                            if (parsed === null) return;
+                            updateCurrentLevel(
+                              draft => {
+                                const w = draft.pipeWarps?.[idx];
+                                if (w) w.toPos.y = parsed * 16;
+                                return draft;
+                              },
+                              { recordUndo: true }
+                            );
+                          }}
+                          title={`Tile Y = ${destTy} (0x${formatHexCoord(destTy)})`}
+                          className="w-10 bg-stone-950 border border-stone-700 rounded px-1 py-0.5 text-amber-200 uppercase text-center"
+                        />
+                      </label>
+
+                      {hexLookup && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            hexLookup.valid
+                              ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-300'
+                              : 'bg-amber-950/90 border border-amber-500/50 text-amber-300'
+                          }`}
+                        >
+                          {hexLookup.valid
+                            ? `JSON: ${hexLookup.sourceFile}`
+                            : 'Hex inválido → Overworld W-1 (0105)'}
+                        </span>
+                      )}
+
                       <div className="flex items-center gap-1 ml-auto">
                         <button
                           type="button"
@@ -4195,56 +4597,163 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
               Bloco Invisível (Tijolo / ?)
             </label>
             {activeTab === 'items' &&
-              (selectedBrushId === 'pipe_warp_map' || selectedBrushId === 'pipe_warp_horiz') && (
-                <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-                  <span className="text-purple-300">Destino do Cano Warp:</span>
-                  <select
-                    value={warpPipeTargetMapId}
-                    onChange={e => setWarpPipeTargetMapId(e.target.value)}
-                    className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200"
-                  >
-                    <option value={currentLevel.id}>Esta mesma fase ({currentLevel.name})</option>
-                    {customLevels.filter(l => l.id !== currentLevel.id).length > 0 && (
-                      <optgroup label="Meus Mapas do Editor">
-                        {customLevels
-                          .filter(l => l.id !== currentLevel.id)
-                          .map(l => (
-                            <option key={l.id} value={l.id}>
-                              {l.name} ({l.theme})
+              (selectedBrushId === 'pipe_warp_map' ||
+                selectedBrushId === 'pipe_warp_horiz' ||
+                selectedBrushId === 'pipe_warp_horiz_left') && (() => {
+                const isHexWarp =
+                  warpPipeTargetMapId === '__HEX__' || warpPipeTargetMapId.startsWith('hex:');
+                const currentHexStr = warpPipeTargetMapId.startsWith('hex:')
+                  ? warpPipeTargetMapId.slice(4)
+                  : warpPipeTargetHex;
+                const hexStatus = isHexWarp ? inspectHexLevelTarget(currentHexStr) : null;
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                    <span className="text-purple-300">Destino Warp:</span>
+                    <select
+                      value={warpPipeTargetMapId}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setWarpPipeTargetMapId(val);
+                        if (val.startsWith('hex:')) {
+                          setWarpPipeTargetHex(val.slice(4));
+                        }
+                      }}
+                      className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200 max-w-[180px]"
+                    >
+                      <option value="__HEX__">Digitar Código HEX (JSON)</option>
+                      <option value={currentLevel.id}>Esta mesma fase ({currentLevel.name})</option>
+                      {customLevels.filter(l => l.id !== currentLevel.id).length > 0 && (
+                        <optgroup label="Meus Mapas do Editor">
+                          {customLevels
+                            .filter(l => l.id !== currentLevel.id)
+                            .map(l => (
+                              <option key={l.id} value={l.id}>
+                                {l.name} ({l.theme})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Fases Hexadecimais (JSON)">
+                        {CORE_HEX_LEVELS.map(item => (
+                          <option key={item.hexId} value={`hex:${item.hexId}`}>
+                            [{item.hexId}] {item.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      {EXAMPLE_HEX_LEVELS.length > 0 && (
+                        <optgroup label={`Mapas Exemplo Hex (${EXAMPLE_HEX_LEVELS.length} JSONs)`}>
+                          {EXAMPLE_HEX_LEVELS.map(item => (
+                            <option key={item.hexId} value={`hex:${item.hexId}`}>
+                              [{item.hexId}] {item.label}
                             </option>
                           ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Sub-Áreas & Mapas Clássicos">
+                        <option value="secret-vault">Cofre Secreto (Bônus)</option>
+                        <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
+                        <option value="world-1-1">Mundo 1-1</option>
+                        <option value="world-1-2">Mundo 1-2 (Caverna)</option>
+                        <option value="world-2-2">Mundo 2-2 (Água)</option>
+                        <option value="world-ghost">Mansão de Fantasmas</option>
+                        <option value="world-1-4">Mundo 1-4 (Castelo)</option>
                       </optgroup>
+                    </select>
+                    {isHexWarp && (
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={currentHexStr}
+                        onChange={e => {
+                          const v = e.target.value.toUpperCase();
+                          setWarpPipeTargetHex(v);
+                          setWarpPipeTargetMapId('__HEX__');
+                        }}
+                        placeholder="00D0"
+                        title="Código hexadecimal do arquivo JSON"
+                        className="w-14 bg-stone-900 border border-purple-500/60 rounded px-1.5 py-1 text-amber-200 uppercase"
+                      />
                     )}
-                    <optgroup label="Sub-Áreas & Mapas Clássicos">
-                      <option value="secret-vault">Cofre Secreto (Bônus)</option>
-                      <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
-                      <option value="world-1-1">Mundo 1-1</option>
-                      <option value="world-1-2">Mundo 1-2 (Caverna)</option>
-                      <option value="world-2-2">Mundo 2-2 (Água)</option>
-                      <option value="world-ghost">Mansão de Fantasmas</option>
-                      <option value="world-1-4">Mundo 1-4 (Castelo)</option>
-                    </optgroup>
-                    <optgroup label="Fases do Modo World">
-                      {WORLD_STAGE_JSON_REGISTRY.map(entry => (
-                        <option key={entry.key} value={entry.key}>
-                          {entry.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-              )}
+                    <select
+                      value={warpPipeEntryMode}
+                      onChange={e => setWarpPipeEntryMode(e.target.value as 'normal' | 'pipe')}
+                      title="Como Mario aparece no mapa de destino"
+                      className="bg-stone-900 border border-stone-700 rounded px-1.5 py-1 text-emerald-200"
+                    >
+                      <option value="pipe">Entrada: Por Cano</option>
+                      <option value="normal">Entrada: Normal</option>
+                    </select>
+                    {warpPipeEntryMode === 'pipe' && (
+                      <select
+                        value={warpPipeDestDir}
+                        onChange={e =>
+                          setWarpPipeDestDir(e.target.value as 'up' | 'down' | 'left' | 'right')
+                        }
+                        title="Direção de saída no cano de destino"
+                        className="bg-stone-900 border border-stone-700 rounded px-1.5 py-1 text-amber-200"
+                      >
+                        <option value="up">Sai ↑</option>
+                        <option value="down">Sai ↓</option>
+                        <option value="right">Sai →</option>
+                        <option value="left">Sai ←</option>
+                      </select>
+                    )}
+                    <label className="flex items-center gap-1 text-stone-300">
+                      <span>HxX:</span>
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={formatHexCoord(warpPipeDestX)}
+                        onChange={e => {
+                          const parsed = parseHexCoord(e.target.value, 240);
+                          if (parsed !== null) setWarpPipeDestX(parsed);
+                        }}
+                        className="w-9 bg-stone-900 border border-stone-700 rounded px-1 py-1 text-amber-200 uppercase text-center"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1 text-stone-300">
+                      <span>HxY:</span>
+                      <input
+                        type="text"
+                        maxLength={3}
+                        value={formatHexCoord(warpPipeDestY)}
+                        onChange={e => {
+                          const parsed = parseHexCoord(e.target.value, 14);
+                          if (parsed !== null) setWarpPipeDestY(parsed);
+                        }}
+                        className="w-9 bg-stone-900 border border-stone-700 rounded px-1 py-1 text-amber-200 uppercase text-center"
+                      />
+                    </label>
+                    {hexStatus && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] ${
+                          hexStatus.valid
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/40'
+                            : 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                        }`}
+                      >
+                        {hexStatus.valid ? hexStatus.sourceFile : 'Inválido → W-1 (0105)'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             {activeTab === 'items' && currentLevel.theme === 'ghost_house' && (
               <div className="flex flex-wrap items-center gap-1.5 ml-auto">
                 <span className="text-purple-300">Destino da Porta (Outro Mapa):</span>
                 <select
                   value={doorTargetMapId}
                   onChange={e => {
-                    setDoorTargetMapId(e.target.value);
+                    const val = e.target.value;
+                    setDoorTargetMapId(val);
+                    if (val.startsWith('hex:')) {
+                      setDoorTargetHex(val.slice(4));
+                    }
                     setSelectedBrushId('ghost_door_map');
                   }}
-                  className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200"
+                  className="bg-stone-900 border border-purple-500/50 rounded px-2 py-1 text-purple-200 max-w-[180px]"
                 >
+                  <option value="__HEX__">Digitar Código HEX (JSON)</option>
                   {customLevels.filter(l => l.id !== currentLevel.id).length > 0 && (
                     <optgroup label="Meus Mapas do Editor">
                       {customLevels
@@ -4256,6 +4765,22 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                         ))}
                     </optgroup>
                   )}
+                  <optgroup label="Fases Hexadecimais (JSON)">
+                    {CORE_HEX_LEVELS.map(item => (
+                      <option key={item.hexId} value={`hex:${item.hexId}`}>
+                        [{item.hexId}] {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {EXAMPLE_HEX_LEVELS.length > 0 && (
+                    <optgroup label={`Mapas Exemplo Hex (${EXAMPLE_HEX_LEVELS.length} JSONs)`}>
+                      {EXAMPLE_HEX_LEVELS.map(item => (
+                        <option key={item.hexId} value={`hex:${item.hexId}`}>
+                          [{item.hexId}] {item.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   <optgroup label="Sub-Áreas & Mapas Clássicos">
                     <option value="secret-vault">Cofre Secreto (Bônus)</option>
                     <option value="smw-wiki-1-secret">Caverna da Chave (SMW)</option>
@@ -4265,14 +4790,21 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                     <option value="world-ghost">Mansão de Fantasmas</option>
                     <option value="world-1-4">Mundo 1-4 (Castelo)</option>
                   </optgroup>
-                  <optgroup label="Fases do Modo World">
-                    {WORLD_STAGE_JSON_REGISTRY.map(entry => (
-                      <option key={entry.key} value={entry.key}>
-                        {entry.label}
-                      </option>
-                    ))}
-                  </optgroup>
                 </select>
+                {(doorTargetMapId === '__HEX__' || doorTargetMapId.startsWith('hex:')) && (
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={doorTargetMapId.startsWith('hex:') ? doorTargetMapId.slice(4) : doorTargetHex}
+                    onChange={e => {
+                      setDoorTargetHex(e.target.value.toUpperCase());
+                      setDoorTargetMapId('__HEX__');
+                      setSelectedBrushId('ghost_door_map');
+                    }}
+                    placeholder="00D2"
+                    className="w-14 bg-stone-900 border border-purple-500/60 rounded px-1.5 py-1 text-amber-200 uppercase"
+                  />
+                )}
               </div>
             )}
           </div>

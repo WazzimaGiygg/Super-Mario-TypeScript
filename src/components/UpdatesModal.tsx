@@ -25,6 +25,19 @@ export interface UpdateEntry {
 
 export const GAME_UPDATES: UpdateEntry[] = [
   {
+    uid: 'R1.19.5RT.7',
+    version: 'R1.19.5RT.7',
+    label: 'Correção · Lista Hex & Warps JSON',
+    title: 'Lista de Fases por Hexadecimal, Mapas JSON no Repositório e Canos Laterais/Verticais estilo Lunar Magic',
+    isFix: true,
+    items: [
+      'Adicionada Lista de Fases por Hexadecimal (0105 Overworld W-1, 00C5 Subsolo, 0106–0114 Mundo/Palácios, 00D0–00D1 no arquivo multi-mapa world-hex-maps.json e 00D2.json) configurável diretamente no Editor para abrir e editar mapas JSON do Modo World.',
+      'Canos Warp (↓, →, ← laterais/horizontais) e Portas de Mansão agora permitem programar destino em código Hexadecimal JSON, coordenadas (Hex X, Hex Y) e o tipo de entrada no destino (Normal ou saindo por Cano ↑/↓/→/←).',
+      'O Header da Fase no Editor passou a incluir Código HEX da fase e Tipo de Entrada (Entrando normalmente ou Entrando por Cano com direção configurável).',
+      'Fallback automático de segurança: quando um cano ou porta aponta para um código hexadecimal JSON inválido ou inexistente, o jogo redireciona automaticamente para a 1ª fase do Overworld (W-1 · 0105).',
+    ],
+  },
+  {
     uid: 'R1.19.1BM.7-lunar-magic',
     version: 'R1.19.1BM.7',
     label: 'Recurso · Editor Lunar Magic',
