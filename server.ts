@@ -33,8 +33,8 @@ interface ClientInfo {
 const rooms = new Map<string, Map<string, ClientInfo>>();
 const roomLastActivity = new Map<string, number>();
 
-// --- WEBSOCKET SERVER ON /ws ---
-const wss = new WebSocketServer({ server, path: '/ws' });
+// --- WEBSOCKET SERVER ON /ws (noServer so Vite dev WebSocket upgrades on / are not aborted) ---
+const wss = new WebSocketServer({ noServer: true });
 
 function touchWsRoomActivity(roomId: string) {
   roomLastActivity.set(roomId, Date.now());
@@ -349,10 +349,16 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const wsOnly = process.env.WS_ONLY === '1';
 
+  const viteDevActive = !wsOnly && !isProd;
+
   if (!wsOnly) {
     if (!isProd) {
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: {
+          middlewareMode: true,
+          allowedHosts: true,
+          ws: { server },
+        },
         appType: 'spa',
       });
       app.use(vite.middlewares);
@@ -364,6 +370,17 @@ async function startServer() {
       });
     }
   }
+
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = (request.url || '/').split('?')[0];
+    if (pathname === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else if (!viteDevActive) {
+      socket.destroy();
+    }
+  });
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`[Super Mario Bros] Server running at http://0.0.0.0:${port}`);

@@ -100,6 +100,9 @@ import {
   applyTerrainPresetToLevel,
   KEY_CAVE_PIPE_TARGET,
   isPowerUpBoxContent,
+  normalizeHexLevelCode,
+  formatHexCoord,
+  parseHexCoord,
   EDITOR_MAX_ENEMIES,
   EDITOR_MAX_COINS,
   EDITOR_MAX_FLOATING_PLATFORMS,
@@ -116,6 +119,9 @@ import {
   SMW_WIKIWORLD_NODES,
   SMW_DEV_ONLY_SWITCH_PALACES,
   WORLD_STAGE_JSON_REGISTRY,
+  HEX_LEVEL_LIST,
+  inspectHexLevelTarget,
+  resolveHexLevelTarget,
   createSmwWiki1SecretRoom,
   createSmwWikiWorldStage,
   getWorldStageFilename,
@@ -4818,6 +4824,203 @@ async function runR116FixesTests() {
       assert.ok(editorSrc.includes(token), `Token Lunar Magic ausente em LevelEditorModal: ${token}`);
     }
     assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.1BM.7-lunar-magic'));
+  });
+
+  await test('R1.19.5RT.7: Lista Hexadecimal, Multi-Mapa JSON, Canos Laterais/Verticais, Entrada Normal/Cano e Fallback Overworld', () => {
+    // 1. Conversores hexadecimais e coordenadas
+    assert.equal(normalizeHexLevelCode('0105'), '0105');
+    assert.equal(normalizeHexLevelCode('0x00d0'), '00D0');
+    assert.equal(normalizeHexLevelCode('$d2.json'), '00D2');
+    assert.equal(normalizeHexLevelCode('ZZZZ'), null);
+    assert.equal(formatHexCoord(20), '14');
+    assert.equal(parseHexCoord('0x14', 240), 20);
+    assert.equal(parseHexCoord('FF', 14), null);
+
+    // 2. Catálogo hexadecimal + arquivo multi-mapa world-hex-maps.json + arquivo standalone 00D2.json
+    assert.ok(HEX_LEVEL_LIST.length >= 14, 'Catálogo Hex deve conter fases World e mapas 00D0..00D2');
+    assert.ok(WORLD_STAGE_JSON_REGISTRY.every(e => Boolean(e.hexId)));
+
+    const res00D0 = resolveHexLevelTarget('00D0');
+    assert.equal(res00D0.valid, true);
+    assert.equal(res00D0.redirectedToOverworld, false);
+    assert.equal(res00D0.isEmbeddedMultiMap, true);
+    assert.equal(res00D0.sourceFile, 'world-hex-maps.json');
+    assert.equal(res00D0.level.hexId, '00D0');
+    assert.equal(res00D0.level.entryType, 'pipe');
+    assert.equal(res00D0.level.entryPipeDir, 'right');
+
+    const res00D1 = resolveHexLevelTarget('00D1');
+    assert.equal(res00D1.valid, true);
+    assert.equal(res00D1.sourceFile, 'world-hex-maps.json');
+    assert.equal(res00D1.level.entryType, 'pipe');
+    assert.equal(res00D1.level.entryPipeDir, 'down');
+
+    const res00D2 = resolveHexLevelTarget('00D2');
+    assert.equal(res00D2.valid, true);
+    assert.equal(res00D2.sourceFile, '00D2.json');
+    assert.equal(res00D2.level.theme, 'ghost_house');
+    assert.equal(getWorldStageFilename(res00D2.level), '00D2.json');
+
+    // Hex inválido ou inexistente -> redireciona automaticamente para Overworld W-1 (0105)
+    const badInspect = inspectHexLevelTarget('ZZZZ');
+    assert.equal(badInspect.valid, false);
+    assert.equal(badInspect.redirectedToOverworld, true);
+    const badResolve = resolveHexLevelTarget('0999');
+    assert.equal(badResolve.valid, false);
+    assert.equal(badResolve.redirectedToOverworld, true);
+    assert.equal(badResolve.level.id, 'smw-wiki-1');
+    assert.equal(badResolve.level.hexId, '0105');
+
+    // 3. Entrada na fase: normal vs entrando por cano (entryType + entryPipeDir)
+    const pipeEntryEngine = createFreshEngine();
+    pipeEntryEngine.loadLevel(res00D0.level, false, false, false);
+    assert.equal(pipeEntryEngine.marioState, 'pipe_exiting');
+    assert.equal(pipeEntryEngine.pipeExitDir, 'right');
+
+    const normalEntryEngine = createFreshEngine();
+    normalEntryEngine.loadLevel(res00D2.level, false, false, false);
+    assert.notEqual(normalEntryEngine.marioState, 'pipe_exiting');
+
+    // 4. Canos laterais esquerda/direita (← e →) e warp por Hex JSON no GameEngine
+    const lateralSrc = createBlankCustomLevel('LATERAL HEX', 'overworld', 60);
+    lateralSrc.id = 'lateral-src';
+    lateralSrc.hexId = '00A1';
+    assert.equal(
+      placeWarpPipeInLevel(lateralSrc, 14, 12, {
+        dir: 'right',
+        toLevel: 'hex:00D0',
+        targetHex: '00D0',
+        toPos: { x: 3 * 16, y: 11 * 16 },
+        entryMode: 'pipe',
+        destPipeDir: 'right',
+      }),
+      true
+    );
+    assert.equal(lateralSrc.tiles[11][14]?.type, 'pipe_horiz_top');
+    assert.equal(lateralSrc.tiles[12][14]?.type, 'pipe_horiz_bottom');
+
+    assert.equal(
+      placeWarpPipeInLevel(lateralSrc, 24, 12, {
+        dir: 'left',
+        toLevel: 'hex:9999',
+        targetHex: '9999',
+        toPos: { x: 48, y: 192 },
+        entryMode: 'normal',
+      }),
+      true
+    );
+    assert.equal(lateralSrc.tiles[11][24]?.type, 'pipe_horiz_right_top');
+    assert.equal(lateralSrc.tiles[12][24]?.type, 'pipe_horiz_right_bottom');
+    assert.equal(lateralSrc.pipeWarps?.length, 2);
+
+    // Entra no cano lateral → para chegar em 00D0 saindo horizontalmente por cano
+    const hexEngine = createFreshEngine();
+    hexEngine.loadLevel(lateralSrc, false, false, false);
+    hexEngine.intermissionTimer = 0;
+    hexEngine.marioX = 13 * 16 + 4;
+    hexEngine.marioY = 12 * 16;
+    hexEngine.marioGrounded = true;
+    hexEngine.controls.right = true;
+    hexEngine.update(0.016);
+    assert.equal(hexEngine.marioState, 'pipe_entering');
+    assert.equal(hexEngine.warpDir, 'right');
+    hexEngine.controls.right = false;
+    for (let i = 0; i < 60 && hexEngine.marioState === 'pipe_entering'; i++) {
+      hexEngine.update(0.016);
+    }
+    assert.equal(hexEngine.level.hexId, '00D0');
+    assert.equal(hexEngine.marioState, 'pipe_exiting');
+    assert.equal(hexEngine.pipeExitDir, 'right');
+
+    // Entra no cano lateral ← com Hex inválido '9999' -> redireciona para W-1 Overworld ('0105') em modo normal
+    const fallbackEngine = createFreshEngine();
+    fallbackEngine.loadLevel(lateralSrc, false, false, false);
+    fallbackEngine.intermissionTimer = 0;
+    fallbackEngine.marioX = 25 * 16;
+    fallbackEngine.marioY = 12 * 16;
+    fallbackEngine.marioGrounded = true;
+    fallbackEngine.controls.left = true;
+    fallbackEngine.update(0.016);
+    assert.equal(fallbackEngine.marioState, 'pipe_entering');
+    assert.equal(fallbackEngine.warpDir, 'left');
+    fallbackEngine.controls.left = false;
+    for (let i = 0; i < 60 && fallbackEngine.marioState === 'pipe_entering'; i++) {
+      fallbackEngine.update(0.016);
+    }
+    assert.equal(fallbackEngine.level.id, 'smw-wiki-1');
+    assert.equal(fallbackEngine.level.hexId, '0105');
+    assert.notEqual(fallbackEngine.marioState, 'pipe_exiting');
+
+    // 5. Round-trip JSON preserva hexId, entryType, entryPipeDir, targetHex, entryMode, destPipeDir e cano lateral 'left'
+    lateralSrc.entryType = 'pipe';
+    lateralSrc.entryPipeDir = 'left';
+    const reimported = parseImportedLevelFile(serializeLevelToFileJson(lateralSrc));
+    assert.equal(reimported.hexId, '00A1');
+    assert.equal(reimported.entryType, 'pipe');
+    assert.equal(reimported.entryPipeDir, 'left');
+    assert.equal(reimported.pipeWarps?.[0].targetHex, '00D0');
+    assert.equal(reimported.pipeWarps?.[0].entryMode, 'pipe');
+    assert.equal(reimported.pipeWarps?.[0].destPipeDir, 'right');
+    assert.equal(reimported.pipeWarps?.[1].type, 'left');
+    assert.equal(reimported.pipeWarps?.[1].entryMode, 'normal');
+
+    // 6. Verificação estrutural do Editor e UpdatesModal
+    const editorSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/LevelEditorModal.tsx'), 'utf8');
+    for (const token of [
+      'HEX_LEVEL_LIST',
+      'inspectHexLevelTarget',
+      'resolveHexLevelTarget',
+      'handleLoadHexLevelIntoEditor',
+      "id: 'pipe_warp_horiz_left'",
+      "id: 'tile_pipe_horiz_right_top'",
+      'entryPipeDir',
+    ]) {
+      assert.ok(editorSrc.includes(token), `Token R1.19.5RT.7 ausente em LevelEditorModal: ${token}`);
+    }
+    assert.ok(GAME_UPDATES.some(u => u.uid === 'R1.19.5RT.7'));
+  });
+
+  await test('Catálogo Hex: 255 arquivos JSON mapa exemplos (0200..02FE) válidos para Editor e Modo World', () => {
+    const exampleItems = HEX_LEVEL_LIST.filter(item => item.isExampleMap);
+    assert.equal(exampleItems.length, 255, 'Deve conter exatamente 255 mapas exemplo hexadecimais (0200..02FE)');
+    assert.ok(HEX_LEVEL_LIST.length >= 269, 'Catálogo Hex total deve incluir as 14 fases base + 255 mapas exemplo');
+
+    const seenHex = new Set<string>();
+    for (let i = 0; i < 255; i++) {
+      const expectedHex = (0x0200 + i).toString(16).toUpperCase().padStart(4, '0');
+      const res = resolveHexLevelTarget(expectedHex);
+      assert.equal(res.valid, true, `Mapa exemplo ${expectedHex} deve ser válido`);
+      assert.equal(res.redirectedToOverworld, false);
+      assert.equal(res.sourceFile, `${expectedHex}.json`);
+      assert.equal(res.level.hexId, expectedHex);
+      assert.equal(res.level.tiles.length, 15, `Altura da grade de ${expectedHex} deve ser 15`);
+      assert.equal(res.level.tiles[0].length, res.level.width, `Largura da grade de ${expectedHex} deve bater`);
+      seenHex.add(expectedHex);
+
+      // Amostragem de carregamento no motor + verificação R1.16.PX.4 em todos
+      for (const row of res.level.tiles) {
+        for (const tile of row) {
+          if (tile && (tile.type === 'question' || tile.type === 'brick')) {
+            assert.ok(
+              tile.content === 'none' || tile.content === 'coin',
+              `Bloco ${tile.type} em ${expectedHex} não deve conter power-up`
+            );
+          }
+        }
+      }
+      for (const pw of res.level.pipeWarps || []) {
+        if (pw.targetHex) {
+          const targetInfo = inspectHexLevelTarget(pw.targetHex);
+          assert.equal(targetInfo.valid, true, `Destino warp ${pw.targetHex} em ${expectedHex} deve existir`);
+        }
+      }
+      if (i % 51 === 0) {
+        const sampleEngine = createFreshEngine();
+        sampleEngine.loadLevel(res.level, false, false, false);
+        assert.equal(sampleEngine.level.hexId, expectedHex);
+      }
+    }
+    assert.equal(seenHex.size, 255);
   });
 }
 
