@@ -1,0 +1,129 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-022B",
+    "hexId": "022B",
+    "name": "EX 022B CRIPTA",
+    "theme": "ghost_house",
+    "biomeLabel": "EXEMPLO HEX 022B · CRIPTA",
+    "width": 64,
+    "height": 15,
+    "entryType": "pipe",
+    "entryPipeDir": "right",
+    "marioStart": {
+      "x": 64,
+      "y": 176
+    },
+    "flagX": 999999,
+    "castleX": 992,
+    "bgColor": "#120822",
+    "musicTrack": "ghost_house",
+    "timeLimit": 370,
+    "enemies": [
+      {
+        "type": "dry_bones",
+        "x": 176,
+        "y": 192
+      },
+      {
+        "type": "dry_bones",
+        "x": 400,
+        "y": 192
+      },
+      {
+        "type": "boo",
+        "x": 512,
+        "y": 96
+      }
+    ],
+    "coins": [
+      {
+        "x": 184,
+        "y": 112
+      },
+      {
+        "x": 216,
+        "y": 112
+      },
+      {
+        "x": 248,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      },
+      {
+        "x": 520,
+        "y": 160
+      },
+      {
+        "x": 616,
+        "y": 160
+      },
+      {
+        "x": 712,
+        "y": 160
+      },
+      {
+        "x": 808,
+        "y": 160
+      }
+    ],
+    "floatingPlatforms": [
+      {
+        "x": 272,
+        "y": 176,
+        "width": 48,
+        "axis": "vertical",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 0.84
+      }
+    ],
+    "pipeWarps": [
+      {
+        "from": {
+          "x": 352,
+          "y": 176,
+          "width": 16,
+          "height": 32
+        },
+        "toLevel": "hex:022C",
+        "targetHex": "022C",
+        "toPos": {
+          "x": 48,
+          "y": 192
+        },
+        "type": "door",
+        "entryMode": "normal"
+      }
+    ],
+    "tiles": [
+      [{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"exclam_yellow","content":"mushroom"},{"type":"question","content":"coin"},{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"ghost_brick"},{"type":"question","content":"coin"},{"type":"ghost_brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_top"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_door_top"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_brick"},{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_bottom"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_door_bottom"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"}],
+      [{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"}],
+      [{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"}]
+    ]
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-023A",
+    "hexId": "023A",
+    "name": "EX 023A SALAO",
+    "theme": "ghost_house",
+    "biomeLabel": "EXEMPLO HEX 023A · SALAO",
+    "width": 56,
+    "height": 15,
+    "entryType": "pipe",
+    "entryPipeDir": "right",
+    "marioStart": {
+      "x": 64,
+      "y": 176
+    },
+    "flagX": 736,
+    "castleX": 816,
+    "dryFinishStartX": 688,
+    "bgColor": "#120822",
+    "musicTrack": "ghost_house",
+    "timeLimit": 370,
+    "enemies": [
+      {
+        "type": "boo",
+        "x": 176,
+        "y": 96
+      }
+    ],
+    "coins": [
+      {
+        "x": 168,
+        "y": 112
+      },
+      {
+        "x": 200,
+        "y": 112
+      },
+      {
+        "x": 232,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 296,
+        "y": 112
+      },
+      {
+        "x": 424,
+        "y": 128
+      },
+      {
+        "x": 552,
+        "y": 96
+      }
+    ],
+    "floatingPlatforms": [
+      {
+        "x": 288,
+        "y": 176,
+        "width": 48,
+        "axis": "horizontal",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 0.59
+      },
+      {
+        "x": 496,
+        "y": 176,
+        "width": 48,
+        "axis": "horizontal",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 2.36
+      }
+    ],
+    "pipeWarps": [
+      {
+        "from": {
+          "x": 640,
+          "y": 176,
+          "width": 16,
+          "height": 32
+        },
+        "toLevel": "hex:023A",
+        "targetHex": "023A",
+        "toPos": {
+          "x": 704,
+          "y": 192
+        },
+        "type": "door",
+        "entryMode": "normal"
+      }
+    ],
+    "checkpoints": [
+      {
+        "x": 448,
+        "respawnPos": {
+          "x": 448,
+          "y": 176
+        }
+      }
+    ],
+    "tiles": [
+      [{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},{"type":"exclam_yellow","content":"mushroom"},{"type":"ghost_brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"ghost_brick"},{"type":"question","content":"coin"},{"type":"ghost_brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ghost_brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_brick"},null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ghost_brick"},{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_top"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_door_top"},null,{"type":"ghost_brick"},null,{"type":"ghost_door_top"},null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ghost_brick"},{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_bottom"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"ghost_door_bottom"},null,{"type":"ghost_brick"},null,{"type":"ghost_door_bottom"},null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}],
+      [{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},null,null,null,{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ghost_floor"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}]
+    ]
+  }
+}
