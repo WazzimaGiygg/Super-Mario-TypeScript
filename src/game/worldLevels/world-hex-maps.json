@@ -1,0 +1,3005 @@
+{
+  "format": "smb-world-hex-maps",
+  "version": 1,
+  "defaultFallbackHex": "0105",
+  "entries": [
+    {
+      "hexId": "0105",
+      "key": "wiki-1-overworld",
+      "file": "wiki-1-overworld.json",
+      "label": "World W-1 (Overworld)"
+    },
+    {
+      "hexId": "00C5",
+      "key": "smw-wiki-1-secret",
+      "file": "smw-wiki-1-secret.json",
+      "label": "World W-1 Subsolo (Caverna Chave)"
+    },
+    {
+      "hexId": "0106",
+      "key": "wiki-2-caverna",
+      "file": "wiki-2-caverna.json",
+      "label": "World W-2 (Caverna)"
+    },
+    {
+      "hexId": "0107",
+      "key": "wiki-3-agua",
+      "file": "wiki-3-agua.json",
+      "label": "World W-3 (Água)"
+    },
+    {
+      "hexId": "0108",
+      "key": "wiki-4-mansao",
+      "file": "wiki-4-mansao.json",
+      "label": "World W-4 (Mansão Fantasma)"
+    },
+    {
+      "hexId": "0109",
+      "key": "wiki-5-castelo",
+      "file": "wiki-5-castelo.json",
+      "label": "World W-5 (Castelo)"
+    },
+    {
+      "hexId": "0110",
+      "key": "wiki-switch-yellow",
+      "file": "wiki-switch-yellow.json",
+      "label": "Palácio Interruptor Amarelo (PA)"
+    },
+    {
+      "hexId": "0111",
+      "key": "wiki-switch-green",
+      "file": "wiki-switch-green.json",
+      "label": "Palácio Interruptor Verde (PV)"
+    },
+    {
+      "hexId": "0112",
+      "key": "wiki-switch-red",
+      "file": "wiki-switch-red.json",
+      "label": "Palácio Interruptor Vermelho (PR)"
+    },
+    {
+      "hexId": "0113",
+      "key": "wiki-switch-pink",
+      "file": "wiki-switch-pink.json",
+      "label": "Palácio Interruptor Rosa (PP)"
+    },
+    {
+      "hexId": "0114",
+      "key": "wiki-switch-blue",
+      "file": "wiki-switch-blue.json",
+      "label": "Palácio Interruptor Azul (PB)"
+    },
+    {
+      "hexId": "00D0",
+      "key": "hex-00D0",
+      "file": "world-hex-maps.json",
+      "label": "Hex 00D0 · Gruta Lateral (Multi-Mapa)"
+    },
+    {
+      "hexId": "00D1",
+      "key": "hex-00D1",
+      "file": "world-hex-maps.json",
+      "label": "Hex 00D1 · Câmara Marinha (Multi-Mapa)"
+    },
+    {
+      "hexId": "00D2",
+      "key": "hex-00D2",
+      "file": "00D2.json",
+      "label": "Hex 00D2 · Salão Mansão (Arquivo 00D2.json)"
+    }
+  ],
+  "maps": {
+    "00D0": {
+      "format": "smb-custom-level",
+      "version": 1,
+      "level": {
+        "id": "hex-00D0",
+        "hexId": "00D0",
+        "name": "HEX 00D0 CAVERNA",
+        "theme": "underground",
+        "biomeLabel": "HEX 00D0 · GRUTA LATERAL",
+        "width": 40,
+        "height": 15,
+        "entryType": "pipe",
+        "entryPipeDir": "right",
+        "marioStart": {
+          "x": 48,
+          "y": 192
+        },
+        "flagX": 999999,
+        "castleX": 608,
+        "bgColor": "#000000",
+        "musicTrack": "underground",
+        "timeLimit": 300,
+        "tiles": [
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "question",
+              "content": "coin",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "exclam_yellow",
+              "content": "mushroom",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "question",
+              "content": "coin",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_body_left",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_horiz_right_top",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_horiz_top",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_body_left",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_horiz_right_bottom",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_horiz_bottom",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            {
+              "type": "underground_brick",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "underground_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ]
+        ],
+        "coins": [
+          {
+            "x": 168,
+            "y": 112
+          },
+          {
+            "x": 184,
+            "y": 112
+          },
+          {
+            "x": 200,
+            "y": 112
+          },
+          {
+            "x": 328,
+            "y": 176
+          },
+          {
+            "x": 344,
+            "y": 176
+          },
+          {
+            "x": 360,
+            "y": 176
+          }
+        ],
+        "enemies": [
+          {
+            "type": "goomba",
+            "x": 256,
+            "y": 192
+          },
+          {
+            "type": "koopa",
+            "x": 400,
+            "y": 184
+          }
+        ],
+        "pipeWarps": [
+          {
+            "from": {
+              "x": 548,
+              "y": 176,
+              "width": 12,
+              "height": 32
+            },
+            "toLevel": "hex:0105",
+            "targetHex": "0105",
+            "toPos": {
+              "x": 48,
+              "y": 192
+            },
+            "type": "right",
+            "entryMode": "pipe",
+            "destPipeDir": "up"
+          }
+        ]
+      }
+    },
+    "00D1": {
+      "format": "smb-custom-level",
+      "version": 1,
+      "level": {
+        "id": "hex-00D1",
+        "hexId": "00D1",
+        "name": "HEX 00D1 ABISMO",
+        "theme": "underwater",
+        "biomeLabel": "HEX 00D1 · CÂMARA MARINHA",
+        "width": 40,
+        "height": 15,
+        "entryType": "pipe",
+        "entryPipeDir": "down",
+        "marioStart": {
+          "x": 48,
+          "y": 48
+        },
+        "flagX": 999999,
+        "castleX": 608,
+        "bgColor": "#1840b8",
+        "musicTrack": "underwater",
+        "timeLimit": 320,
+        "tiles": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "question",
+              "content": "coin",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "exclam_red",
+              "content": "fireflower",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_warp_top_left",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_warp_top_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "coral",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "type": "pipe_body_left",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "pipe_body_right",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ],
+          [
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            },
+            {
+              "type": "sea_ground",
+              "content": "none",
+              "bumpOffset": 0,
+              "bumpVel": 0
+            }
+          ]
+        ],
+        "coins": [
+          {
+            "x": 136,
+            "y": 144
+          },
+          {
+            "x": 152,
+            "y": 144
+          },
+          {
+            "x": 296,
+            "y": 96
+          },
+          {
+            "x": 312,
+            "y": 96
+          }
+        ],
+        "enemies": [
+          {
+            "type": "cheep_cheep",
+            "x": 240,
+            "y": 144
+          },
+          {
+            "type": "blooper",
+            "x": 416,
+            "y": 112
+          }
+        ],
+        "pipeWarps": [
+          {
+            "from": {
+              "x": 528,
+              "y": 160,
+              "width": 32,
+              "height": 16
+            },
+            "toLevel": "hex:0105",
+            "targetHex": "0105",
+            "toPos": {
+              "x": 48,
+              "y": 192
+            },
+            "type": "down",
+            "entryMode": "normal"
+          }
+        ]
+      }
+    }
+  }
+}
