@@ -1,0 +1,103 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-0219",
+    "hexId": "0219",
+    "name": "EX 0219 MIRANTE",
+    "theme": "overworld",
+    "biomeLabel": "EXEMPLO HEX 0219 · MIRANTE",
+    "width": 48,
+    "height": 15,
+    "entryType": "pipe",
+    "entryPipeDir": "right",
+    "marioStart": {
+      "x": 64,
+      "y": 176
+    },
+    "flagX": 608,
+    "castleX": 688,
+    "bgColor": "#5c94fc",
+    "musicTrack": "overworld",
+    "timeLimit": 280,
+    "enemies": [
+      {
+        "type": "koopa",
+        "x": 176,
+        "y": 192
+      }
+    ],
+    "coins": [
+      {
+        "x": 184,
+        "y": 112
+      },
+      {
+        "x": 216,
+        "y": 112
+      },
+      {
+        "x": 248,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 264,
+        "y": 112
+      },
+      {
+        "x": 360,
+        "y": 128
+      },
+      {
+        "x": 456,
+        "y": 96
+      }
+    ],
+    "floatingPlatforms": [
+      {
+        "x": 304,
+        "y": 176,
+        "width": 48,
+        "axis": "vertical",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 0.7
+      }
+    ],
+    "tiles": [
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_top"},null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_bottom"},null,null,null,null,null,null,null,null,{"type":"hard_block"},{"type":"hard_block"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}]
+    ]
+  }
+}
