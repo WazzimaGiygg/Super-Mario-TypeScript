@@ -1,0 +1,106 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-0259",
+    "hexId": "0259",
+    "name": "EX 0259 ARENA",
+    "theme": "castle",
+    "biomeLabel": "EXEMPLO HEX 0259 · ARENA",
+    "width": 48,
+    "height": 15,
+    "entryType": "normal",
+    "marioStart": {
+      "x": 48,
+      "y": 192
+    },
+    "flagX": 608,
+    "castleX": 688,
+    "bgColor": "#140406",
+    "musicTrack": "castle",
+    "timeLimit": 400,
+    "enemies": [
+      {
+        "type": "lava_bubble",
+        "x": 280,
+        "y": 208
+      },
+      {
+        "type": "spiny",
+        "x": 192,
+        "y": 192
+      },
+      {
+        "type": "dry_bones",
+        "x": 336,
+        "y": 192
+      },
+      {
+        "type": "buzzy_beetle",
+        "x": 416,
+        "y": 192
+      }
+    ],
+    "coins": [
+      {
+        "x": 184,
+        "y": 112
+      },
+      {
+        "x": 216,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 328,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 264,
+        "y": 112
+      },
+      {
+        "x": 360,
+        "y": 128
+      },
+      {
+        "x": 456,
+        "y": 96
+      }
+    ],
+    "tiles": [
+      [{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"}],
+      [{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"}],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"question","content":"coin"},{"type":"hard_block"},{"type":"question","content":"coin"},{"type":"hard_block"},null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},{"type":"question","content":"coin"},{"type":"hard_block"},{"type":"question","content":"coin"},{"type":"hard_block"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"lava"},{"type":"lava"},{"type":"lava"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"}],
+      [{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"lava"},{"type":"lava"},{"type":"lava"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"},{"type":"castle_stone"}]
+    ]
+  }
+}

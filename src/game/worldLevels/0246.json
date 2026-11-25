@@ -1,0 +1,155 @@
+{
+  "format": "smb-custom-level",
+  "version": 1,
+  "level": {
+    "id": "hex-0246",
+    "hexId": "0246",
+    "name": "EX 0246 BOSQUE",
+    "theme": "overworld",
+    "biomeLabel": "EXEMPLO HEX 0246 · BOSQUE",
+    "width": 56,
+    "height": 15,
+    "entryType": "pipe",
+    "entryPipeDir": "right",
+    "marioStart": {
+      "x": 64,
+      "y": 176
+    },
+    "flagX": 736,
+    "castleX": 816,
+    "bgColor": "#5c94fc",
+    "musicTrack": "overworld",
+    "timeLimit": 280,
+    "enemies": [
+      {
+        "type": "red_koopa",
+        "x": 176,
+        "y": 192
+      },
+      {
+        "type": "paratroopa",
+        "x": 320,
+        "y": 112
+      },
+      {
+        "type": "goomba",
+        "x": 400,
+        "y": 192
+      },
+      {
+        "type": "koopa",
+        "x": 544,
+        "y": 192
+      }
+    ],
+    "coins": [
+      {
+        "x": 200,
+        "y": 112
+      },
+      {
+        "x": 232,
+        "y": 112
+      },
+      {
+        "x": 136,
+        "y": 160
+      },
+      {
+        "x": 232,
+        "y": 160
+      },
+      {
+        "x": 328,
+        "y": 160
+      },
+      {
+        "x": 424,
+        "y": 160
+      }
+    ],
+    "wCoins": [
+      {
+        "x": 168,
+        "y": 96
+      },
+      {
+        "x": 296,
+        "y": 112
+      },
+      {
+        "x": 424,
+        "y": 128
+      },
+      {
+        "x": 552,
+        "y": 96
+      }
+    ],
+    "floatingPlatforms": [
+      {
+        "x": 272,
+        "y": 176,
+        "width": 48,
+        "axis": "horizontal",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 0.24
+      },
+      {
+        "x": 480,
+        "y": 176,
+        "width": 48,
+        "axis": "horizontal",
+        "range": 20,
+        "speed": 0.032,
+        "phase": 1.51
+      }
+    ],
+    "pipeWarps": [
+      {
+        "from": {
+          "x": 368,
+          "y": 176,
+          "width": 32,
+          "height": 16
+        },
+        "toLevel": "hex:0247",
+        "targetHex": "0247",
+        "toPos": {
+          "x": 48,
+          "y": 176
+        },
+        "type": "down",
+        "entryMode": "pipe",
+        "destPipeDir": "up"
+      }
+    ],
+    "checkpoints": [
+      {
+        "x": 448,
+        "respawnPos": {
+          "x": 448,
+          "y": 176
+        }
+      }
+    ],
+    "tiles": [
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole_top"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,null,null,null,null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,null,{"type":"castle_crenel"},null,{"type":"castle_crenel"},null,null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},{"type":"question","content":"coin"},{"type":"brick"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_top"},null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,null,null,null,null,null,null,null,{"type":"pipe_top_left"},{"type":"pipe_top_right"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"pole"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [null,{"type":"pipe_body_left"},{"type":"pipe_body_left"},{"type":"pipe_horiz_right_bottom"},null,null,null,null,null,null,null,null,{"type":"hard_block"},{"type":"hard_block"},null,null,null,null,null,null,null,null,null,{"type":"pipe_body_left"},{"type":"pipe_body_right"},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"type":"hard_block"},null,null,{"type":"castle_brick"},{"type":"castle_brick"},{"type":"castle_door"},{"type":"castle_brick"},{"type":"castle_brick"},null,null],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}],
+      [{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},null,null,null,{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"},{"type":"ground"}]
+    ]
+  }
+}
